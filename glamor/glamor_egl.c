@@ -49,6 +49,16 @@
 #include "glamor_glx_provider.h"
 #include "dri3.h"
 
+/*
+ * These drivers are mature enough to properly
+ * work and behave with having modifiers exposed.
+ */
+static const char* ALLOWLIST_DMA_BUF_CAPABLE[] =
+{
+    "Intel",
+    "zink"
+};
+
 struct glamor_egl_screen_private {
     EGLDisplay display;
     EGLContext context;
@@ -56,10 +66,13 @@ struct glamor_egl_screen_private {
 
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr CloseScreen;
+
     int fd;
+#define		GLAMOR_DMABUF_CAPABLE		(1 << 1)
+#define		GLAMOR_GLVND_FORCE_VENDOR	(1 << 2)
+    int flags;
+
     struct gbm_device *gbm;
-    int dmabuf_capable;
-    Bool force_vendor; /* if GLVND vendor is forced from options */
 
     CloseScreenProcPtr saved_close_screen;
     DestroyPixmapProcPtr saved_destroy_pixmap;
@@ -103,15 +116,15 @@ glamor_get_flink_name(int fd, int handle, int *name)
     flink.handle = handle;
     if (ioctl(fd, DRM_IOCTL_GEM_FLINK, &flink) < 0) {
 
-	/*
-	 * Assume non-GEM kernels have names identical to the handle
-	 */
-	if (errno == ENODEV) {
-	    *name = handle;
-	    return TRUE;
-	} else {
-	    return FALSE;
-	}
+    /*
+     * Assume non-GEM kernels have names identical to the handle
+     */
+    if (errno == ENODEV) {
+        *name = handle;
+        return TRUE;
+    } else {
+        return FALSE;
+    }
     }
     *name = flink.name;
     return TRUE;
@@ -307,7 +320,7 @@ glamor_make_pixmap_exportable(PixmapPtr pixmap, Bool modifiers_ok)
     }
 
 #ifdef GBM_BO_WITH_MODIFIERS
-    if (modifiers_ok && glamor_egl->dmabuf_capable) {
+    if (modifiers_ok && (glamor_egl->flags & GLAMOR_DMABUF_CAPABLE)) {
         uint32_t num_modifiers;
         uint64_t *modifiers = NULL;
 
@@ -358,6 +371,11 @@ glamor_make_pixmap_exportable(PixmapPtr pixmap, Bool modifiers_ok)
                               scratch_gc,
                               0, 0, width, height, 0, 0);
     FreeScratchGC(scratch_gc);
+
+    /* In case that the pixmap backing BO importer's command stream accidentally
+     * gets flushed first.
+     */
+    glFlush();
 
     /* Now, swap the tex/gbm/EGLImage/etc. of the exported pixmap into
      * the original pixmap struct.
@@ -434,7 +452,7 @@ glamor_egl_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
          * gbm_bo_get_fd without losing information. If they point to different
          * objects we are out of luck and need to give up.
          */
-	if (first_handle == plane_handle.s32)
+    if (first_handle == plane_handle.s32)
             fds[i] = gbm_bo_get_fd(bo);
         else
             fds[i] = -1;
@@ -598,7 +616,7 @@ glamor_pixmap_from_fds(ScreenPtr screen,
     pixmap = screen->CreatePixmap(screen, 0, 0, depth, 0);
 
 #ifdef GBM_BO_WITH_MODIFIERS
-    if (glamor_egl->dmabuf_capable && modifier != DRM_FORMAT_MOD_INVALID) {
+    if ((glamor_egl->flags & GLAMOR_DMABUF_CAPABLE) && modifier != DRM_FORMAT_MOD_INVALID) {
         struct gbm_import_fd_modifier_data import_data = { 0 };
         struct gbm_bo *bo;
 
@@ -673,7 +691,7 @@ glamor_get_formats(ScreenPtr screen,
 
     glamor_egl = glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
 
-    if (!glamor_egl->dmabuf_capable)
+    if (!(glamor_egl->flags & GLAMOR_DMABUF_CAPABLE))
         return TRUE;
 
     if (!eglQueryDmaBufFormatsEXT(glamor_egl->display, 0, NULL, &num))
@@ -713,7 +731,7 @@ glamor_get_modifiers(ScreenPtr screen, uint32_t format,
 
     glamor_egl = glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
 
-    if (!glamor_egl->dmabuf_capable)
+    if (!(glamor_egl->flags & GLAMOR_DMABUF_CAPABLE))
         return FALSE;
 
     if (!eglQueryDmaBufModifiersEXT(glamor_egl->display, format, 0, NULL,
@@ -916,7 +934,7 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
     glamor_ctx->make_current = glamor_egl_make_current;
 
     /* Use dynamic logic only if vendor is not forced via xorg.conf */
-    if (!glamor_egl->force_vendor) {
+    if (!(glamor_egl->flags & GLAMOR_GLVND_FORCE_VENDOR)) {
         gbm_backend_name = gbm_device_get_backend_name(glamor_egl->gbm);
         /* Mesa uses "drm" as backend name, in that case, just do nothing */
         if (gbm_backend_name && strcmp(gbm_backend_name, "drm") != 0)
@@ -1109,7 +1127,7 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
     glvnd_vendor = xf86GetOptValString(options, GLAMOREGLOPT_VENDOR_LIBRARY);
     if (glvnd_vendor) {
         glamor_set_glvnd_vendor(xf86ScrnToScreen(scrn), glvnd_vendor);
-        glamor_egl->force_vendor = TRUE;
+        glamor_egl->flags |= GLAMOR_GLVND_FORCE_VENDOR;
     }
     api = xf86GetOptValString(options, GLAMOREGLOPT_RENDERING_API);
     if (api && !strncasecmp(api, "es", 2))
@@ -1140,17 +1158,17 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
     }
 
 #define GLAMOR_CHECK_EGL_EXTENSION(EXT)  \
-	if (!epoxy_has_egl_extension(glamor_egl->display, "EGL_" #EXT)) {  \
-		ErrorF("EGL_" #EXT " required.\n");  \
-		goto error;  \
-	}
+    if (!epoxy_has_egl_extension(glamor_egl->display, "EGL_" #EXT)) {  \
+        ErrorF("EGL_" #EXT " required.\n");  \
+        goto error;  \
+    }
 
 #define GLAMOR_CHECK_EGL_EXTENSIONS(EXT1, EXT2)	 \
-	if (!epoxy_has_egl_extension(glamor_egl->display, "EGL_" #EXT1) &&  \
-	    !epoxy_has_egl_extension(glamor_egl->display, "EGL_" #EXT2)) {  \
-		ErrorF("EGL_" #EXT1 " or EGL_" #EXT2 " required.\n");  \
-		goto error;  \
-	}
+    if (!epoxy_has_egl_extension(glamor_egl->display, "EGL_" #EXT1) &&  \
+        !epoxy_has_egl_extension(glamor_egl->display, "EGL_" #EXT2)) {  \
+        ErrorF("EGL_" #EXT1 " or EGL_" #EXT2 " required.\n");  \
+        goto error;  \
+    }
 
     GLAMOR_CHECK_EGL_EXTENSION(KHR_surfaceless_context);
     GLAMOR_CHECK_EGL_EXTENSION(KHR_no_config_context);
@@ -1213,13 +1231,18 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
                                 "EGL_EXT_image_dma_buf_import") &&
         epoxy_has_egl_extension(glamor_egl->display,
                                 "EGL_EXT_image_dma_buf_import_modifiers")) {
-        if (xf86Info.debug != NULL)
-            glamor_egl->dmabuf_capable = !!strstr(xf86Info.debug,
-                                                  "dmabuf_capable");
-        else if (strstr((const char *)renderer, "Intel"))
-            glamor_egl->dmabuf_capable = TRUE;
-        else
-            glamor_egl->dmabuf_capable = FALSE;
+        if (xf86Info.debug != NULL) {
+            if (!!strstr(xf86Info.debug, "dmabuf_capable"))
+                glamor_egl->flags |= GLAMOR_DMABUF_CAPABLE;
+        } else {
+            const int size = sizeof(ALLOWLIST_DMA_BUF_CAPABLE) / sizeof(ALLOWLIST_DMA_BUF_CAPABLE[0]);
+            for (int idx = 0; idx < size; idx++) {
+                if (strstr((const char *)renderer, ALLOWLIST_DMA_BUF_CAPABLE[idx])) {
+                    glamor_egl->flags |= GLAMOR_DMABUF_CAPABLE;
+                    break;
+                }
+            }
+        }
     }
 #endif
 
