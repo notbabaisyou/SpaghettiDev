@@ -71,7 +71,7 @@ struct glamor_egl_screen_private {
 #define		GLAMOR_DMABUF_CAPABLE			(1 << 1)
 #define		GLAMOR_GLVND_FORCE_VENDOR		(1 << 2)
 #define		GLAMOR_HIGH_PRIORITY_CONTEXT	(1 << 3)
-    int flags;
+    unsigned int flags;
 
     struct gbm_device *gbm;
 
