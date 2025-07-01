@@ -1931,7 +1931,7 @@ drmmode_set_gamma_lut(drmmode_crtc_private_ptr drmmode_crtc,
     drmmode_prop_info_ptr gamma_lut_info =
         &drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT];
     const uint32_t crtc_id = drmmode_crtc->mode_crtc->crtc_id;
-    size_t lut_sz = sizeof(struct drm_color_slut) * size;
+    size_t lut_sz = sizeof(struct drm_color_lut) * size;
     struct drm_color_lut *lut = calloc(1, lut_sz);
     if (!lut)
         return;
