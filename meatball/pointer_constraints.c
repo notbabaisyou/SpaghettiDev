@@ -34,19 +34,17 @@ typedef enum _BarrierEdges BarrierEdges;
 typedef struct _PointerConfinementDataRecord PointerConfinementDataRecord;
 typedef struct _PointerConfinement PointerConfinement;
 
-enum
-{
-	IsOneShot = 1,
-	IsActive = (1 << 1),
-	IsDead = (1 << 2),
-	IsLock = (1 << 3),
-	IsCursorPositionHintSet = (1 << 4),
-	PendingRegion = (1 << 10),
+enum {
+	IsOneShot                 = 1,
+	IsActive                  = (1 << 1),
+	IsDead                    = (1 << 2),
+	IsLock                    = (1 << 3),
+	IsCursorPositionHintSet   = (1 << 4),
+	PendingRegion             = (1 << 10),
 	PendingCursorPositionHint = (1 << 11),
 };
 
-struct _PointerConfinement
-{
+struct _PointerConfinement {
 	/* The next and last confinements.  */
 	PointerConfinement *next, *last;
 
@@ -98,20 +96,18 @@ struct _PointerConfinement
 };
 
 /* Which edges are set.  */
-enum _BarrierEdges
-{
-	TopEdgeClosed = 1,
-	LeftEdgeClosed = (1 << 1),
+enum _BarrierEdges {
+	TopEdgeClosed    = 1,
+	LeftEdgeClosed   = (1 << 1),
 	BottomEdgeClosed = (1 << 2),
-	RightEdgeClosed = (1 << 3),
-	AllEdgesClosed = 0xf,
+	RightEdgeClosed  = (1 << 3),
+	AllEdgesClosed   = 0xf,
 };
 
 /* The extents of previously seen rectangles in the pointer
    barrier.  */
 
-struct _BarrierLine
-{
+struct _BarrierLine {
 	/* The rectangle.  */
 	int x1, y1, x2, y2;
 
@@ -119,8 +115,7 @@ struct _BarrierLine
 	int edges;
 };
 
-struct _PointerConfinementDataRecord
-{
+struct _PointerConfinementDataRecord {
 	/* List of all pointer confinements.  */
 	PointerConfinement confinements;
 };
@@ -191,7 +186,7 @@ MaybeCloseTopEdge(BarrierLine *lines, int *idx, int max_lines)
 	/* Find overlaps between the last band and this one, and split and
 	   open up the top edge for each overlap.  */
 	for (tem = last_band_start;
-		 tem >= lines && tem->y2 == last_band_start->y2; --tem)
+	     tem >= lines && tem->y2 == last_band_start->y2; --tem)
 	{
 		/* There are two categories of overlaps we care about.  The
 	   first is where the current line is entirely inside the line
@@ -350,7 +345,8 @@ MaybeCloseTopEdge(BarrierLine *lines, int *idx, int max_lines)
 	   This case only requires splitting the current line.  It is
 	   case C.  */
 
-		if (tem->x1 < lines[*idx].x1 && tem->x2 < lines[*idx].x2 && tem->x1 < lines[*idx].x2 && tem->x2 > lines[*idx].x1)
+		if (tem->x1 < lines[*idx].x1 && tem->x2 < lines[*idx].x2 && tem->x1 < lines[*idx].x2 && tem->x2 > lines[*idx].
+		    x1)
 		{
 			/* Case A.  Perform the following splits and transforms:
 
@@ -398,7 +394,8 @@ MaybeCloseTopEdge(BarrierLine *lines, int *idx, int max_lines)
 
 			return;
 		}
-		else if (tem->x1 > lines[*idx].x1 && tem->x2 > lines[*idx].x2 && tem->x1 < lines[*idx].x2 && tem->x2 > lines[*idx].x1)
+		else if (tem->x1 > lines[*idx].x1 && tem->x2 > lines[*idx].x2 && tem->x1 < lines[*idx].x2 && tem->x2 > lines[*
+			         idx].x1)
 		{
 			/* Case B.  Perform the following splits and transforms:
 
@@ -473,7 +470,7 @@ MaybeCloseTopEdge(BarrierLine *lines, int *idx, int max_lines)
 
 				/* Do the first split.  Do not increase idx yet.  */
 				LineMove(&lines[*idx + 1], &lines[*idx],
-						 max_lines - *idx - 1);
+				         max_lines - *idx - 1);
 				lines[*idx + 1].edges &= ~LeftEdgeClosed;
 				lines[*idx].edges &= ~RightEdgeClosed;
 
@@ -492,7 +489,7 @@ MaybeCloseTopEdge(BarrierLine *lines, int *idx, int max_lines)
 
 					/* Do the second split.  */
 					LineMove(&lines[*idx + 2], &lines[*idx + 1],
-							 max_lines - *idx - 2);
+					         max_lines - *idx - 2);
 					lines[*idx + 2].edges &= ~LeftEdgeClosed;
 					lines[*idx + 1].edges &= ~RightEdgeClosed;
 
@@ -546,7 +543,7 @@ MaybeCloseTopEdge(BarrierLine *lines, int *idx, int max_lines)
 			   second split is always required here, because
 			   otherwise this would be a first category overlap.  */
 				LineMove(&lines[*idx + 1], &lines[*idx],
-						 max_lines - *idx - 1);
+				         max_lines - *idx - 1);
 				lines[*idx + 1].edges &= ~LeftEdgeClosed;
 				lines[*idx].edges &= ~RightEdgeClosed;
 
@@ -779,7 +776,7 @@ HandleSurfaceCommit(Surface *surface, void *data)
 
 static void
 SetCursorPositionHint(struct wl_client *client, struct wl_resource *resource,
-					  wl_fixed_t surface_x, wl_fixed_t surface_y)
+                      wl_fixed_t surface_x, wl_fixed_t surface_y)
 {
 	PointerConfinement *confinement;
 
@@ -797,12 +794,12 @@ SetCursorPositionHint(struct wl_client *client, struct wl_resource *resource,
 		/* Attach a commit callback so we know when to apply the
 		   region.  */
 		confinement->commit_callback = XLSurfaceRunAtCommit(confinement->surface, HandleSurfaceCommit,
-															confinement);
+		                                                    confinement);
 }
 
 static void
 SetRegion(struct wl_client *client, struct wl_resource *resource,
-		  struct wl_resource *region_resource)
+          struct wl_resource *region_resource)
 {
 	PointerConfinement *confinement;
 	pixman_region32_t *new_region;
@@ -841,7 +838,7 @@ SetRegion(struct wl_client *client, struct wl_resource *resource,
 		/* Attach a commit callback so we know when to apply the
 		   region.  */
 		confinement->commit_callback = XLSurfaceRunAtCommit(confinement->surface, HandleSurfaceCommit,
-															confinement);
+		                                                    confinement);
 }
 
 static const struct zwp_confined_pointer_v1_interface confined_pointer_impl =
@@ -896,7 +893,7 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 	/* Free all pointer barriers activated.  */
 	XIDListFree(confinement->applied_barriers,
-				FreeSingleBarrier);
+	            FreeSingleBarrier);
 	confinement->applied_barriers = NULL;
 
 	/* Free lines if they are set.  */
@@ -956,7 +953,7 @@ HandleSeatDestroyed(void *data)
 
 	/* Free all pointer barriers previously activated.  */
 	XIDListFree(confinement->applied_barriers,
-				FreeSingleBarrier);
+	            FreeSingleBarrier);
 	confinement->applied_barriers = NULL;
 }
 
@@ -994,9 +991,9 @@ FindConfinement(PointerConfinementDataRecord *data, Seat *seat)
 
 static void
 LockPointer(struct wl_client *client, struct wl_resource *resource,
-			uint32_t id, struct wl_resource *surface_resource,
-			struct wl_resource *pointer_resource,
-			struct wl_resource *region_resource, uint32_t lifetime)
+            uint32_t id, struct wl_resource *surface_resource,
+            struct wl_resource *pointer_resource,
+            struct wl_resource *region_resource, uint32_t lifetime)
 {
 	PointerConfinement *confinement;
 	PointerConfinementDataRecord *data;
@@ -1020,22 +1017,22 @@ LockPointer(struct wl_client *client, struct wl_resource *resource,
 	if (XLSeatIsInert(seat))
 	{
 		dummy_resource = wl_resource_create(client,
-											&zwp_locked_pointer_v1_interface,
-											wl_resource_get_version(resource),
-											id);
+		                                    &zwp_locked_pointer_v1_interface,
+		                                    wl_resource_get_version(resource),
+		                                    id);
 
 		if (!dummy_resource)
 			wl_resource_post_no_memory(resource);
 		else
 			wl_resource_set_implementation(dummy_resource, &locked_pointer_impl,
-										   NULL, NULL);
+			                               NULL, NULL);
 
 		return;
 	}
 
 	data = XLSurfaceGetClientData(surface, PointerConfinementData,
-								  sizeof *data,
-								  FreePointerConfinementDataRecord);
+	                              sizeof *data,
+	                              FreePointerConfinementDataRecord);
 
 	/* Potentially initialize confinement data.  */
 	InitConfinementData(data);
@@ -1046,18 +1043,19 @@ LockPointer(struct wl_client *client, struct wl_resource *resource,
 	if (FindConfinement(data, seat))
 	{
 		wl_resource_post_error(resource, AlreadyConstrained,
-							   "pointer constraint already requested on"
-							   " the given surface");
+		                       "pointer constraint already requested on"
+		                       " the given surface");
 		return;
 	}
 
 #undef AlreadyConstrained
 
-	if (lifetime != ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT && lifetime != ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT)
+	if (lifetime != ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT && lifetime !=
+	    ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT)
 	{
 		/* The lifetime specified is invalid.  */
 		wl_resource_post_error(resource, WL_DISPLAY_ERROR_INVALID_OBJECT,
-							   "invalid constraint lifetime");
+		                       "invalid constraint lifetime");
 		return;
 	}
 
@@ -1065,7 +1063,7 @@ LockPointer(struct wl_client *client, struct wl_resource *resource,
 
 	/* Try to create the locked pointer resource.  */
 	confinement->resource = wl_resource_create(client, &zwp_locked_pointer_v1_interface,
-											   wl_resource_get_version(resource), id);
+	                                           wl_resource_get_version(resource), id);
 
 	if (!confinement->resource)
 	{
@@ -1080,7 +1078,7 @@ LockPointer(struct wl_client *client, struct wl_resource *resource,
 		confinement->region = XLMalloc(sizeof *confinement->region);
 		pixman_region32_init(confinement->region);
 		pixman_region32_copy(confinement->region,
-							 wl_resource_get_user_data(region_resource));
+		                     wl_resource_get_user_data(region_resource));
 	}
 
 	/* Mark this as a lock.  */
@@ -1104,9 +1102,9 @@ LockPointer(struct wl_client *client, struct wl_resource *resource,
 
 	/* Attach the resource implementation.  */
 	wl_resource_set_implementation(confinement->resource,
-								   &locked_pointer_impl,
-								   confinement,
-								   HandleResourceDestroy);
+	                               &locked_pointer_impl,
+	                               confinement,
+	                               HandleResourceDestroy);
 
 	/* Check if the pointer can be confined.  */
 	RecheckPointerConfinement(seat, confinement);
@@ -1114,9 +1112,9 @@ LockPointer(struct wl_client *client, struct wl_resource *resource,
 
 static void
 ConfinePointer(struct wl_client *client, struct wl_resource *resource,
-			   uint32_t id, struct wl_resource *surface_resource,
-			   struct wl_resource *pointer_resource,
-			   struct wl_resource *region_resource, uint32_t lifetime)
+               uint32_t id, struct wl_resource *surface_resource,
+               struct wl_resource *pointer_resource,
+               struct wl_resource *region_resource, uint32_t lifetime)
 {
 	PointerConfinement *confinement;
 	PointerConfinementDataRecord *data;
@@ -1135,22 +1133,22 @@ ConfinePointer(struct wl_client *client, struct wl_resource *resource,
 	if (XLSeatIsInert(seat))
 	{
 		dummy_resource = wl_resource_create(client,
-											&zwp_confined_pointer_v1_interface,
-											wl_resource_get_version(resource),
-											id);
+		                                    &zwp_confined_pointer_v1_interface,
+		                                    wl_resource_get_version(resource),
+		                                    id);
 
 		if (!dummy_resource)
 			wl_resource_post_no_memory(resource);
 		else
 			wl_resource_set_implementation(dummy_resource, &confined_pointer_impl,
-										   NULL, NULL);
+			                               NULL, NULL);
 
 		return;
 	}
 
 	data = XLSurfaceGetClientData(surface, PointerConfinementData,
-								  sizeof *data,
-								  FreePointerConfinementDataRecord);
+	                              sizeof *data,
+	                              FreePointerConfinementDataRecord);
 
 	/* Potentially initialize the confinement data.  */
 	InitConfinementData(data);
@@ -1161,18 +1159,19 @@ ConfinePointer(struct wl_client *client, struct wl_resource *resource,
 	if (FindConfinement(data, seat))
 	{
 		wl_resource_post_error(resource, AlreadyConstrained,
-							   "pointer constraint already requested on"
-							   " the given surface");
+		                       "pointer constraint already requested on"
+		                       " the given surface");
 		return;
 	}
 
 #undef AlreadyConstrained
 
-	if (lifetime != ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT && lifetime != ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT)
+	if (lifetime != ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT && lifetime !=
+	    ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT)
 	{
 		/* The lifetime specified is invalid.  */
 		wl_resource_post_error(resource, WL_DISPLAY_ERROR_INVALID_OBJECT,
-							   "invalid constraint lifetime");
+		                       "invalid constraint lifetime");
 		return;
 	}
 
@@ -1180,7 +1179,7 @@ ConfinePointer(struct wl_client *client, struct wl_resource *resource,
 
 	/* Try to create the confined pointer resource.  */
 	confinement->resource = wl_resource_create(client, &zwp_confined_pointer_v1_interface,
-											   wl_resource_get_version(resource), id);
+	                                           wl_resource_get_version(resource), id);
 
 	if (!confinement->resource)
 	{
@@ -1195,7 +1194,7 @@ ConfinePointer(struct wl_client *client, struct wl_resource *resource,
 		confinement->region = XLMalloc(sizeof *confinement->region);
 		pixman_region32_init(confinement->region);
 		pixman_region32_copy(confinement->region,
-							 wl_resource_get_user_data(region_resource));
+		                     wl_resource_get_user_data(region_resource));
 	}
 
 	if (lifetime == ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT)
@@ -1216,9 +1215,9 @@ ConfinePointer(struct wl_client *client, struct wl_resource *resource,
 
 	/* Attach the resource implementation.  */
 	wl_resource_set_implementation(confinement->resource,
-								   &confined_pointer_impl,
-								   confinement,
-								   HandleResourceDestroy);
+	                               &confined_pointer_impl,
+	                               confinement,
+	                               HandleResourceDestroy);
 
 	/* Check if the pointer can be confined.  */
 	RecheckPointerConfinement(seat, confinement);
@@ -1233,12 +1232,12 @@ static struct zwp_pointer_constraints_v1_interface pointer_constraints_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &zwp_pointer_constraints_v1_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -1247,7 +1246,7 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &pointer_constraints_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 #ifdef DEBUG
@@ -1284,7 +1283,7 @@ GetDebugGC(Window window)
 
 static void
 ApplyLines(Window window, PointerConfinement *confinement,
-		   BarrierLine *lines, int nlines, int root_x, int root_y)
+           BarrierLine *lines, int nlines, int root_x, int root_y)
 {
 	int i, device_id;
 	PointerBarrier barrier;
@@ -1296,7 +1295,7 @@ ApplyLines(Window window, PointerConfinement *confinement,
 
 	/* Free all pointer barriers previously activated.  */
 	XIDListFree(confinement->applied_barriers,
-				FreeSingleBarrier);
+	            FreeSingleBarrier);
 	confinement->applied_barriers = NULL;
 
 	/* Set the pointer device.  */
@@ -1312,39 +1311,39 @@ ApplyLines(Window window, PointerConfinement *confinement,
 
 		/* Top.  */
 		barrier = XFixesCreatePointerBarrier(compositor.display, window,
-											 Int16Minimum, root_y + lines[0].y1,
-											 Int16Maximum, root_y + lines[0].y1,
-											 BarrierPositiveY, 1, &device_id);
+		                                     Int16Minimum, root_y + lines[0].y1,
+		                                     Int16Maximum, root_y + lines[0].y1,
+		                                     BarrierPositiveY, 1, &device_id);
 
 		confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-													   barrier);
+		                                               barrier);
 
 		/* Bottom.  */
 		barrier = XFixesCreatePointerBarrier(compositor.display, window,
-											 Int16Minimum, root_y + lines[0].y2 - 1,
-											 Int16Maximum, root_y + lines[0].y2 - 1,
-											 BarrierNegativeY, 1, &device_id);
+		                                     Int16Minimum, root_y + lines[0].y2 - 1,
+		                                     Int16Maximum, root_y + lines[0].y2 - 1,
+		                                     BarrierNegativeY, 1, &device_id);
 
 		confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-													   barrier);
+		                                               barrier);
 
 		/* Left.  */
 		barrier = XFixesCreatePointerBarrier(compositor.display, window,
-											 root_x + lines[0].x1, Int16Minimum,
-											 root_x + lines[0].x1, Int16Maximum,
-											 BarrierPositiveX, 1, &device_id);
+		                                     root_x + lines[0].x1, Int16Minimum,
+		                                     root_x + lines[0].x1, Int16Maximum,
+		                                     BarrierPositiveX, 1, &device_id);
 
 		confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-													   barrier);
+		                                               barrier);
 
 		/* Right.  */
 		barrier = XFixesCreatePointerBarrier(compositor.display, window,
-											 root_x + lines[0].x2 - 1, Int16Minimum,
-											 root_x + lines[0].x2 - 1, Int16Maximum,
-											 BarrierNegativeX, 1, &device_id);
+		                                     root_x + lines[0].x2 - 1, Int16Minimum,
+		                                     root_x + lines[0].x2 - 1, Int16Maximum,
+		                                     BarrierNegativeX, 1, &device_id);
 
 		confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-													   barrier);
+		                                               barrier);
 
 		return;
 	}
@@ -1358,13 +1357,13 @@ ApplyLines(Window window, PointerConfinement *confinement,
 		if (lines[i].edges & TopEdgeClosed)
 		{
 			barrier = XFixesCreatePointerBarrier(compositor.display,
-												 window,
-												 root_x + lines[i].x1,
-												 root_y + lines[i].y1,
-												 root_x + lines[i].x2 - 1,
-												 root_y + lines[i].y1,
-												 BarrierPositiveY,
-												 1, &device_id);
+			                                     window,
+			                                     root_x + lines[i].x1,
+			                                     root_y + lines[i].y1,
+			                                     root_x + lines[i].x2 - 1,
+			                                     root_y + lines[i].y1,
+			                                     BarrierPositiveY,
+			                                     1, &device_id);
 
 #ifdef DEBUG
 			XDrawLine(compositor.display, window, gc, lines[i].x1,
@@ -1372,72 +1371,72 @@ ApplyLines(Window window, PointerConfinement *confinement,
 #endif
 
 			confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-														   barrier);
+			                                               barrier);
 		}
 
 		if (lines[i].edges & LeftEdgeClosed)
 		{
 			barrier = XFixesCreatePointerBarrier(compositor.display,
-												 window,
-												 root_x + lines[i].x1,
-												 root_y + lines[i].y1,
-												 root_x + lines[i].x1,
-												 root_y + lines[i].y2 - 1,
-												 BarrierPositiveX,
-												 1, &device_id);
+			                                     window,
+			                                     root_x + lines[i].x1,
+			                                     root_y + lines[i].y1,
+			                                     root_x + lines[i].x1,
+			                                     root_y + lines[i].y2 - 1,
+			                                     BarrierPositiveX,
+			                                     1, &device_id);
 #ifdef DEBUG
 			XDrawLine(compositor.display, window, gc, lines[i].x1,
 					  lines[i].y1, lines[i].x1, lines[i].y2 - 1);
 #endif
 
 			confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-														   barrier);
+			                                               barrier);
 		}
 
 		if (lines[i].edges & RightEdgeClosed)
 		{
 			barrier = XFixesCreatePointerBarrier(compositor.display,
-												 window,
-												 root_x + lines[i].x2 - 1,
-												 root_y + lines[i].y1,
-												 root_x + lines[i].x2 - 1,
-												 root_y + lines[i].y2 - 1,
-												 BarrierNegativeX,
-												 1, &device_id);
+			                                     window,
+			                                     root_x + lines[i].x2 - 1,
+			                                     root_y + lines[i].y1,
+			                                     root_x + lines[i].x2 - 1,
+			                                     root_y + lines[i].y2 - 1,
+			                                     BarrierNegativeX,
+			                                     1, &device_id);
 #ifdef DEBUG
 			XDrawLine(compositor.display, window, gc, lines[i].x2 - 1,
 					  lines[i].y1, lines[i].x2 - 1, lines[i].y2 - 1);
 #endif
 
 			confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-														   barrier);
+			                                               barrier);
 		}
 
 		if (lines[i].edges & BottomEdgeClosed)
 		{
 			barrier = XFixesCreatePointerBarrier(compositor.display,
-												 window,
-												 root_x + lines[i].x1,
-												 root_y + lines[i].y2 - 1,
-												 root_x + lines[i].x2 - 1,
-												 root_y + lines[i].y2 - 1,
-												 BarrierNegativeY,
-												 1, &device_id);
+			                                     window,
+			                                     root_x + lines[i].x1,
+			                                     root_y + lines[i].y2 - 1,
+			                                     root_x + lines[i].x2 - 1,
+			                                     root_y + lines[i].y2 - 1,
+			                                     BarrierNegativeY,
+			                                     1, &device_id);
 #ifdef DEBUG
 			XDrawLine(compositor.display, window, gc, lines[i].x1,
 					  lines[i].y2 - 1, lines[i].x2 - 1, lines[i].y2 - 1);
 #endif
 
 			confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-														   barrier);
+			                                               barrier);
 		}
 	}
 }
 
 static Bool
 DrawPointerBarriers(PointerConfinement *confinement,
-					pixman_region32_t *region,
-					int *root_x_return, int *root_y_return)
+                    pixman_region32_t *region,
+                    int *root_x_return, int *root_y_return)
 {
 	BarrierLine *lines;
 	int nlines, root_x, root_y;
@@ -1470,8 +1469,8 @@ DrawPointerBarriers(PointerConfinement *confinement,
 	{
 		/* Obtain the root-window relative coordinates of the window.  */
 		XTranslateCoordinates(compositor.display, window,
-							  DefaultRootWindow(compositor.display),
-							  0, 0, &root_x, &root_y, &child);
+		                      DefaultRootWindow(compositor.display),
+		                      0, 0, &root_x, &root_y, &child);
 
 		if (root_x_return)
 			*root_x_return = root_x;
@@ -1492,7 +1491,7 @@ DrawPointerBarriers(PointerConfinement *confinement,
 
 static void
 DrawLock(PointerConfinement *confinement, double root_x_subpixel,
-		 double root_y_subpixel)
+         double root_y_subpixel)
 {
 	Window window;
 	int device_id, root_x, root_y;
@@ -1509,7 +1508,7 @@ DrawLock(PointerConfinement *confinement, double root_x_subpixel,
 
 	/* Free all pointer barriers previously activated.  */
 	XIDListFree(confinement->applied_barriers,
-				FreeSingleBarrier);
+	            FreeSingleBarrier);
 	confinement->applied_barriers = NULL;
 
 	/* Set the pointer device.  */
@@ -1517,37 +1516,37 @@ DrawLock(PointerConfinement *confinement, double root_x_subpixel,
 
 	/* Top.  */
 	barrier = XFixesCreatePointerBarrier(compositor.display, window,
-										 Int16Minimum, root_y,
-										 Int16Maximum, root_y,
-										 BarrierPositiveY, 1, &device_id);
+	                                     Int16Minimum, root_y,
+	                                     Int16Maximum, root_y,
+	                                     BarrierPositiveY, 1, &device_id);
 
 	confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-												   barrier);
+	                                               barrier);
 
 	/* Bottom.  */
 	barrier = XFixesCreatePointerBarrier(compositor.display, window,
-										 Int16Minimum, root_y + 1,
-										 Int16Maximum, root_y + 1,
-										 BarrierNegativeY, 1, &device_id);
+	                                     Int16Minimum, root_y + 1,
+	                                     Int16Maximum, root_y + 1,
+	                                     BarrierNegativeY, 1, &device_id);
 
 	confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-												   barrier);
+	                                               barrier);
 
 	/* Left.  */
 	barrier = XFixesCreatePointerBarrier(compositor.display, window,
-										 root_x, Int16Minimum,
-										 root_x, Int16Maximum,
-										 BarrierPositiveX, 1, &device_id);
+	                                     root_x, Int16Minimum,
+	                                     root_x, Int16Maximum,
+	                                     BarrierPositiveX, 1, &device_id);
 	confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-												   barrier);
+	                                               barrier);
 
 	/* Right.  */
 	barrier = XFixesCreatePointerBarrier(compositor.display, window,
-										 root_x + 1, Int16Minimum,
-										 root_x + 1, Int16Maximum,
-										 BarrierNegativeX, 1, &device_id);
+	                                     root_x + 1, Int16Minimum,
+	                                     root_x + 1, Int16Maximum,
+	                                     BarrierNegativeX, 1, &device_id);
 	confinement->applied_barriers = XIDListPrepend(confinement->applied_barriers,
-												   barrier);
+	                                               barrier);
 
 	/* Set the last root_x and root_y.  */
 	confinement->root_x = root_x;
@@ -1555,8 +1554,8 @@ DrawLock(PointerConfinement *confinement, double root_x_subpixel,
 
 	/* Warp the pointer to root_x by root_y, after rounding it.  */
 	XIWarpPointer(compositor.display, device_id, None,
-				  DefaultRootWindow(compositor.display),
-				  0.0, 0.0, 0.0, 0.0, root_x, root_y);
+	              DefaultRootWindow(compositor.display),
+	              0.0, 0.0, 0.0, 0.0, root_x, root_y);
 }
 
 static void
@@ -1576,16 +1575,16 @@ WarpToHint(PointerConfinement *confinement)
 		return;
 
 	ViewTranslate(confinement->surface->view, 0, 0, &offset_x,
-				  &offset_y);
+	              &offset_y);
 	XTranslateCoordinates(compositor.display, window,
-						  DefaultRootWindow(compositor.display),
-						  0, 0, &root_x, &root_y, &child);
+	                      DefaultRootWindow(compositor.display),
+	                      0, 0, &root_x, &root_y, &child);
 
 	/* Warp the pointer to the right position.  */
 	XIWarpPointer(compositor.display, device_id, None,
-				  window, 0.0, 0.0, 0.0, 0.0,
-				  confinement->cursor_position_x - offset_x,
-				  confinement->cursor_position_y - offset_y);
+	              window, 0.0, 0.0, 0.0, 0.0,
+	              confinement->cursor_position_x - offset_x,
+	              confinement->cursor_position_y - offset_y);
 }
 
 static void
@@ -1593,7 +1592,7 @@ DeactivateConfinement(PointerConfinement *confinement)
 {
 	confinement->flags &= ~IsActive;
 	XIDListFree(confinement->applied_barriers,
-				FreeSingleBarrier);
+	            FreeSingleBarrier);
 	confinement->applied_barriers = NULL;
 
 	/* Free lines if they are set.  */
@@ -1624,7 +1623,7 @@ DeactivateConfinement(PointerConfinement *confinement)
 
 static void
 RecomputeConfinement(PointerConfinement *confinement, int *root_x,
-					 int *root_y)
+                     int *root_y)
 {
 	Surface *surface;
 	pixman_region32_t intersection;
@@ -1638,18 +1637,18 @@ RecomputeConfinement(PointerConfinement *confinement, int *root_x,
 
 	if (confinement->region)
 		pixman_region32_intersect(&intersection, confinement->region,
-								  &surface->current_state.input);
+		                          &surface->current_state.input);
 	else
 		pixman_region32_copy(&intersection, &surface->current_state.input);
 
 	/* Scale the intersection to window coordinates.  */
 	XLScaleRegion(&intersection, &intersection, surface->factor,
-				  surface->factor);
+	              surface->factor);
 
 	/* Intersect with the view bounds.  */
 	pixman_region32_intersect_rect(&intersection, &intersection,
-								   0, 0, ViewWidth(surface->view),
-								   ViewHeight(surface->view));
+	                               0, 0, ViewWidth(surface->view),
+	                               ViewHeight(surface->view));
 
 	/* Translate the region by the offset of the view into the
 	   subcompositor.  */
@@ -1661,7 +1660,7 @@ RecomputeConfinement(PointerConfinement *confinement, int *root_x,
 
 	/* Draw each pointer barrier for confinement.  */
 	if (!DrawPointerBarriers(confinement, &intersection,
-							 root_x, root_y))
+	                         root_x, root_y))
 		/* Rendering the confinement failed.  This is one of the
 		   oddball regions that require too much memory to
 		   process.  */
@@ -1672,7 +1671,7 @@ RecomputeConfinement(PointerConfinement *confinement, int *root_x,
 
 static void
 RewarpPointer(PointerConfinement *confinement, int *root_x_return,
-			  int *root_y_return)
+              int *root_y_return)
 {
 	int offset_x, offset_y;
 	Window window, child;
@@ -1690,7 +1689,7 @@ RewarpPointer(PointerConfinement *confinement, int *root_x_return,
 
 	/* First, get the offset of the view into the subcompositor.  */
 	ViewTranslate(confinement->surface->view, 0, 0, &offset_x,
-				  &offset_y);
+	              &offset_y);
 
 	if (root_x_return && root_y_return && *root_x_return != INT_MIN && *root_y_return != INT_MIN)
 	{
@@ -1703,8 +1702,8 @@ RewarpPointer(PointerConfinement *confinement, int *root_x_return,
 	{
 		/* Obtain the root-window relative coordinates of the window.  */
 		XTranslateCoordinates(compositor.display, window,
-							  DefaultRootWindow(compositor.display),
-							  0, 0, &root_x, &root_y, &child);
+		                      DefaultRootWindow(compositor.display),
+		                      0, 0, &root_x, &root_y, &child);
 
 		if (root_x_return)
 			*root_x_return = root_x;
@@ -1715,13 +1714,13 @@ RewarpPointer(PointerConfinement *confinement, int *root_x_return,
 
 	/* And lock the pointer to the right spot.  */
 	DrawLock(confinement,
-			 confinement->last_cursor_x - offset_x + root_x,
-			 confinement->last_cursor_y - offset_y + root_y);
+	         confinement->last_cursor_x - offset_x + root_x,
+	         confinement->last_cursor_y - offset_y + root_y);
 }
 
 static void
 Reconfine(Surface *surface, int *root_x, int *root_y,
-		  Bool process_subsurfaces)
+          Bool process_subsurfaces)
 {
 	PointerConfinementDataRecord *record;
 	PointerConfinement *confinement;
@@ -1780,7 +1779,7 @@ void XLPointerBarrierLeft(Seat *seat, Surface *surface)
 }
 
 void XLPointerBarrierCheck(Seat *seat, Surface *dispatch, double x, double y,
-						   double root_x, double root_y)
+                           double root_x, double root_y)
 {
 	PointerConfinement *confinement;
 	PointerConfinementDataRecord *record;
@@ -1808,13 +1807,13 @@ void XLPointerBarrierCheck(Seat *seat, Surface *dispatch, double x, double y,
 
 	if (confinement->region)
 		pixman_region32_intersect(&intersection, confinement->region,
-								  &dispatch->current_state.input);
+		                          &dispatch->current_state.input);
 	else
 		pixman_region32_copy(&intersection, &dispatch->current_state.input);
 
 	/* Scale the intersection to window coordinates.  */
 	XLScaleRegion(&intersection, &intersection, dispatch->factor,
-				  dispatch->factor);
+	              dispatch->factor);
 
 	/* If X and Y are in the pointer confinement area, then activate the
 	   confinement.  */
@@ -1827,8 +1826,8 @@ void XLPointerBarrierCheck(Seat *seat, Surface *dispatch, double x, double y,
 			   within the correct bounds for this function to be called
 			   in the first place.  */
 			pixman_region32_intersect_rect(&intersection, &intersection,
-										   0, 0, ViewWidth(dispatch->view),
-										   ViewHeight(dispatch->view));
+			                               0, 0, ViewWidth(dispatch->view),
+			                               ViewHeight(dispatch->view));
 
 			/* Translate the region by the offset of the view into the
 			   subcompositor.  */
@@ -1857,7 +1856,7 @@ void XLPointerBarrierCheck(Seat *seat, Surface *dispatch, double x, double y,
 
 				/* Draw each pointer barrier for confinement.  */
 				if (!DrawPointerBarriers(confinement, &intersection,
-										 NULL, NULL))
+				                         NULL, NULL))
 					/* Rendering the confinement failed.  This is one of the
 					   oddball regions that require too much memory to
 					   process.  */
@@ -1868,7 +1867,9 @@ void XLPointerBarrierCheck(Seat *seat, Surface *dispatch, double x, double y,
 		{
 			/* This is a mess, but so are the interactions between
 			   Xfixes and subpixel pointer movement... */
-			if ((confinement->root_x - root_x) < 1.0 && (confinement->root_x - root_x) > -1.0 && (confinement->root_y - root_y) < 1.0 && (confinement->root_y - root_y) > -1.0 && confinement->applied_barriers)
+			if ((confinement->root_x - root_x) < 1.0 && (confinement->root_x - root_x) > -1.0 && (
+				    confinement->root_y - root_y) < 1.0 && (confinement->root_y - root_y) > -1.0 && confinement->
+			    applied_barriers)
 				goto finish;
 
 			/* The pointer moved while locked; redraw all the locks.  */
@@ -1897,7 +1898,7 @@ finish:
    accordingly.  */
 
 void XLPointerConstraintsSurfaceMovedTo(Surface *surface, int root_x,
-										int root_y)
+                                        int root_y)
 {
 	PointerConfinementDataRecord *record;
 	PointerConfinement *confinement;
@@ -1922,7 +1923,7 @@ void XLPointerConstraintsSurfaceMovedTo(Surface *surface, int root_x,
 
 		if (confinement->lines)
 			ApplyLines(window, confinement, confinement->lines,
-					   confinement->nlines, root_x, root_y);
+			           confinement->nlines, root_x, root_y);
 		else if (confinement->flags & IsActive && confinement->flags & IsLock)
 			/* Warp the pointer back to where it originally was relative
 			   to the surface.  */
@@ -1960,6 +1961,6 @@ void XLPointerConstraintsReconfineSurface(Surface *surface)
 void XLInitPointerConstraints(void)
 {
 	pointer_constraints_global = wl_global_create(compositor.wl_display,
-												  &zwp_pointer_constraints_v1_interface,
-												  1, NULL, HandleBind);
+	                                              &zwp_pointer_constraints_v1_interface,
+	                                              1, NULL, HandleBind);
 }

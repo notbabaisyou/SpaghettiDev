@@ -24,8 +24,7 @@
 
 typedef struct _Buffer Buffer;
 
-struct _Buffer
-{
+struct _Buffer {
 	/* The ExtBuffer associated with this buffer.  */
 	ExtBuffer buffer;
 
@@ -73,26 +72,26 @@ DereferenceBuffer(Buffer *buffer)
 static void
 ReleaseBufferFunc(ExtBuffer *buffer)
 {
-	if (((Buffer *)buffer)->resource)
-		wl_buffer_send_release(((Buffer *)buffer)->resource);
+	if (((Buffer *) buffer)->resource)
+		wl_buffer_send_release(((Buffer *) buffer)->resource);
 }
 
 static void
 RetainBufferFunc(ExtBuffer *buffer)
 {
-	RetainBuffer((Buffer *)buffer);
+	RetainBuffer((Buffer *) buffer);
 }
 
 static void
 DereferenceBufferFunc(ExtBuffer *buffer)
 {
-	DereferenceBuffer((Buffer *)buffer);
+	DereferenceBuffer((Buffer *) buffer);
 }
 
 static RenderBuffer
 GetBufferFunc(ExtBuffer *buffer)
 {
-	return ((Buffer *)buffer)->render_buffer;
+	return ((Buffer *) buffer)->render_buffer;
 }
 
 static unsigned int
@@ -118,7 +117,7 @@ PrintBuffer(Buffer *buffer)
 static void
 PrintBufferFunc(ExtBuffer *buffer)
 {
-	PrintBuffer((Buffer *)buffer);
+	PrintBuffer((Buffer *) buffer);
 }
 
 static void
@@ -140,8 +139,8 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 static void
 CreateU32RgbaBuffer(struct wl_client *client, struct wl_resource *resource,
-					uint32_t id, uint32_t r, uint32_t g, uint32_t b,
-					uint32_t a)
+                    uint32_t id, uint32_t r, uint32_t g, uint32_t b,
+                    uint32_t a)
 {
 	Buffer *buffer;
 	Bool error;
@@ -156,8 +155,8 @@ CreateU32RgbaBuffer(struct wl_client *client, struct wl_resource *resource,
 
 	memset(buffer, 0, sizeof *buffer);
 	buffer->resource = wl_resource_create(client, &wl_buffer_interface,
-										  wl_resource_get_version(resource),
-										  id);
+	                                      wl_resource_get_version(resource),
+	                                      id);
 
 	if (!buffer->resource)
 	{
@@ -170,7 +169,7 @@ CreateU32RgbaBuffer(struct wl_client *client, struct wl_resource *resource,
 	/* Now, create the render target.  */
 	error = False;
 	buffer->render_buffer = RenderBufferFromSinglePixel(r, g, b, a,
-														&error);
+	                                                    &error);
 
 	if (error)
 		/* We probably ran out of memory.  */
@@ -188,7 +187,7 @@ CreateU32RgbaBuffer(struct wl_client *client, struct wl_resource *resource,
 	buffer->buffer.funcs.print_buffer = PrintBufferFunc;
 
 	wl_resource_set_implementation(buffer->resource, &single_pixel_buffer_impl,
-								   buffer, HandleResourceDestroy);
+	                               buffer, HandleResourceDestroy);
 }
 
 static const struct wp_single_pixel_buffer_manager_v1_interface manager_impl =
@@ -199,13 +198,13 @@ static const struct wp_single_pixel_buffer_manager_v1_interface manager_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &wp_single_pixel_buffer_manager_v1_interface,
-								  version, id);
+	                              &wp_single_pixel_buffer_manager_v1_interface,
+	                              version, id);
 
 	if (!resource)
 	{
@@ -214,12 +213,12 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &manager_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 void XLInitSinglePixelBuffer(void)
 {
 	single_pixel_buffer_global = wl_global_create(compositor.wl_display,
-												  &wp_single_pixel_buffer_manager_v1_interface,
-												  1, NULL, HandleBind);
+	                                              &wp_single_pixel_buffer_manager_v1_interface,
+	                                              1, NULL, HandleBind);
 }

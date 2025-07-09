@@ -24,8 +24,7 @@
 
 #include "linux-explicit-synchronization-unstable-v1.h"
 
-struct _Synchronization
-{
+struct _Synchronization {
 	/* The surface destroy listener.  */
 	DestroyCallback *destroy_listener;
 
@@ -42,8 +41,7 @@ struct _Synchronization
 	struct wl_resource *resource;
 };
 
-struct _SyncRelease
-{
+struct _SyncRelease {
 	/* The associated surface.  */
 	Surface *surface;
 
@@ -87,7 +85,7 @@ DestroySynchronization(struct wl_client *client, struct wl_resource *resource)
 
 static void
 SetAcquireFence(struct wl_client *client, struct wl_resource *resource,
-				int32_t fd)
+                int32_t fd)
 {
 	Synchronization *synchronization;
 
@@ -99,8 +97,8 @@ SetAcquireFence(struct wl_client *client, struct wl_resource *resource,
 	if (!synchronization->surface)
 	{
 		wl_resource_post_error(resource, NoSurface,
-							   "the surface associated with this"
-							   " resource was destroyed");
+		                       "the surface associated with this"
+		                       " resource was destroyed");
 		goto error;
 	}
 
@@ -113,8 +111,8 @@ SetAcquireFence(struct wl_client *client, struct wl_resource *resource,
 	if (synchronization->acquire_fence != -1)
 	{
 		wl_resource_post_error(resource, DuplicateFence,
-							   "another fence has already been attached"
-							   " during this commit cycle");
+		                       "another fence has already been attached"
+		                       " during this commit cycle");
 		goto error;
 	}
 
@@ -130,7 +128,7 @@ error:
 
 static void
 GetRelease(struct wl_client *client, struct wl_resource *resource,
-		   uint32_t id)
+           uint32_t id)
 {
 	Synchronization *synchronization;
 	SyncRelease *release;
@@ -151,8 +149,8 @@ GetRelease(struct wl_client *client, struct wl_resource *resource,
 	{
 		/* Uncommitted release already exists.  Post an error.  */
 		wl_resource_post_error(resource, DuplicateRelease,
-							   "another release has already been acquired"
-							   " during this commit cycle");
+		                       "another release has already been acquired"
+		                       " during this commit cycle");
 		return;
 	}
 
@@ -168,9 +166,9 @@ GetRelease(struct wl_client *client, struct wl_resource *resource,
 
 	memset(release, 0, sizeof *release);
 	release->resource = wl_resource_create(client,
-										   &zwp_linux_buffer_release_v1_interface,
-										   wl_resource_get_version(resource),
-										   id);
+	                                       &zwp_linux_buffer_release_v1_interface,
+	                                       wl_resource_get_version(resource),
+	                                       id);
 
 	if (!release->resource)
 	{
@@ -184,8 +182,8 @@ GetRelease(struct wl_client *client, struct wl_resource *resource,
 
 	/* Set the resource implementation.  */
 	wl_resource_set_implementation(release->resource,
-								   NULL, release,
-								   HandleReleaseDestroy);
+	                               NULL, release,
+	                               HandleReleaseDestroy);
 }
 
 static void
@@ -211,8 +209,8 @@ HandleSurfaceCommit(Synchronization *synchronization, Surface *surface)
 		{
 			/* If no buffer was attached, report an error.  */
 			wl_resource_post_error(synchronization->resource,
-								   NoBuffer, "no buffer attached"
-											 " but acquire fence provided");
+			                       NoBuffer, "no buffer attached"
+			                       " but acquire fence provided");
 			close(synchronization->acquire_fence);
 			synchronization->acquire_fence = -1;
 
@@ -247,8 +245,8 @@ HandleSurfaceCommit(Synchronization *synchronization, Surface *surface)
 
 		if (!(surface->pending_state.pending & PendingBuffer && surface->pending_state.buffer))
 			wl_resource_post_error(synchronization->resource,
-								   NoBuffer, "no buffer attached"
-											 " but release provided");
+			                       NoBuffer, "no buffer attached"
+			                       " but release provided");
 	}
 #undef NoBuffer
 }
@@ -294,7 +292,7 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 static void
 GetSynchronization(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t id, struct wl_resource *surface_resource)
+                   uint32_t id, struct wl_resource *surface_resource)
 {
 	Synchronization *synchronization;
 	Surface *surface;
@@ -309,7 +307,7 @@ GetSynchronization(struct wl_client *client, struct wl_resource *resource,
 		/* Don't let clients create more synchronization objects if one
 	   already exists.  */
 		wl_resource_post_error(resource, SynchronizationAlreadyExists,
-							   "synchronization object already exists");
+		                       "synchronization object already exists");
 		return;
 	}
 
@@ -326,8 +324,8 @@ GetSynchronization(struct wl_client *client, struct wl_resource *resource,
 
 	memset(synchronization, 0, sizeof *synchronization);
 	synchronization->resource = wl_resource_create(client,
-												   &zwp_linux_surface_synchronization_v1_interface,
-												   wl_resource_get_version(resource), id);
+	                                               &zwp_linux_surface_synchronization_v1_interface,
+	                                               wl_resource_get_version(resource), id);
 
 	if (!synchronization->resource)
 	{
@@ -341,16 +339,16 @@ GetSynchronization(struct wl_client *client, struct wl_resource *resource,
 
 	/* And attach a destroy listener.  */
 	synchronization->destroy_listener = XLSurfaceRunOnFree(surface, HandleSurfaceDestroy,
-														   synchronization);
+	                                                       synchronization);
 
 	/* And attach the surface to the synchronization.  */
 	synchronization->surface = surface;
 
 	/* Set the implementation.  */
 	wl_resource_set_implementation(synchronization->resource,
-								   &synchronization_impl,
-								   synchronization,
-								   HandleSynchronizationDestroy);
+	                               &synchronization_impl,
+	                               synchronization,
+	                               HandleSynchronizationDestroy);
 
 	/* Clear initial values.  */
 	synchronization->acquire_fence = -1;
@@ -364,13 +362,13 @@ static struct zwp_linux_explicit_synchronization_v1_interface explicit_sync_impl
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &zwp_linux_explicit_synchronization_v1_interface,
-								  version, id);
+	                              &zwp_linux_explicit_synchronization_v1_interface,
+	                              version, id);
 	if (!resource)
 	{
 		wl_client_post_no_memory(client);
@@ -378,7 +376,7 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &explicit_sync_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 void XLDestroyRelease(SyncRelease *release)
@@ -403,13 +401,13 @@ void XLSyncRelease(SyncRelease *release)
 	if (error)
 #define InvalidFence ZWP_LINUX_SURFACE_SYNCHRONIZATION_V1_ERROR_INVALID_FENCE
 		wl_resource_post_error(release->resource, InvalidFence,
-							   "server failed to create finish fence");
+		                       "server failed to create finish fence");
 #undef InvalidFence
 	else
 	{
 		/* Post a fenced release with the fence.  */
 		zwp_linux_buffer_release_v1_send_fenced_release(release->resource,
-														fd);
+		                                                fd);
 		/* Close the file descriptor.  */
 		close(fd);
 	}
@@ -442,8 +440,8 @@ void XLWaitFence(Surface *surface)
 		/* Importing the fence failed; signal an error to the
 	   server.  */
 		wl_resource_post_error(surface->resource,
-							   InvalidFence, "the specified sync"
-											 " fence could not be imported");
+		                       InvalidFence, "the specified sync"
+		                       " fence could not be imported");
 #undef InvalidFence
 		/* Try closing the file descriptor as well.  */
 		close(surface->acquire_fence);
@@ -469,6 +467,6 @@ void XLInitExplicitSynchronization(void)
 		return;
 
 	explicit_sync_global = wl_global_create(compositor.wl_display,
-											&zwp_linux_explicit_synchronization_v1_interface,
-											2, NULL, HandleBind);
+	                                        &zwp_linux_explicit_synchronization_v1_interface,
+	                                        2, NULL, HandleBind);
 }

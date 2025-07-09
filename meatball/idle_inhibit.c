@@ -35,8 +35,7 @@ typedef enum _IdleInhibition IdleInhibition;
    idle inhibitor is focused, even if the user was already idle at the
    time the idle inhibitor was created.  */
 
-struct _IdleInhibitor
-{
+struct _IdleInhibitor {
 	/* The next and last idle inhibitors on this surface.  */
 	IdleInhibitor *next, *last;
 
@@ -50,14 +49,12 @@ struct _IdleInhibitor
 	struct wl_resource *resource;
 };
 
-struct _IdleInhibitDataRecord
-{
+struct _IdleInhibitDataRecord {
 	/* List of idle inhibitors on this surface.  */
 	IdleInhibitor inhibitors;
 };
 
-enum _IdleInhibition
-{
+enum _IdleInhibition {
 	IdleAllowed,
 	IdleInhibited,
 };
@@ -114,7 +111,7 @@ ChangeInhibitionTo(IdleInhibition inhibition)
 
 		if (timer_command)
 			command_timer = AddTimer(HandleCommandTimer, NULL,
-									 MakeTimespec(timer_seconds, 0));
+			                         MakeTimespec(timer_seconds, 0));
 	}
 	else
 	{
@@ -253,7 +250,7 @@ InitIdleInhibitData(IdleInhibitDataRecord *record)
 
 static void
 CreateInhibitor(struct wl_client *client, struct wl_resource *resource,
-				uint32_t id, struct wl_resource *surface_resource)
+                uint32_t id, struct wl_resource *surface_resource)
 {
 	Surface *surface;
 	IdleInhibitor *inhibitor;
@@ -269,11 +266,11 @@ CreateInhibitor(struct wl_client *client, struct wl_resource *resource,
 
 	memset(inhibitor, 0, sizeof *inhibitor);
 	inhibitor->resource = wl_resource_create(client, &zwp_idle_inhibitor_v1_interface,
-											 wl_resource_get_version(resource), id);
+	                                         wl_resource_get_version(resource), id);
 
 	surface = wl_resource_get_user_data(surface_resource);
 	record = XLSurfaceGetClientData(surface, IdleInhibitData,
-									sizeof *record, FreeIdleInhibitData);
+	                                sizeof *record, FreeIdleInhibitData);
 	InitIdleInhibitData(record);
 
 	/* Set the inhibitor's surface.  */
@@ -299,12 +296,12 @@ CreateInhibitor(struct wl_client *client, struct wl_resource *resource,
 
 	/* Set the implementation.  */
 	wl_resource_set_implementation(inhibitor->resource, &idle_inhibitor_impl,
-								   inhibitor, HandleResourceDestroy);
+	                               inhibitor, HandleResourceDestroy);
 }
 
 static void
 DestroyIdleInhibitManager(struct wl_client *client,
-						  struct wl_resource *resource)
+                          struct wl_resource *resource)
 {
 	wl_resource_destroy(resource);
 }
@@ -317,13 +314,13 @@ static struct zwp_idle_inhibit_manager_v1_interface idle_inhibit_manager_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &zwp_idle_inhibit_manager_v1_interface,
-								  version, id);
+	                              &zwp_idle_inhibit_manager_v1_interface,
+	                              version, id);
 
 	if (!resource)
 	{
@@ -332,7 +329,7 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(resource, &idle_inhibit_manager_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 static char **
@@ -360,11 +357,11 @@ ReadCommandResource(const char *name, const char *class)
 	classlist[2] = NULLQUARK;
 
 	if (XrmQGetResource(rdb, namelist, classlist,
-						&type, &value) &&
-		type == QString)
+	                    &type, &value) &&
+	    type == QString)
 	{
-		ParseProcessString((const char *)value.addr,
-						   &arguments, &num_args);
+		ParseProcessString((const char *) value.addr,
+		                   &arguments, &num_args);
 
 		return arguments;
 	}
@@ -374,7 +371,7 @@ ReadCommandResource(const char *name, const char *class)
 
 static int
 ReadIntegerResource(const char *name, const char *class,
-					int default_value)
+                    int default_value)
 {
 	XrmDatabase rdb;
 	XrmName namelist[3];
@@ -397,10 +394,10 @@ ReadIntegerResource(const char *name, const char *class,
 	classlist[2] = NULLQUARK;
 
 	if (XrmQGetResource(rdb, namelist, classlist,
-						&type, &value) &&
-		type == QString)
+	                    &type, &value) &&
+	    type == QString)
 	{
-		result = atoi((char *)value.addr);
+		result = atoi((char *) value.addr);
 
 		if (!result)
 			return default_value;
@@ -414,24 +411,24 @@ ReadIntegerResource(const char *name, const char *class,
 void XLInitIdleInhibit(void)
 {
 	idle_inhibit_manager_global = wl_global_create(compositor.wl_display,
-												   &zwp_idle_inhibit_manager_v1_interface,
-												   1, NULL, HandleBind);
+	                                               &zwp_idle_inhibit_manager_v1_interface,
+	                                               1, NULL, HandleBind);
 
 	all_inhibitors.global_next = &all_inhibitors;
 	all_inhibitors.global_last = &all_inhibitors;
 
 	/* Read various commands from resources.  */
 	inhibit_command = ReadCommandResource("idleInhibitCommand",
-										  "IdleInhibitCommand");
+	                                      "IdleInhibitCommand");
 	timer_command = ReadCommandResource("idleIntervalCommand",
-										"IdleInhibitCommand");
+	                                    "IdleInhibitCommand");
 	deinhibit_command = ReadCommandResource("idleDeinhibitCommand",
-											"IdleDeinhibitCommand");
+	                                        "IdleDeinhibitCommand");
 
 	/* Initialize the default value for timer_seconds.  */
 	timer_seconds = ReadIntegerResource("idleCommandInterval",
-										"IdleCommandInterval",
-										60);
+	                                    "IdleCommandInterval",
+	                                    60);
 
 	/* Initialize the process queue.  */
 	process_queue = MakeProcessQueue();

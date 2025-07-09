@@ -24,8 +24,7 @@
 
 typedef struct _DestroyListener DestroyListener;
 
-struct _DestroyListener
-{
+struct _DestroyListener {
 	/* Function to call.  */
 	ExtBufferFunc func;
 
@@ -68,7 +67,7 @@ void XLReleaseBuffer(ExtBuffer *buffer)
 
 void *
 XLBufferRunOnFree(ExtBuffer *buffer, ExtBufferFunc func,
-				  void *data)
+                  void *data)
 {
 	DestroyListener *listener;
 
@@ -78,7 +77,7 @@ XLBufferRunOnFree(ExtBuffer *buffer, ExtBufferFunc func,
 	listener->data = data;
 
 	buffer->destroy_listeners = XLListPrepend(buffer->destroy_listeners,
-											  listener);
+	                                          listener);
 
 	return listener;
 }
@@ -102,7 +101,7 @@ void ExtBufferDestroy(ExtBuffer *buffer)
 
 	/* Now run every destroy listener connected to this buffer.  */
 	for (listener = buffer->destroy_listeners;
-		 listener; listener = listener->next)
+	     listener; listener = listener->next)
 	{
 		item = listener->data;
 

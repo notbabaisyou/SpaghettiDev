@@ -39,8 +39,7 @@ typedef struct _MultipleRecord MultipleRecord;
    background as well.  Because of this, we must rely on all ongoing
    data transfers from other owners having a unique property.  */
 
-struct _PropertyAtom
-{
+struct _PropertyAtom {
 	/* The atom in question.  */
 	Atom atom;
 
@@ -51,8 +50,7 @@ struct _PropertyAtom
 	PropertyAtom *next, *last;
 };
 
-struct _SelectionOwnerInfo
-{
+struct _SelectionOwnerInfo {
 	/* When this selection was last owned.  */
 	Timestamp time;
 
@@ -65,24 +63,22 @@ struct _SelectionOwnerInfo
 	/* The callback for this selection.  NULL means the selection is no
 	   longer owned.  */
 	GetDataFunc (*get_transfer_function)(WriteTransfer *,
-										 Atom, Atom *);
+	                                     Atom, Atom *);
 };
 
-enum
-{
-	IsFinished = 1,
-	IsIncr = (1 << 1),
-	IsWaitingForChunk = (1 << 2),
-	IsStarted = (1 << 3),
-	IsFailed = (1 << 4),
+enum {
+	IsFinished         = 1,
+	IsIncr             = (1 << 1),
+	IsWaitingForChunk  = (1 << 2),
+	IsStarted          = (1 << 3),
+	IsFailed           = (1 << 4),
 	IsWaitingForDelete = (1 << 5),
-	IsWaitingForIncr = (1 << 6),
-	IsReadable = (1 << 7),
-	IsFlushed = (1 << 8),
+	IsWaitingForIncr   = (1 << 6),
+	IsReadable         = (1 << 7),
+	IsFlushed          = (1 << 8),
 };
 
-struct _ReadTransfer
-{
+struct _ReadTransfer {
 	/* The selection owner.  */
 	Window owner;
 
@@ -135,8 +131,7 @@ struct _ReadTransfer
 	Timer *timeout;
 };
 
-struct _WriteTransfer
-{
+struct _WriteTransfer {
 	/* The next and last transfers on this chain.  */
 	WriteTransfer *next, *last;
 
@@ -188,8 +183,7 @@ struct _WriteTransfer
 #endif
 };
 
-struct _QueuedTransfer
-{
+struct _QueuedTransfer {
 	/* Queued event.  */
 	XEvent event;
 
@@ -197,14 +191,12 @@ struct _QueuedTransfer
 	QueuedTransfer *next, *last;
 };
 
-struct _SelectInputData
-{
+struct _SelectInputData {
 	/* Number of requests from this requestor that are in progress.  */
 	int refcount;
 };
 
-struct _MultipleRecord
-{
+struct _MultipleRecord {
 	/* Number of conversions that still have not been made.  */
 	int pending;
 
@@ -291,7 +283,7 @@ AllocPropAtom(void)
 		if (IntAddWrapv(prop_counter, 1, &prop_counter))
 		{
 			fprintf(stderr, "Failed to allocate selection property"
-							" after running out of valid values!");
+			        " after running out of valid values!");
 			abort();
 		}
 
@@ -339,9 +331,9 @@ FinishReadTransfer(ReadTransfer *transfer, Bool success)
 	Bool delay;
 
 	if (transfer->data_finish_func
-		/* This means to delay deallocating the transfer for a
-	   while.  */
-		&& !transfer->data_finish_func(transfer, success))
+	    /* This means to delay deallocating the transfer for a
+       while.  */
+	    && !transfer->data_finish_func(transfer, success))
 		delay = True;
 	else
 		delay = False;
@@ -365,8 +357,8 @@ HandleTimeout(Timer *timer, void *data, struct timespec time)
 
 	/* Delete the data transfer property from the window.  */
 	XDeleteProperty(compositor.display,
-					selection_transfer_window,
-					transfer->property->atom);
+	                selection_transfer_window,
+	                transfer->property->atom);
 
 	/* Finish the read transfer.  */
 	FinishReadTransfer(transfer, False);
@@ -377,8 +369,8 @@ CancelTransferEarly(ReadTransfer *transfer)
 {
 	/* Delete the data transfer property from the window.  */
 	XDeleteProperty(compositor.display,
-					selection_transfer_window,
-					transfer->property->atom);
+	                selection_transfer_window,
+	                transfer->property->atom);
 
 	/* Mark the transfer as finished.  */
 	transfer->state |= IsFailed | IsFinished;
@@ -408,7 +400,7 @@ ConvertSelection(Atom selection, Atom target, Time time)
 
 	/* Add a timeout for 5 seconds.  */
 	transfer->timeout = AddTimer(HandleTimeout, transfer,
-								 MakeTimespec(5, 0));
+	                             MakeTimespec(5, 0));
 
 	read_transfers.next->last = transfer;
 	read_transfers.next = transfer;
@@ -416,21 +408,21 @@ ConvertSelection(Atom selection, Atom target, Time time)
 	/* Delete the property from the window beforehand.  The property
 	   might be left over from a failed transfer.  */
 	XDeleteProperty(compositor.display, selection_transfer_window,
-					transfer->property->atom);
+	                transfer->property->atom);
 
 	/* Now issue the ConvertSelection request.  */
 	XConvertSelection(compositor.display, selection, target,
-					  transfer->property->atom,
-					  selection_transfer_window, time);
+	                  transfer->property->atom,
+	                  selection_transfer_window, time);
 
 	return transfer;
 }
 
 ReadTransfer *
 ConvertSelectionFuncs(Atom selection, Atom target, Time time, void *data,
-					  void (*data_start)(ReadTransfer *, Atom, int),
-					  void (*data_read)(ReadTransfer *, Atom, int, ptrdiff_t),
-					  Bool (*data_finish)(ReadTransfer *, Bool))
+                      void (*data_start)(ReadTransfer *, Atom, int),
+                      void (*data_read)(ReadTransfer *, Atom, int, ptrdiff_t),
+                      Bool (*data_finish)(ReadTransfer *, Bool))
 {
 	ReadTransfer *transfer;
 
@@ -481,14 +473,14 @@ FormatTypeSize(int format)
 {
 	switch (format)
 	{
-	case 8:
-		return sizeof(char);
+		case 8:
+			return sizeof(char);
 
-	case 16:
-		return sizeof(short);
+		case 16:
+			return sizeof(short);
 
-	case 32:
-		return sizeof(long);
+		case 32:
+			return sizeof(long);
 	}
 
 	abort();
@@ -531,8 +523,8 @@ void SkipChunk(ReadTransfer *transfer)
 {
 	/* Just delete the property.  */
 	XDeleteProperty(compositor.display,
-					selection_transfer_window,
-					transfer->property->atom);
+	                selection_transfer_window,
+	                transfer->property->atom);
 
 	/* And mark the chunk as finished.  */
 	FinishChunk(transfer);
@@ -545,7 +537,7 @@ void SkipChunk(ReadTransfer *transfer)
 
 unsigned char *
 ReadChunk(ReadTransfer *transfer, int long_length, ptrdiff_t *nbytes,
-		  ptrdiff_t *bytes_after_return)
+          ptrdiff_t *bytes_after_return)
 {
 	unsigned char *prop_data;
 	Atom actual_type;
@@ -556,9 +548,9 @@ ReadChunk(ReadTransfer *transfer, int long_length, ptrdiff_t *nbytes,
 
 	/* Now read the actual property data.  */
 	rc = XGetWindowProperty(compositor.display, selection_transfer_window,
-							transfer->property->atom, transfer->read_offset,
-							long_length, True, AnyPropertyType, &actual_type,
-							&actual_format, &nitems, &bytes_after, &prop_data);
+	                        transfer->property->atom, transfer->read_offset,
+	                        long_length, True, AnyPropertyType, &actual_type,
+	                        &actual_format, &nitems, &bytes_after, &prop_data);
 
 	/* Reading the property data failed.  Signal failure by returning
 	   NULL.  Also, cancel the whole transfer here too.  */
@@ -612,9 +604,9 @@ StartSelectionRead(ReadTransfer *transfer)
 
 	/* First, figure out how big the property data is.  */
 	rc = XGetWindowProperty(compositor.display, selection_transfer_window,
-							transfer->property->atom, 0, 0, True, AnyPropertyType,
-							&actual_type, &actual_format, &nitems, &bytes_after,
-							&prop_data);
+	                        transfer->property->atom, 0, 0, True, AnyPropertyType,
+	                        &actual_type, &actual_format, &nitems, &bytes_after,
+	                        &prop_data);
 
 	if (prop_data)
 		XFree(prop_data);
@@ -635,7 +627,7 @@ StartSelectionRead(ReadTransfer *transfer)
 		transfer->state |= IsWaitingForChunk;
 
 		XDeleteProperty(compositor.display, selection_transfer_window,
-						transfer->property->atom);
+		                transfer->property->atom);
 
 		return;
 	}
@@ -664,11 +656,11 @@ StartSelectionRead(ReadTransfer *transfer)
 	transfer->read_format = actual_format;
 
 	if (transfer->data_start_func
-		/* Make sure this isn't run multiple times in the case of INCR
-	   selections.  */
-		&& !(transfer->state & IsStarted))
+	    /* Make sure this isn't run multiple times in the case of INCR
+       selections.  */
+	    && !(transfer->state & IsStarted))
 		transfer->data_start_func(transfer, actual_type,
-								  actual_format);
+		                          actual_format);
 
 	transfer->state |= IsStarted;
 
@@ -678,7 +670,7 @@ StartSelectionRead(ReadTransfer *transfer)
 
 	if (transfer->data_read_func)
 		transfer->data_read_func(transfer, actual_type, actual_format,
-								 bytes_after);
+		                         bytes_after);
 
 	return;
 
@@ -710,7 +702,7 @@ SendEvent(XEvent *event)
 {
 	CatchXErrors();
 	XSendEvent(compositor.display, event->xany.window,
-			   False, NoEventMask, event);
+	           False, NoEventMask, event);
 	return UncatchXErrors(NULL);
 }
 
@@ -718,7 +710,7 @@ static void
 SendEventUnsafe(XEvent *event)
 {
 	XSendEvent(compositor.display, event->xany.window,
-			   False, NoEventMask, event);
+	           False, NoEventMask, event);
 }
 
 static Bool
@@ -740,15 +732,15 @@ CanConvertTarget(SelectionOwnerInfo *info, Atom target)
 
 static GetDataFunc
 GetTransferFunction(SelectionOwnerInfo *info,
-					WriteTransfer *transfer,
-					Atom target, Atom *type)
+                    WriteTransfer *transfer,
+                    Atom target, Atom *type)
 {
 	return info->get_transfer_function(transfer, target, type);
 }
 
 static WriteTransfer *
 FindWriteTransfer(Window requestor, Atom property,
-				  int ignore_state)
+                  int ignore_state)
 {
 	WriteTransfer *transfer;
 
@@ -756,7 +748,8 @@ FindWriteTransfer(Window requestor, Atom property,
 
 	while (transfer != &write_transfers)
 	{
-		if (transfer->requestor == requestor && transfer->property == property && (!ignore_state || ((transfer->state & ignore_state) != ignore_state)))
+		if (transfer->requestor == requestor && transfer->property == property && (
+			    !ignore_state || ((transfer->state & ignore_state) != ignore_state)))
 			return transfer;
 
 		transfer = transfer->last;
@@ -774,7 +767,8 @@ FindQueuedTransfer(Window requestor, Atom property)
 
 	while (transfer != &queued_transfers)
 	{
-		if (transfer->event.xselectionrequest.requestor == requestor || transfer->event.xselectionrequest.property == property)
+		if (transfer->event.xselectionrequest.requestor == requestor || transfer->event.xselectionrequest.property ==
+		    property)
 			return True;
 
 		transfer = transfer->next;
@@ -794,7 +788,7 @@ SignalConversionPerformed(WriteTransfer *transfer)
 	   send the SelectionNotify event and return.  */
 
 		DebugPrint("Conversion complete; %d conversion(s) are still pending\n",
-				   transfer->record->pending - 1);
+		           transfer->record->pending - 1);
 
 		if (!(--transfer->record->pending))
 		{
@@ -834,11 +828,11 @@ FlushTransfer(WriteTransfer *transfer, Bool force)
 	   the property to the window.  */
 		CatchXErrors();
 		DebugPrint("Writing property of size %zd\n",
-				   transfer->offset);
+		           transfer->offset);
 		XChangeProperty(compositor.display, transfer->requestor,
-						transfer->property, transfer->type, 8,
-						PropModeReplace, transfer->buffer,
-						transfer->offset);
+		                transfer->property, transfer->type, 8,
+		                PropModeReplace, transfer->buffer,
+		                transfer->offset);
 #ifdef DEBUG
 		transfer->total_written += transfer->offset;
 #endif
@@ -857,8 +851,8 @@ FlushTransfer(WriteTransfer *transfer, Bool force)
 
 		CatchXErrors();
 		XChangeProperty(compositor.display, transfer->requestor,
-						transfer->property, INCR, 32,
-						PropModeReplace, (unsigned char *)&size, 1);
+		                transfer->property, INCR, 32,
+		                PropModeReplace, (unsigned char *) &size, 1);
 		SignalConversionPerformed(transfer);
 		UncatchXErrors(NULL);
 
@@ -890,11 +884,11 @@ SelectPropertyNotify(Window window)
 		/* Actually select for input from the window.  */
 		CatchXErrors();
 		XSelectInput(compositor.display, window,
-					 PropertyChangeMask);
+		             PropertyChangeMask);
 		UncatchXErrors(NULL);
 
 		DebugPrint("Selecting for PropertyChangeMask on %lu\n",
-				   window);
+		           window);
 	}
 }
 
@@ -910,7 +904,7 @@ DeselectPropertyNotify(Window window)
 		return;
 
 	DebugPrint("De-selecting for PropertyChangeMask on %lu\n",
-			   window);
+	           window);
 
 	CatchXErrors();
 	XSelectInput(compositor.display, window, NoEventMask);
@@ -946,8 +940,8 @@ FreeTransfer(WriteTransfer *transfer)
 		/* Write zero-length property data to complete the INCR
 	   transfer.  */
 		XChangeProperty(compositor.display, transfer->requestor,
-						transfer->property, transfer->type, 8,
-						PropModeReplace, NULL, 0);
+		                transfer->property, transfer->type, 8,
+		                PropModeReplace, NULL, 0);
 		UncatchXErrors(NULL);
 	}
 
@@ -960,14 +954,14 @@ FreeTransfer(WriteTransfer *transfer)
 		transfer->record->atoms[transfer->multiple_offset] = None;
 
 		DebugPrint("Conversion at offset %lu failed\n",
-				   transfer->multiple_offset);
+		           transfer->multiple_offset);
 
 		CatchXErrors();
 		XChangeProperty(compositor.display, transfer->requestor,
-						transfer->record->event.xselection.property,
-						ATOM_PAIR, 32, PropModeReplace,
-						(unsigned char *)transfer->record->atoms,
-						transfer->record->nitems);
+		                transfer->record->event.xselection.property,
+		                ATOM_PAIR, 32, PropModeReplace,
+		                (unsigned char *) transfer->record->atoms,
+		                transfer->record->nitems);
 		UncatchXErrors(NULL);
 
 		/* Now, dereference the record, and send the SelectionNotify if
@@ -1020,14 +1014,14 @@ TransferFinished(WriteTransfer *transfer)
 		DebugPrint("Transfer finished; waiting for property deletion\n");
 	}
 	else if (transfer->offset
-			 /* Even if there is no more data, we must still write
-				zero-length property data to complete the selection
-				transfer if nothing has previously been written.  */
-			 || !(transfer->state & IsFlushed))
+	         /* Even if there is no more data, we must still write
+		        zero-length property data to complete the selection
+		        transfer if nothing has previously been written.  */
+	         || !(transfer->state & IsFlushed))
 	{
 		DebugPrint("Transfer finished, but there is still property data"
-				   " unwritten (offset %td)\n",
-				   transfer->offset);
+		           " unwritten (offset %td)\n",
+		           transfer->offset);
 
 		/* There is still property data left to be written.  */
 		FlushTransfer(transfer, True);
@@ -1052,7 +1046,7 @@ TransferBecameReadable(WriteTransfer *transfer)
 	if (transfer->state & IsWaitingForDelete)
 	{
 		DebugPrint("Transfer became readable, but we are still waiting"
-				   " for a property deletion\n");
+			" for a property deletion\n");
 		transfer->state |= IsReadable;
 		return;
 	}
@@ -1069,23 +1063,23 @@ TransferBecameReadable(WriteTransfer *transfer)
 	transfer->state &= ~IsReadable;
 
 	status = transfer->transfer_function(transfer,
-										 (transfer->buffer + transfer->offset),
-										 (transfer->size - transfer->offset),
-										 &bytes_read);
+	                                     (transfer->buffer + transfer->offset),
+	                                     (transfer->size - transfer->offset),
+	                                     &bytes_read);
 
 	if (status != EndOfFile)
 	{
 		transfer->offset += bytes_read;
 		DebugPrint("Read %td bytes, offset is now %td into %td\n",
-				   bytes_read, transfer->offset, transfer->size);
+		           bytes_read, transfer->offset, transfer->size);
 
 		/* Make sure nothing overflowed.  */
 		XLAssert(transfer->offset <= transfer->size);
 
 		if (transfer->offset == transfer->size
-			/* If a bigger buffer is required, flush the transfer now,
-			   so the entire transfer buffer can be reused.  */
-			|| status == NeedBiggerBuffer)
+		    /* If a bigger buffer is required, flush the transfer now,
+		       so the entire transfer buffer can be reused.  */
+		    || status == NeedBiggerBuffer)
 		{
 			if (status == NeedBiggerBuffer)
 				/* Since a bigger buffer is needed, that means there is
@@ -1098,9 +1092,9 @@ TransferBecameReadable(WriteTransfer *transfer)
 	else
 	{
 		DebugPrint("Transfer complete, bytes read as part of EOF: %td, "
-				   "off: %td size: %td\n",
-				   bytes_read, transfer->offset,
-				   transfer->size);
+		           "off: %td size: %td\n",
+		           bytes_read, transfer->offset,
+		           transfer->size);
 
 		transfer->offset += bytes_read;
 		TransferFinished(transfer);
@@ -1109,7 +1103,7 @@ TransferBecameReadable(WriteTransfer *transfer)
 
 static void
 ConvertSelectionTargets1(SelectionOwnerInfo *info,
-						 Window requestor, Atom property)
+                         Window requestor, Atom property)
 {
 	Atom *targets;
 
@@ -1122,33 +1116,32 @@ ConvertSelectionTargets1(SelectionOwnerInfo *info,
 
 	/* And the rest of the targets.  */
 	memcpy(&targets[3], info->targets,
-		   info->ntargets * sizeof *targets);
+	       info->ntargets * sizeof *targets);
 
 	XChangeProperty(compositor.display, requestor,
-					property, XA_ATOM, 32, PropModeReplace,
-					(unsigned char *)targets,
-					2 + info->ntargets);
+	                property, XA_ATOM, 32, PropModeReplace,
+	                (unsigned char *) targets,
+	                2 + info->ntargets);
 }
 
 static void
 ConvertSelectionTargets(SelectionOwnerInfo *info, XEvent *notify)
 {
-
 	/* Set the property and send the SelectionNotify event.  */
 	CatchXErrors();
 	ConvertSelectionTargets1(info, notify->xselection.requestor,
-							 notify->xselection.property);
+	                         notify->xselection.property);
 	SendEventUnsafe(notify);
 	UncatchXErrors(NULL);
 }
 
 static void
 ConvertSelectionTimestamp1(SelectionOwnerInfo *info, Window requestor,
-						   Window property)
+                           Window property)
 {
 	XChangeProperty(compositor.display, requestor, property,
-					XA_ATOM, 32, PropModeReplace,
-					(unsigned char *)&info->time, 1);
+	                XA_ATOM, 32, PropModeReplace,
+	                (unsigned char *) &info->time, 1);
 }
 
 static void
@@ -1157,7 +1150,7 @@ ConvertSelectionTimestamp(SelectionOwnerInfo *info, XEvent *notify)
 	/* Set the property and send the SelectionNotify event.  */
 	CatchXErrors();
 	ConvertSelectionTimestamp1(info, notify->xselection.requestor,
-							   notify->xselection.property);
+	                           notify->xselection.property);
 	SendEventUnsafe(notify);
 	UncatchXErrors(NULL);
 }
@@ -1185,7 +1178,7 @@ HandleWriteTimeout(Timer *timer, void *data, struct timespec time)
 
 static void
 ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
-						 XEvent *notify)
+                         XEvent *notify)
 {
 	Status rc;
 	unsigned char *prop_data;
@@ -1204,11 +1197,11 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 	   from the source.  */
 	CatchXErrors();
 	rc = XGetWindowProperty(compositor.display,
-							event->xselectionrequest.requestor,
-							event->xselectionrequest.property,
-							0, 65535, False, ATOM_PAIR,
-							&actual_type, &actual_format,
-							&nitems, &bytes_after, &prop_data);
+	                        event->xselectionrequest.requestor,
+	                        event->xselectionrequest.property,
+	                        0, 65535, False, ATOM_PAIR,
+	                        &actual_type, &actual_format,
+	                        &nitems, &bytes_after, &prop_data);
 	UncatchXErrors(NULL);
 
 	if (rc != Success || actual_format != 32 || nitems % 2 || actual_type != ATOM_PAIR || !prop_data)
@@ -1220,20 +1213,21 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 		return;
 	}
 
-	atoms = (Atom *)prop_data;
+	atoms = (Atom *) prop_data;
 
 	DebugPrint("Number of items in atom pair: %lu\n", nitems / 2);
 
 	for (i = 0; i < nitems; i += 2)
 	{
 		DebugPrint("Verifying MULTIPLE transfer; target = %lu, property = %lu\n",
-				   atoms[i + 0], atoms[i + 1]);
+		           atoms[i + 0], atoms[i + 1]);
 
-		if (FindWriteTransfer(event->xselectionrequest.requestor, atoms[1], 0) || FindQueuedTransfer(event->xselectionrequest.requestor, atoms[1]))
+		if (FindWriteTransfer(event->xselectionrequest.requestor, atoms[1], 0) || FindQueuedTransfer(
+			    event->xselectionrequest.requestor, atoms[1]))
 		{
 			DebugPrint("Found ongoing selection transfer with same requestor "
-					   "and property; this MULTIPLE request will have to be "
-					   "queued.\n");
+				"and property; this MULTIPLE request will have to be "
+				"queued.\n");
 
 			QueueTransfer(event);
 
@@ -1261,12 +1255,12 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 	   and the transfer will time out.  */
 
 		DebugPrint("Starting MULTIPLE transfer; target = %lu, property = %lu\n",
-				   atoms[i + 0], atoms[i + 1]);
+		           atoms[i + 0], atoms[i + 1]);
 
 		if (atoms[0] == MULTIPLE)
 		{
 			DebugPrint("Saw nested MULTIPLE transfer; "
-					   "such conversions are not allowed\n");
+				"such conversions are not allowed\n");
 			atoms[0] = None;
 			prop_data_changed = True;
 
@@ -1276,7 +1270,7 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 		if (!CanConvertTarget(info, atoms[0]))
 		{
 			DebugPrint("Couldn't convert to target for a simple reason;"
-					   " replacing atom with NULL\n");
+				" replacing atom with NULL\n");
 			atoms[0] = None;
 			prop_data_changed = True;
 
@@ -1287,7 +1281,7 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 		{
 			DebugPrint("Converting to special target TARGETS...\n");
 			ConvertSelectionTargets1(info, event->xselectionrequest.requestor,
-									 atoms[1]);
+			                         atoms[1]);
 
 			continue;
 		}
@@ -1296,7 +1290,7 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 		{
 			DebugPrint("Converting to special target TIMESTAMP...\n");
 			ConvertSelectionTimestamp1(info, event->xselectionrequest.requestor,
-									   atoms[1]);
+			                           atoms[1]);
 
 			continue;
 		}
@@ -1319,7 +1313,7 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 
 		/* Add a timeout for 5 seconds.  */
 		transfer->timeout = AddTimer(HandleWriteTimeout, transfer,
-									 MakeTimespec(5, 0));
+		                             MakeTimespec(5, 0));
 
 		write_transfers.next->last = transfer;
 		write_transfers.next = transfer;
@@ -1327,8 +1321,8 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 		SelectPropertyNotify(transfer->requestor);
 
 		transfer->transfer_function = GetTransferFunction(info, transfer,
-														  transfer->target,
-														  &transfer->type);
+		                                                  transfer->target,
+		                                                  &transfer->type);
 
 		if (!transfer->transfer_function)
 		{
@@ -1354,10 +1348,10 @@ ConvertSelectionMultiple(SelectionOwnerInfo *info, XEvent *event,
 	   which conversions could not be made.  */
 	if (prop_data_changed)
 		XChangeProperty(compositor.display,
-						event->xselectionrequest.requestor,
-						event->xselectionrequest.property,
-						ATOM_PAIR, 32, PropModeReplace,
-						prop_data, nitems);
+		                event->xselectionrequest.requestor,
+		                event->xselectionrequest.property,
+		                ATOM_PAIR, 32, PropModeReplace,
+		                prop_data, nitems);
 
 	if (prop_data && !record->pending)
 		/* If record->pending, then the individual write transfers still
@@ -1384,13 +1378,13 @@ HandleSelectionRequest(XEvent *event)
 	SelectionOwnerInfo *info;
 
 	DebugPrint("Received SelectionRequest.  Time: %lu, requestor: %lu"
-			   ", target: %lu, selection: %lu, property: %lu, serial: %lu\n",
-			   event->xselectionrequest.time,
-			   event->xselectionrequest.requestor,
-			   event->xselectionrequest.target,
-			   event->xselectionrequest.selection,
-			   event->xselectionrequest.property,
-			   event->xselectionrequest.serial);
+	           ", target: %lu, selection: %lu, property: %lu, serial: %lu\n",
+	           event->xselectionrequest.time,
+	           event->xselectionrequest.requestor,
+	           event->xselectionrequest.target,
+	           event->xselectionrequest.selection,
+	           event->xselectionrequest.property,
+	           event->xselectionrequest.serial);
 
 	notify.xselection.type = SelectionNotify;
 	notify.xselection.requestor = event->xselectionrequest.requestor;
@@ -1400,15 +1394,16 @@ HandleSelectionRequest(XEvent *event)
 	notify.xselection.property = None;
 
 	info = XLLookUpAssoc(selection_owner_info,
-						 event->xselectionrequest.selection);
+	                     event->xselectionrequest.selection);
 
 	if (!info || !info->get_transfer_function
-		/* The ICCCM prohibits clients from using CurrentTime, but some
-	   do anyway.  */
-		|| (event->xselectionrequest.time != CurrentTime && TimeIs(event->xselectionrequest.time, Earlier, info->time)) || (!CanConvertTarget(info, event->xselectionrequest.target)
-																															/* CanConvertTarget itself does not understand MULTIPLE,
-																															   because it itself is called while handling MULTIPLE.  */
-																															&& event->xselectionrequest.target != MULTIPLE))
+	    /* The ICCCM prohibits clients from using CurrentTime, but some
+       do anyway.  */
+	    || (event->xselectionrequest.time != CurrentTime && TimeIs(event->xselectionrequest.time, Earlier, info->time))
+	    || (!CanConvertTarget(info, event->xselectionrequest.target)
+	        /* CanConvertTarget itself does not understand MULTIPLE,
+	           because it itself is called while handling MULTIPLE.  */
+	        && event->xselectionrequest.target != MULTIPLE))
 	{
 		DebugPrint("Couldn't convert selection due to simple reason\n");
 
@@ -1421,57 +1416,57 @@ HandleSelectionRequest(XEvent *event)
 	/* If a selection request with the same property and window already
 	   exists, delay this request for later.  */
 	existing_transfer = FindWriteTransfer(event->xselectionrequest.requestor,
-										  event->xselectionrequest.property,
-										  /* Ignore write transfers that are finished
-											 but pending property deletion.  If the
-											 existing transfer is finished, but we are
-											 still waiting for property deletion, allow
-											 the new transfer to take place.  This is
-											 because some very popular programs ask for
-											 TARGETS, and then ask for STRING with the
-											 same property, but only delete the
-											 property for the first request after the
-											 data for the second request arrives.  This
-											 is against the ICCCM, as it says:
+	                                      event->xselectionrequest.property,
+	                                      /* Ignore write transfers that are finished
+		                                     but pending property deletion.  If the
+		                                     existing transfer is finished, but we are
+		                                     still waiting for property deletion, allow
+		                                     the new transfer to take place.  This is
+		                                     because some very popular programs ask for
+		                                     TARGETS, and then ask for STRING with the
+		                                     same property, but only delete the
+		                                     property for the first request after the
+		                                     data for the second request arrives.  This
+		                                     is against the ICCCM, as it says:
 
-											   The requestor should set the property
-											   argument to the name of a property that
-											   the owner can use to report the value of
-											   the selection.  Requestors should ensure
-											   that the named property does not exist
-											   on the window before issuing the
-											   ConvertSelection request.
+		                                       The requestor should set the property
+		                                       argument to the name of a property that
+		                                       the owner can use to report the value of
+		                                       the selection.  Requestors should ensure
+		                                       that the named property does not exist
+		                                       on the window before issuing the
+		                                       ConvertSelection request.
 
-											 and:
+		                                     and:
 
-											   Once all the data in the selection has
-											   been retrieved (which may require
-											   getting the values of several properties
-											   -- see the section called "Use of
-											   Selection Properties". ), the requestor
-											   should delete the property in the
-											   SelectionNotify request by using a
-											   GetProperty request with the delete
-											   argument set to True.  As previously
-											   discussed, the owner has no way of
-											   knowing when the data has been
-											   transferred to the requestor unless the
-											   property is removed.
+		                                       Once all the data in the selection has
+		                                       been retrieved (which may require
+		                                       getting the values of several properties
+		                                       -- see the section called "Use of
+		                                       Selection Properties". ), the requestor
+		                                       should delete the property in the
+		                                       SelectionNotify request by using a
+		                                       GetProperty request with the delete
+		                                       argument set to True.  As previously
+		                                       discussed, the owner has no way of
+		                                       knowing when the data has been
+		                                       transferred to the requestor unless the
+		                                       property is removed.
 
-											 Both paragraphs mean that the property
-											 should have been deleted by the time the
-											 second request is made! */
-										  IsFinished | IsWaitingForDelete);
+		                                     Both paragraphs mean that the property
+		                                     should have been deleted by the time the
+		                                     second request is made! */
+	                                      IsFinished | IsWaitingForDelete);
 
 	if (existing_transfer
-		/* We need to look at the queue too; otherwise, events from the
-	   future might be handled out of order, if the original write
-	   transfer is gone, but some events are still queued.  */
-		|| FindQueuedTransfer(event->xselectionrequest.requestor,
-							  event->xselectionrequest.property))
+	    /* We need to look at the queue too; otherwise, events from the
+       future might be handled out of order, if the original write
+       transfer is gone, but some events are still queued.  */
+	    || FindQueuedTransfer(event->xselectionrequest.requestor,
+	                          event->xselectionrequest.property))
 	{
 		DebugPrint("Queueing this selection request for later, because"
-				   " an identical transfer is already taking place\n");
+			" an identical transfer is already taking place\n");
 		QueueTransfer(event);
 
 		return True;
@@ -1534,7 +1529,7 @@ HandleSelectionRequest(XEvent *event)
 
 	/* Add a timeout for 5 seconds.  */
 	transfer->timeout = AddTimer(HandleWriteTimeout, transfer,
-								 MakeTimespec(5, 0));
+	                             MakeTimespec(5, 0));
 
 	write_transfers.next->last = transfer;
 	write_transfers.next = transfer;
@@ -1542,8 +1537,8 @@ HandleSelectionRequest(XEvent *event)
 	SelectPropertyNotify(transfer->requestor);
 
 	transfer->transfer_function = GetTransferFunction(info, transfer,
-													  transfer->target,
-													  &transfer->type);
+	                                                  transfer->target,
+	                                                  &transfer->type);
 
 	if (!transfer->transfer_function)
 	{
@@ -1590,7 +1585,7 @@ DrainQueuedTransfers(void)
 		item = item->last;
 
 		DebugPrint("Draining one request with serial: %lu\n",
-				   last->event.xselectionrequest.serial);
+		           last->event.xselectionrequest.serial);
 
 		HandleSelectionRequest(&last->event);
 		XLFree(last);
@@ -1609,8 +1604,8 @@ HandleSelectionNotify(XEvent *event)
 	if (event->xselection.property == None)
 	{
 		transfer = FindReadTransfer(event->xselection.selection,
-									event->xselection.target,
-									event->xselection.time);
+		                            event->xselection.target,
+		                            event->xselection.time);
 
 		if (!transfer)
 			return True;
@@ -1639,7 +1634,7 @@ HandlePropertyDelete(XEvent *event)
 	transfer = write_transfers.last;
 
 	DebugPrint("Handling property deletion for %lu; window %lu\n",
-			   event->xproperty.atom, event->xproperty.window);
+	           event->xproperty.atom, event->xproperty.window);
 
 	while (transfer != &write_transfers)
 	{
@@ -1705,18 +1700,18 @@ HandlePropertyNotify(XEvent *event)
 		/* Xlib selects for PropertyNotifyMask on the root window, which
 		   results in a lot of noise here.  */
 		DebugPrint("PropertyNotify event:\n"
-				   "serial:\t%lu\n"
-				   "window:\t%lu\n"
-				   "atom:\t%lu\n"
-				   "time:\t%lu\n"
-				   "state:\t%s\n",
-				   event->xproperty.serial,
-				   event->xproperty.window,
-				   event->xproperty.atom,
-				   event->xproperty.time,
-				   (event->xproperty.state == PropertyNewValue
-						? "PropertyNewValue"
-						: "PropertyDelete"));
+	           "serial:\t%lu\n"
+	           "window:\t%lu\n"
+	           "atom:\t%lu\n"
+	           "time:\t%lu\n"
+	           "state:\t%s\n",
+	           event->xproperty.serial,
+	           event->xproperty.window,
+	           event->xproperty.atom,
+	           event->xproperty.time,
+	           (event->xproperty.state == PropertyNewValue
+		           ? "PropertyNewValue"
+		           : "PropertyDelete"));
 
 	if (event->xproperty.state != PropertyNewValue)
 		return HandlePropertyDelete(event);
@@ -1785,9 +1780,9 @@ void CompleteDelayedTransfer(ReadTransfer *transfer)
 }
 
 Bool OwnSelection(Timestamp time, Atom selection,
-				  GetDataFunc (*hook)(WriteTransfer *transfer,
-									  Atom, Atom *),
-				  Atom *targets, int ntargets)
+                  GetDataFunc (*hook)(WriteTransfer *transfer,
+                                      Atom, Atom *),
+                  Atom *targets, int ntargets)
 {
 	Window owner;
 	SelectionOwnerInfo *info;
@@ -1799,8 +1794,8 @@ Bool OwnSelection(Timestamp time, Atom selection,
 		return False;
 
 	XSetSelectionOwner(compositor.display, selection,
-					   selection_transfer_window,
-					   time.milliseconds);
+	                   selection_transfer_window,
+	                   time.milliseconds);
 
 	/* Check if selection ownership was actually set.  */
 	owner = XGetSelectionOwner(compositor.display, selection);
@@ -1816,7 +1811,7 @@ Bool OwnSelection(Timestamp time, Atom selection,
 		info = XLMalloc(sizeof *info);
 
 		XLMakeAssoc(selection_owner_info, selection,
-					info);
+		            info);
 	}
 	else
 	{
@@ -1841,7 +1836,7 @@ void DisownSelection(Atom selection)
 	if (info && info->get_transfer_function)
 	{
 		XSetSelectionOwner(compositor.display, selection,
-						   None, info->time.milliseconds);
+		                   None, info->time.milliseconds);
 
 		/* Also free info->targets.  */
 		XLFree(info->targets);
@@ -1880,9 +1875,9 @@ void InitSelections(void)
 	flags = CWEventMask | CWOverrideRedirect;
 
 	selection_transfer_window = XCreateWindow(compositor.display,
-											  DefaultRootWindow(compositor.display),
-											  -1, -1, 1, 1, 0, CopyFromParent, InputOnly,
-											  CopyFromParent, flags, &attrs);
+	                                          DefaultRootWindow(compositor.display),
+	                                          -1, -1, 1, 1, 0, CopyFromParent, InputOnly,
+	                                          CopyFromParent, flags, &attrs);
 
 	/* Make the assoc tables used to keep track of input masks and
 	   selection data.  */
@@ -1890,5 +1885,5 @@ void InitSelections(void)
 	selection_owner_info = XLCreateAssocTable(32);
 
 	DebugPrint("Selection transfer window is %lu\n",
-			   selection_transfer_window);
+	           selection_transfer_window);
 }

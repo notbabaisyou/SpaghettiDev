@@ -35,8 +35,7 @@ typedef struct _ProcessDescription ProcessDescription;
 /* Subprocess control and management.  This module implements a
    "process queue", which is an ordered list of commands to run.  */
 
-struct _ProcessDescription
-{
+struct _ProcessDescription {
 	/* The next and last descriptions in the queue.  */
 	ProcessDescription *next, *last;
 
@@ -47,8 +46,7 @@ struct _ProcessDescription
 	size_t num_arguments;
 };
 
-struct _ProcessQueue
-{
+struct _ProcessQueue {
 	/* The next process queue in the chain.  */
 	ProcessQueue *next;
 
@@ -89,7 +87,7 @@ HandleChild(int signal, siginfo_t *siginfo, void *ucontext)
 		pid = TEMP_FAILURE_RETRY(waitpid(-1, &status, WNOHANG));
 		errno = temp_errno;
 
-		if (pid == (pid_t)-1)
+		if (pid == (pid_t) -1)
 			break;
 
 		considering = all_queues;
@@ -100,7 +98,7 @@ HandleChild(int signal, siginfo_t *siginfo, void *ucontext)
 				/* This process has finished.  Set considering->process to
 			   (pid_t) -1.  The next queued process will then be run
 			   later.  */
-				considering->process = (pid_t)-1;
+				considering->process = (pid_t) -1;
 
 				return;
 			}
@@ -176,7 +174,7 @@ RunNext(ProcessQueue *queue)
 		description = description->last;
 
 		rc = posix_spawnp(&pid, last->arguments[0], NULL, NULL,
-						  last->arguments, environ);
+		                  last->arguments, environ);
 
 		/* Unlink the description.  */
 		last->next->last = last->last;
@@ -191,9 +189,10 @@ RunNext(ProcessQueue *queue)
 			return;
 		}
 		else
-			/* Print an error and continue.  */
-			fprintf(stderr, "Subprocess creation failed: %s\n",
-					strerror(errno));
+		/* Print an error and continue.  */
+			MBLog(MB_LOG_ERROR,
+			      "Subprocess creation failed: %s\n",
+			      strerror(errno));
 	}
 }
 
@@ -207,7 +206,7 @@ ProcessPendingDescriptions(Bool need_block)
 
 	for (queue = all_queues; queue; queue = queue->next)
 	{
-		if (queue->process == (pid_t)-1)
+		if (queue->process == (pid_t) -1)
 			RunNext(queue);
 	}
 
@@ -245,7 +244,7 @@ ProcessEscapes(char *string)
 }
 
 void ParseProcessString(const char *string, char ***arguments_return,
-						size_t *arg_count)
+                        size_t *arg_count)
 {
 	char **arguments;
 	const char *start;
@@ -383,7 +382,7 @@ MakeProcessQueue(void)
 	queue->next = all_queues;
 	queue->descriptions.next = &queue->descriptions;
 	queue->descriptions.last = &queue->descriptions;
-	queue->process = (pid_t)-1;
+	queue->process = (pid_t) -1;
 
 	Block(NULL);
 	all_queues = queue;
@@ -393,7 +392,7 @@ MakeProcessQueue(void)
 }
 
 int ProcessPoll(struct pollfd *fds, nfds_t nfds,
-				struct timespec *timeout)
+                struct timespec *timeout)
 {
 	sigset_t oldset;
 	int rc;

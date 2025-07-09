@@ -121,7 +121,7 @@ FindSystemCounter(const char *name)
 
 	num_counters = 0;
 	system_counters = XSyncListSystemCounters(compositor.display,
-											  &num_counters);
+	                                          &num_counters);
 	_counter = None;
 
 	for (i = 0; i < num_counters; ++i)
@@ -200,8 +200,8 @@ StartAlarms(XSyncCounter _counter, XSyncValue current_value)
 
 		/* Create the alarm.  */
 		alarm_a = XSyncCreateAlarm(compositor.display,
-								   value_mask | XSyncCADelta,
-								   &attributes);
+		                           value_mask | XSyncCADelta,
+		                           &attributes);
 		XSync(compositor.display, False);
 	}
 	else
@@ -218,7 +218,7 @@ StartAlarms(XSyncCounter _counter, XSyncValue current_value)
 
 		/* Create the alarm.  */
 		alarm_a = XSyncCreateAlarm(compositor.display,
-								   value_mask, &attributes);
+		                           value_mask, &attributes);
 	}
 
 	/* ...or the counter increases indefinitely, with its lower 32 bits
@@ -239,7 +239,7 @@ StartAlarms(XSyncCounter _counter, XSyncValue current_value)
 
 		/* Create the alarm.  */
 		alarm_b = XSyncCreateAlarm(compositor.display,
-								   value_mask, &attributes);
+		                           value_mask, &attributes);
 	}
 	else
 	{
@@ -256,7 +256,7 @@ StartAlarms(XSyncCounter _counter, XSyncValue current_value)
 
 		/* Create the alarm.  */
 		alarm_b = XSyncCreateAlarm(compositor.display,
-								   value_mask, &attributes);
+		                           value_mask, &attributes);
 	}
 
 	/* Now wait for alarm notifications to arrive.  */
@@ -281,7 +281,7 @@ HandleAlarmNotify(XSyncAlarmNotifyEvent *notify)
 Bool HandleOneXEventForTime(XEvent *event)
 {
 	if (event->type == xsync_event_base + XSyncAlarmNotify)
-		return HandleAlarmNotify((XSyncAlarmNotifyEvent *)event);
+		return HandleAlarmNotify((XSyncAlarmNotifyEvent *) event);
 
 	return False;
 }
@@ -293,17 +293,17 @@ void InitTime(void)
 	int xsync_major, xsync_minor;
 
 	supported = XSyncQueryExtension(compositor.display,
-									&xsync_event_base,
-									&xsync_error_base);
+	                                &xsync_event_base,
+	                                &xsync_error_base);
 
 	if (supported)
 		supported = XSyncInitialize(compositor.display,
-									&xsync_major, &xsync_minor);
+		                            &xsync_major, &xsync_minor);
 
 	if (!supported)
 	{
 		fprintf(stderr, "A compatible version of the synchronization"
-						" extension was not found\n");
+		        " extension was not found\n");
 		exit(1);
 	}
 

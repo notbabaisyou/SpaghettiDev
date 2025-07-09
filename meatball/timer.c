@@ -27,8 +27,7 @@
 /* Linked list of all timers.  */
 static Timer all_timers;
 
-struct _Timer
-{
+struct _Timer {
 	/* The next and last timers in this list.  */
 	Timer *next, *last;
 
@@ -160,7 +159,7 @@ TimespecSub(struct timespec a, struct timespec b)
 
 Timer *
 AddTimer(void (*function)(Timer *, void *, struct timespec),
-		 void *data, struct timespec delay)
+         void *data, struct timespec delay)
 {
 	Timer *timer;
 
@@ -169,7 +168,7 @@ AddTimer(void (*function)(Timer *, void *, struct timespec),
 	timer->timer_data = data;
 	timer->repeat = delay;
 	timer->next_time = TimespecAdd(CurrentTimespec(),
-								   delay);
+	                               delay);
 
 	/* Chain the timer onto our list of timers.  */
 	timer->next = all_timers.next;
@@ -183,7 +182,7 @@ AddTimer(void (*function)(Timer *, void *, struct timespec),
 
 Timer *
 AddTimerWithBaseTime(void (*function)(Timer *, void *, struct timespec),
-					 void *data, struct timespec delay, struct timespec base)
+                     void *data, struct timespec delay, struct timespec base)
 {
 	Timer *timer;
 
@@ -217,7 +216,7 @@ void RemoveTimer(Timer *timer)
 void RetimeTimer(Timer *timer)
 {
 	timer->next_time = TimespecAdd(CurrentTimespec(),
-								   timer->repeat);
+	                               timer->repeat);
 }
 
 struct timespec
@@ -229,7 +228,7 @@ ProcessTimers(void)
 
 	now = CurrentTimespec();
 	wait = MakeTimespec(TypeMaximum(time_t),
-						1000000000 - 1);
+	                    1000000000 - 1);
 	timer = all_timers.next;
 
 	while (timer != &all_timers)
@@ -242,7 +241,7 @@ ProcessTimers(void)
 		if (TimespecCmp(timer->next_time, now) <= 0)
 		{
 			timer->next_time = TimespecAdd(timer->next_time,
-										   timer->repeat);
+			                               timer->repeat);
 			flag = True;
 		}
 

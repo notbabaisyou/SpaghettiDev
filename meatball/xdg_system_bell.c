@@ -47,13 +47,13 @@ static const struct xdg_system_bell_v1_interface xdg_system_bell_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &xdg_system_bell_v1_interface,
-								  version, id);
+	                              &xdg_system_bell_v1_interface,
+	                              version, id);
 
 	if (!resource)
 	{
@@ -67,6 +67,6 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 void XLInitSystemBell(void)
 {
 	xdg_system_bell_global = wl_global_create(compositor.wl_display,
-												  &xdg_system_bell_v1_interface,
-												  1, NULL, HandleBind);
+	                                          &xdg_system_bell_v1_interface,
+	                                          1, NULL, HandleBind);
 }

@@ -230,7 +230,7 @@ UnlinkCallbacks(FrameCallback *start, FrameCallback *end)
 
 static void
 RelinkCallbacksAfter(FrameCallback *start, FrameCallback *end,
-					 FrameCallback *dest)
+                     FrameCallback *dest)
 {
 	end->next = dest->next;
 	start->last = dest;
@@ -316,14 +316,14 @@ DoRelease(Surface *surface, ExtBuffer *buffer)
 
 static void
 DestroySurface(struct wl_client *client,
-			   struct wl_resource *resource)
+               struct wl_resource *resource)
 {
 	wl_resource_destroy(resource);
 }
 
 static void
 Attach(struct wl_client *client, struct wl_resource *resource,
-	   struct wl_resource *buffer_resource, int32_t x, int32_t y)
+       struct wl_resource *buffer_resource, int32_t x, int32_t y)
 {
 	Surface *surface;
 	ExtBuffer *buffer;
@@ -331,7 +331,7 @@ Attach(struct wl_client *client, struct wl_resource *resource,
 	if (x != 0 && y != 0 && wl_resource_get_version(resource) >= 5)
 	{
 		wl_resource_post_error(resource, WL_SURFACE_ERROR_INVALID_OFFSET,
-							   "invalid offsets given to wl_surface_attach");
+		                       "invalid offsets given to wl_surface_attach");
 		return;
 	}
 
@@ -354,7 +354,7 @@ Attach(struct wl_client *client, struct wl_resource *resource,
 
 static void
 Offset(struct wl_client *client, struct wl_resource *resource,
-	   int32_t x, int32_t y)
+       int32_t x, int32_t y)
 {
 	Surface *surface;
 
@@ -368,7 +368,7 @@ Offset(struct wl_client *client, struct wl_resource *resource,
 
 static void
 Damage(struct wl_client *client, struct wl_resource *resource,
-	   int32_t x, int32_t y, int32_t width, int32_t height)
+       int32_t x, int32_t y, int32_t width, int32_t height)
 {
 	Surface *surface;
 
@@ -378,16 +378,16 @@ Damage(struct wl_client *client, struct wl_resource *resource,
 	   clients really set the damage region to INT_MAX.  */
 
 	pixman_region32_union_rect(&surface->pending_state.surface,
-							   &surface->pending_state.surface,
-							   x, y, MIN(65535, width),
-							   MIN(65535, height));
+	                           &surface->pending_state.surface,
+	                           x, y, MIN(65535, width),
+	                           MIN(65535, height));
 
 	surface->pending_state.pending |= PendingSurfaceDamage;
 }
 
 static void
 Frame(struct wl_client *client, struct wl_resource *resource,
-	  uint32_t callback_id)
+      uint32_t callback_id)
 {
 	struct wl_resource *callback_resource;
 	FrameCallback *callback;
@@ -404,7 +404,7 @@ Frame(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	callback_resource = wl_resource_create(client, &wl_callback_interface,
-										   1, callback_id);
+	                                       1, callback_id);
 
 	if (!callback_resource)
 	{
@@ -416,7 +416,7 @@ Frame(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(callback_resource, NULL,
-								   callback, HandleCallbackResourceDestroy);
+	                               callback, HandleCallbackResourceDestroy);
 
 	callback->resource = callback_resource;
 	surface->pending_state.pending |= PendingFrameCallbacks;
@@ -424,7 +424,7 @@ Frame(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetOpaqueRegion(struct wl_client *client, struct wl_resource *resource,
-				struct wl_resource *region_resource)
+                struct wl_resource *region_resource)
 {
 	Surface *surface;
 	pixman_region32_t *region;
@@ -440,7 +440,7 @@ SetOpaqueRegion(struct wl_client *client, struct wl_resource *resource,
 		   intersect it with the largest possible dimensions of a
 		   view.  */
 		pixman_region32_intersect_rect(&surface->pending_state.opaque,
-									   region, 0, 0, 65535, 65535);
+		                               region, 0, 0, 65535, 65535);
 	}
 	else
 		pixman_region32_clear(&surface->pending_state.opaque);
@@ -450,7 +450,7 @@ SetOpaqueRegion(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetInputRegion(struct wl_client *client, struct wl_resource *resource,
-			   struct wl_resource *region_resource)
+               struct wl_resource *region_resource)
 {
 	Surface *surface;
 	pixman_region32_t *region;
@@ -466,14 +466,14 @@ SetInputRegion(struct wl_client *client, struct wl_resource *resource,
 	   intersect it with the largest possible dimensions of a
 	   view.  */
 		pixman_region32_intersect_rect(&surface->pending_state.input,
-									   region, 0, 0, 65535, 65535);
+		                               region, 0, 0, 65535, 65535);
 	}
 	else
 	{
 		pixman_region32_clear(&surface->pending_state.input);
 		pixman_region32_union_rect(&surface->pending_state.input,
-								   &surface->pending_state.input,
-								   0, 0, 65535, 65535);
+		                           &surface->pending_state.input,
+		                           0, 0, 65535, 65535);
 	}
 
 	surface->pending_state.pending |= PendingInputRegion;
@@ -512,7 +512,7 @@ static void
 ApplyBufferTransform(Surface *surface)
 {
 	ViewSetTransform(surface->view,
-					 surface->current_state.transform);
+	                 surface->current_state.transform);
 }
 
 static void
@@ -616,12 +616,12 @@ ApplyOpaqueRegion(Surface *surface)
 	   the global scale factor.  */
 	if (global_scale_factor == 1)
 		ViewSetOpaque(surface->view,
-					  &surface->current_state.opaque);
+		              &surface->current_state.opaque);
 	else
 	{
 		pixman_region32_init(&temp);
 		XLScaleRegion(&temp, &surface->current_state.opaque,
-					  surface->factor, surface->factor);
+		              surface->factor, surface->factor);
 		ViewSetOpaque(surface->view, &temp);
 		pixman_region32_fini(&temp);
 	}
@@ -636,12 +636,12 @@ ApplyInputRegion(Surface *surface)
 	   the global scale factor.  */
 	if (global_scale_factor == 1)
 		ViewSetInput(surface->view,
-					 &surface->current_state.input);
+		             &surface->current_state.input);
 	else
 	{
 		pixman_region32_init(&temp);
 		XLScaleRegion(&temp, &surface->current_state.input,
-					  surface->factor, surface->factor);
+		              surface->factor, surface->factor);
 		ViewSetInput(surface->view, &temp);
 		pixman_region32_fini(&temp);
 	}
@@ -677,11 +677,11 @@ ApplyViewport(Surface *surface)
 	if (state->buffer)
 	{
 		max_width = (RotatesDimensions(state->transform)
-						 ? XLBufferHeight(state->buffer)
-						 : XLBufferWidth(state->buffer));
+			             ? XLBufferHeight(state->buffer)
+			             : XLBufferWidth(state->buffer));
 		max_height = (RotatesDimensions(state->transform)
-						  ? XLBufferWidth(state->buffer)
-						  : XLBufferHeight(state->buffer));
+			              ? XLBufferWidth(state->buffer)
+			              : XLBufferHeight(state->buffer));
 	}
 	else
 	{
@@ -730,12 +730,12 @@ ApplyViewport(Surface *surface)
 	else
 	{
 		if ((rint(crop_width) != crop_width || rint(crop_height) != crop_height)
-			/* If the src_width and src_height were not specified
-			   manually but were computed from the buffer scale, don't
-			   complain that they are not integer values.  The
-			   underlying viewport code satisfactorily handles
-			   fractional width and height anyway.  */
-			&& state->src_x != 1.0)
+		    /* If the src_width and src_height were not specified
+		       manually but were computed from the buffer scale, don't
+		       complain that they are not integer values.  The
+		       underlying viewport code satisfactorily handles
+		       fractional width and height anyway.  */
+		    && state->src_x != 1.0)
 			goto bad_size;
 
 		dest_width = state->src_width;
@@ -744,7 +744,8 @@ ApplyViewport(Surface *surface)
 
 	/* Now all of the fields above must be set.  Verify that none of
 	   them lie outside the buffer.  */
-	if (state->src_x != -1 && (src_x + crop_width - 1 >= max_width / state->buffer_scale || src_y + crop_height - 1 >= max_height / state->buffer_scale))
+	if (state->src_x != -1 && (src_x + crop_width - 1 >= max_width / state->buffer_scale || src_y + crop_height - 1 >=
+	                           max_height / state->buffer_scale))
 		goto out_of_buffer;
 
 	/* Finally, set the viewport.  Convert the values to window
@@ -763,7 +764,7 @@ ApplyViewport(Surface *surface)
 
 	/* And really set the viewport.  */
 	ViewSetViewport(surface->view, src_x, src_y, crop_width,
-					crop_height, dest_width, dest_height);
+	                crop_height, dest_width, dest_height);
 
 	return;
 
@@ -809,7 +810,8 @@ CheckViewportValues(Surface *surface)
 		height = XLBufferHeight(state->buffer);
 	}
 
-	if (state->src_x + state->src_width - 1 >= width / state->buffer_scale || state->src_y + state->src_height - 1 >= height / state->buffer_scale)
+	if (state->src_x + state->src_width - 1 >= width / state->buffer_scale || state->src_y + state->src_height - 1 >=
+	    height / state->buffer_scale)
 		XLWpViewportReportBadSize(surface->viewport);
 }
 
@@ -861,12 +863,12 @@ ApplySurfaceDamage(Surface *surface)
 
 	if (global_scale_factor == 1)
 		ViewDamage(surface->view,
-				   &surface->current_state.surface);
+		           &surface->current_state.surface);
 	else
 	{
 		pixman_region32_init(&temp);
 		XLScaleRegion(&temp, &surface->current_state.surface,
-					  surface->factor, surface->factor);
+		              surface->factor, surface->factor);
 		ViewDamage(surface->view, &temp);
 		pixman_region32_fini(&temp);
 	}
@@ -883,15 +885,15 @@ SavePendingState(Surface *surface)
 	if (surface->pending_state.pending & PendingBuffer)
 	{
 		if (surface->cached_state.buffer && (surface->pending_state.buffer != surface->cached_state.buffer)
-			/* If the cached buffer has already been applied, releasing
-			   it is a mistake!  */
-			&& (surface->cached_state.buffer != surface->current_state.buffer))
+		    /* If the cached buffer has already been applied, releasing
+		       it is a mistake!  */
+		    && (surface->cached_state.buffer != surface->current_state.buffer))
 			DoRelease(surface, surface->cached_state.buffer);
 
 		if (surface->pending_state.buffer)
 		{
 			AttachBuffer(&surface->cached_state,
-						 surface->pending_state.buffer);
+			             surface->pending_state.buffer);
 			ClearBuffer(&surface->pending_state);
 		}
 		else
@@ -900,11 +902,11 @@ SavePendingState(Surface *surface)
 
 	if (surface->pending_state.pending & PendingInputRegion)
 		pixman_region32_copy(&surface->cached_state.input,
-							 &surface->pending_state.input);
+		                     &surface->pending_state.input);
 
 	if (surface->pending_state.pending & PendingOpaqueRegion)
 		pixman_region32_copy(&surface->cached_state.opaque,
-							 &surface->pending_state.opaque);
+		                     &surface->pending_state.opaque);
 
 	if (surface->pending_state.pending & PendingPresentationHint)
 		surface->cached_state.presentation_hint = surface->pending_state.presentation_hint;
@@ -939,27 +941,28 @@ SavePendingState(Surface *surface)
 	if (surface->pending_state.pending & PendingDamage)
 	{
 		pixman_region32_union(&surface->cached_state.damage,
-							  &surface->cached_state.damage,
-							  &surface->pending_state.damage);
+		                      &surface->cached_state.damage,
+		                      &surface->pending_state.damage);
 		pixman_region32_clear(&surface->pending_state.damage);
 	}
 
 	if (surface->pending_state.pending & PendingSurfaceDamage)
 	{
 		pixman_region32_union(&surface->cached_state.surface,
-							  &surface->cached_state.surface,
-							  &surface->pending_state.surface);
+		                      &surface->cached_state.surface,
+		                      &surface->pending_state.surface);
 		pixman_region32_clear(&surface->pending_state.surface);
 	}
 
-	if (surface->pending_state.pending & PendingFrameCallbacks && (surface->pending_state.frame_callbacks.next != &surface->pending_state.frame_callbacks))
+	if (surface->pending_state.pending & PendingFrameCallbacks && (
+		    surface->pending_state.frame_callbacks.next != &surface->pending_state.frame_callbacks))
 	{
 		start = surface->pending_state.frame_callbacks.next;
 		end = surface->pending_state.frame_callbacks.last;
 
 		UnlinkCallbacks(start, end);
 		RelinkCallbacksAfter(start, end,
-							 &surface->cached_state.frame_callbacks);
+		                     &surface->cached_state.frame_callbacks);
 	}
 
 	surface->cached_state.pending |= surface->pending_state.pending;
@@ -1008,7 +1011,8 @@ InternalCommit1(Surface *surface, State *pending)
 	{
 		/* The buffer may already released if its contents were
 	   copied, i.e. uploaded to a texture, during updates.  */
-		if (!(surface->current_state.pending & BufferAlreadyReleased) && surface->current_state.buffer && surface->current_state.buffer != pending->buffer)
+		if (!(surface->current_state.pending & BufferAlreadyReleased) && surface->current_state.buffer && surface->
+		    current_state.buffer != pending->buffer)
 			DoRelease(surface, surface->current_state.buffer);
 
 		/* Clear this flag now, since the attached buffer has
@@ -1018,7 +1022,7 @@ InternalCommit1(Surface *surface, State *pending)
 		if (pending->buffer)
 		{
 			AttachBuffer(&surface->current_state,
-						 pending->buffer);
+			             pending->buffer);
 			ApplyBuffer(surface);
 			ClearBuffer(pending);
 
@@ -1053,14 +1057,14 @@ InternalCommit1(Surface *surface, State *pending)
 	if (pending->pending & PendingInputRegion)
 	{
 		pixman_region32_copy(&surface->current_state.input,
-							 &pending->input);
+		                     &pending->input);
 		ApplyInputRegion(surface);
 	}
 
 	if (pending->pending & PendingOpaqueRegion)
 	{
 		pixman_region32_copy(&surface->current_state.opaque,
-							 &pending->opaque);
+		                     &pending->opaque);
 		ApplyOpaqueRegion(surface);
 	}
 
@@ -1095,7 +1099,7 @@ InternalCommit1(Surface *surface, State *pending)
 	if (pending->pending & PendingDamage)
 	{
 		pixman_region32_copy(&surface->current_state.damage,
-							 &pending->damage);
+		                     &pending->damage);
 		pixman_region32_clear(&pending->damage);
 
 		ApplyDamage(surface);
@@ -1104,7 +1108,7 @@ InternalCommit1(Surface *surface, State *pending)
 	if (pending->pending & PendingSurfaceDamage)
 	{
 		pixman_region32_copy(&surface->current_state.surface,
-							 &pending->surface);
+		                     &pending->surface);
 		pixman_region32_clear(&pending->surface);
 
 		ApplySurfaceDamage(surface);
@@ -1122,7 +1126,7 @@ InternalCommit1(Surface *surface, State *pending)
 
 			UnlinkCallbacks(start, end);
 			RelinkCallbacksAfter(start, end,
-								 &surface->current_state.frame_callbacks);
+			                     &surface->current_state.frame_callbacks);
 		}
 	}
 }
@@ -1188,8 +1192,8 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 		XLSyncCommit(surface->synchronization);
 
 	if (surface->role && surface->role->funcs.early_commit
-		/* The role chose to postpone the commit for a later time.  */
-		&& !surface->role->funcs.early_commit(surface, surface->role))
+	    /* The role chose to postpone the commit for a later time.  */
+	    && !surface->role->funcs.early_commit(surface, surface->role))
 	{
 		/* So save the state for the role to commit later.  */
 		SavePendingState(surface);
@@ -1201,41 +1205,41 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 
 static Bool
 GetBufferTransform(int32_t wayland_transform,
-				   BufferTransform *transform)
+                   BufferTransform *transform)
 {
 	switch (wayland_transform)
 	{
-	case WL_OUTPUT_TRANSFORM_NORMAL:
-		*transform = Normal;
-		return True;
+		case WL_OUTPUT_TRANSFORM_NORMAL:
+			*transform = Normal;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_90:
-		*transform = CounterClockwise90;
-		return True;
+		case WL_OUTPUT_TRANSFORM_90:
+			*transform = CounterClockwise90;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_180:
-		*transform = CounterClockwise180;
-		return True;
+		case WL_OUTPUT_TRANSFORM_180:
+			*transform = CounterClockwise180;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_270:
-		*transform = CounterClockwise270;
-		return True;
+		case WL_OUTPUT_TRANSFORM_270:
+			*transform = CounterClockwise270;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_FLIPPED:
-		*transform = Flipped;
-		return True;
+		case WL_OUTPUT_TRANSFORM_FLIPPED:
+			*transform = Flipped;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-		*transform = Flipped90;
-		return True;
+		case WL_OUTPUT_TRANSFORM_FLIPPED_90:
+			*transform = Flipped90;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-		*transform = Flipped180;
-		return True;
+		case WL_OUTPUT_TRANSFORM_FLIPPED_180:
+			*transform = Flipped180;
+			return True;
 
-	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-		*transform = Flipped270;
-		return True;
+		case WL_OUTPUT_TRANSFORM_FLIPPED_270:
+			*transform = Flipped270;
+			return True;
 	}
 
 	return False;
@@ -1243,7 +1247,7 @@ GetBufferTransform(int32_t wayland_transform,
 
 static void
 SetBufferTransform(struct wl_client *client, struct wl_resource *resource,
-				   int32_t transform)
+                   int32_t transform)
 {
 	Surface *surface;
 
@@ -1251,21 +1255,21 @@ SetBufferTransform(struct wl_client *client, struct wl_resource *resource,
 
 	if (!GetBufferTransform(transform, &surface->pending_state.transform))
 		wl_resource_post_error(resource, WL_SURFACE_ERROR_INVALID_TRANSFORM,
-							   "invalid transform specified");
+		                       "invalid transform specified");
 	else
 		surface->pending_state.pending |= PendingBufferTransform;
 }
 
 static void
 SetBufferScale(struct wl_client *client, struct wl_resource *resource,
-			   int32_t scale)
+               int32_t scale)
 {
 	Surface *surface;
 
 	if (scale <= 0)
 	{
 		wl_resource_post_error(resource, WL_SURFACE_ERROR_INVALID_SCALE,
-							   "invalid scale: %d", scale);
+		                       "invalid scale: %d", scale);
 		return;
 	}
 
@@ -1277,7 +1281,7 @@ SetBufferScale(struct wl_client *client, struct wl_resource *resource,
 
 static void
 DamageBuffer(struct wl_client *client, struct wl_resource *resource,
-			 int32_t x, int32_t y, int32_t width, int32_t height)
+             int32_t x, int32_t y, int32_t width, int32_t height)
 {
 	Surface *surface;
 
@@ -1287,9 +1291,9 @@ DamageBuffer(struct wl_client *client, struct wl_resource *resource,
 	   clients really set the damage region to INT_MAX.  */
 
 	pixman_region32_union_rect(&surface->pending_state.damage,
-							   &surface->pending_state.damage,
-							   x, y, MIN(65535, width),
-							   MIN(65535, height));
+	                           &surface->pending_state.damage,
+	                           x, y, MIN(65535, width),
+	                           MIN(65535, height));
 
 	surface->pending_state.pending |= PendingDamage;
 }
@@ -1318,7 +1322,7 @@ InitState(State *state)
 
 	/* The initial state of the input region is always infinite.  */
 	pixman_region32_init_rect(&state->input, 0, 0,
-							  65535, 65535);
+	                          65535, 65535);
 
 	state->pending = PendingNone;
 	state->buffer = NULL;
@@ -1382,7 +1386,7 @@ HandleSurfaceDestroy(struct wl_resource *resource)
 	   after the role is torn down, because that is where the toplevel
 	   subcompositor is detached from the roles.  */
 	XLListFree(surface->subsurfaces,
-			   NotifySubsurfaceDestroyed);
+	           NotifySubsurfaceDestroyed);
 	surface->subsurfaces = NULL;
 
 	/* Keep surface->resource around until the role is released; some
@@ -1454,8 +1458,8 @@ MaybeResized(View *view)
 }
 
 void XLCreateSurface(struct wl_client *client,
-					 struct wl_resource *resource,
-					 uint32_t id)
+                     struct wl_resource *resource,
+                     uint32_t id)
 {
 	Surface *surface;
 
@@ -1469,8 +1473,8 @@ void XLCreateSurface(struct wl_client *client,
 
 	memset(surface, 0, sizeof *surface);
 	surface->resource = wl_resource_create(client, &wl_surface_interface,
-										   wl_resource_get_version(resource),
-										   id);
+	                                       wl_resource_get_version(resource),
+	                                       id);
 
 	if (!surface->resource)
 	{
@@ -1480,7 +1484,7 @@ void XLCreateSurface(struct wl_client *client,
 	}
 
 	wl_resource_set_implementation(surface->resource, &wl_surface_impl,
-								   surface, HandleSurfaceDestroy);
+	                               surface, HandleSurfaceDestroy);
 
 	surface->role = NULL;
 	surface->view = MakeView();
@@ -1595,11 +1599,11 @@ void XLSurfaceRunFrameCallbacks(Surface *surface, struct timespec time)
 	if (IntMultiplyWrapv(time.tv_sec, 1000, &ms_time))
 		ms_time = UINT64_MAX;
 	else if (IntAddWrapv(ms_time, time.tv_nsec / 1000000,
-						 &ms_time))
+	                     &ms_time))
 		ms_time = UINT64_MAX;
 
 	RunFrameCallbacks(&surface->current_state.frame_callbacks,
-					  ms_time);
+	                  ms_time);
 
 	/* Run frame callbacks for each attached subsurface as well.  */
 	for (list = surface->subsurfaces; list; list = list->next)
@@ -1611,7 +1615,7 @@ void XLSurfaceRunFrameCallbacksMs(Surface *surface, uint32_t ms_time)
 	XLList *list;
 
 	RunFrameCallbacks(&surface->current_state.frame_callbacks,
-					  ms_time);
+	                  ms_time);
 
 	/* Run frame callbacks for each attached subsurface as well.  */
 	for (list = surface->subsurfaces; list; list = list->next)
@@ -1620,8 +1624,8 @@ void XLSurfaceRunFrameCallbacksMs(Surface *surface, uint32_t ms_time)
 
 CommitCallback *
 XLSurfaceRunAtCommit(Surface *surface,
-					 void (*commit_func)(Surface *, void *),
-					 void *data)
+                     void (*commit_func)(Surface *, void *),
+                     void *data)
 {
 	CommitCallback *callback;
 
@@ -1641,8 +1645,8 @@ void XLSurfaceCancelCommitCallback(CommitCallback *callback)
 
 UnmapCallback *
 XLSurfaceRunAtUnmap(Surface *surface,
-					void (*unmap_func)(void *),
-					void *data)
+                    void (*unmap_func)(void *),
+                    void *data)
 {
 	UnmapCallback *callback;
 
@@ -1663,13 +1667,13 @@ void XLSurfaceCancelUnmapCallback(UnmapCallback *callback)
 void XLCommitSurface(Surface *surface, Bool use_pending)
 {
 	InternalCommit(surface, (use_pending
-								 ? &surface->pending_state
-								 : &surface->cached_state));
+		                         ? &surface->pending_state
+		                         : &surface->cached_state));
 }
 
 DestroyCallback *
 XLSurfaceRunOnFree(Surface *surface, void (*destroy_func)(void *),
-				   void *data)
+                   void *data)
 {
 	DestroyCallback *callback;
 
@@ -1689,7 +1693,7 @@ void XLSurfaceCancelRunOnFree(DestroyCallback *callback)
 
 void *
 XLSurfaceGetClientData(Surface *surface, ClientDataType type,
-					   size_t size, void (*free_func)(void *))
+                       size_t size, void (*free_func)(void *))
 {
 	ClientData *data;
 
@@ -1732,7 +1736,7 @@ XLWindowFromSurface(Surface *surface)
 		return None;
 
 	return surface->role->funcs.get_window(surface,
-										   surface->role);
+	                                       surface->role);
 }
 
 Bool XLSurfaceGetResizeDimensions(Surface *surface, int *width, int *height)
@@ -1741,19 +1745,19 @@ Bool XLSurfaceGetResizeDimensions(Surface *surface, int *width, int *height)
 		return False;
 
 	surface->role->funcs.get_resize_dimensions(surface, surface->role,
-											   width, height);
+	                                           width, height);
 	return True;
 }
 
 void XLSurfacePostResize(Surface *surface, int west_motion, int north_motion,
-						 int new_width, int new_height)
+                         int new_width, int new_height)
 {
 	if (!surface->role || !surface->role->funcs.post_resize)
 		return;
 
 	surface->role->funcs.post_resize(surface, surface->role,
-									 west_motion, north_motion,
-									 new_width, new_height);
+	                                 west_motion, north_motion,
+	                                 new_width, new_height);
 	return;
 }
 
@@ -1763,7 +1767,7 @@ void XLSurfaceMoveBy(Surface *surface, int west, int north)
 		return;
 
 	surface->role->funcs.move_by(surface, surface->role,
-								 west, north);
+	                             west, north);
 }
 
 void XLSurfaceSelectExtraEvents(Surface *surface, unsigned long event_mask)
@@ -1774,7 +1778,7 @@ void XLSurfaceSelectExtraEvents(Surface *surface, unsigned long event_mask)
 	/* Note that this need only be implemented for surfaces that can get
 	   the input focus.  */
 	surface->role->funcs.select_extra_events(surface, surface->role,
-											 event_mask);
+	                                         event_mask);
 }
 
 /* This function doesn't provide the seat that has now been focused
@@ -1789,24 +1793,24 @@ void XLSurfaceNoteFocus(Surface *surface, FocusMode focus)
 
 	switch (focus)
 	{
-	case SurfaceFocusIn:
-		surface->num_focused_seats++;
+		case SurfaceFocusIn:
+			surface->num_focused_seats++;
 
-		/* Check for idle inhibition.  */
-		XLIdleInhibitNoticeSurfaceFocused(surface);
-		break;
+			/* Check for idle inhibition.  */
+			XLIdleInhibitNoticeSurfaceFocused(surface);
+			break;
 
-	case SurfaceFocusOut:
-		surface->num_focused_seats = MAX(0, surface->num_focused_seats - 1);
+		case SurfaceFocusOut:
+			surface->num_focused_seats = MAX(0, surface->num_focused_seats - 1);
 
-		if (!surface->num_focused_seats)
-			/* Check if any idle inhibitors are still active.  */
-			XLDetectSurfaceIdleInhibit();
-		break;
+			if (!surface->num_focused_seats)
+				/* Check if any idle inhibitors are still active.  */
+				XLDetectSurfaceIdleInhibit();
+			break;
 	}
 
 	surface->role->funcs.note_focus(surface, surface->role,
-									focus);
+	                                focus);
 }
 
 /* Merge the cached state in surface into its current state in
@@ -1834,56 +1838,56 @@ void XLSurfaceMergeCachedState(Surface *surface)
    fractional values.  */
 
 void SurfaceToWindow(Surface *surface, double x, double y,
-					 double *x_out, double *y_out)
+                     double *x_out, double *y_out)
 {
 	*x_out = x * surface->factor + surface->input_delta_x;
 	*y_out = y * surface->factor + surface->input_delta_y;
 }
 
 void ScaleToWindow(Surface *surface, double width, double height,
-				   double *width_out, double *height_out)
+                   double *width_out, double *height_out)
 {
 	*width_out = width * surface->factor;
 	*height_out = height * surface->factor;
 }
 
 void WindowToSurface(Surface *surface, double x, double y,
-					 double *x_out, double *y_out)
+                     double *x_out, double *y_out)
 {
 	*x_out = x / surface->factor - surface->input_delta_x;
 	*y_out = y / surface->factor - surface->input_delta_y;
 }
 
 void ScaleToSurface(Surface *surface, double width, double height,
-					double *width_out, double *height_out)
+                    double *width_out, double *height_out)
 {
 	*width_out = width / surface->factor;
 	*height_out = height / surface->factor;
 }
 
 void TruncateSurfaceToWindow(Surface *surface, int x, int y,
-							 int *x_out, int *y_out)
+                             int *x_out, int *y_out)
 {
 	*x_out = x * surface->factor + surface->input_delta_x;
 	*y_out = y * surface->factor + surface->input_delta_y;
 }
 
 void TruncateScaleToWindow(Surface *surface, int width, int height,
-						   int *width_out, int *height_out)
+                           int *width_out, int *height_out)
 {
 	*width_out = width * surface->factor;
 	*height_out = height * surface->factor;
 }
 
 void TruncateWindowToSurface(Surface *surface, int x, int y,
-							 int *x_out, int *y_out)
+                             int *x_out, int *y_out)
 {
 	*x_out = x / surface->factor - surface->input_delta_x;
 	*y_out = y / surface->factor - surface->input_delta_y;
 }
 
 void TruncateScaleToSurface(Surface *surface, int width, int height,
-							int *width_out, int *height_out)
+                            int *width_out, int *height_out)
 {
 	*width_out = width / surface->factor;
 	*height_out = height / surface->factor;

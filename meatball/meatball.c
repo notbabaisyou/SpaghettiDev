@@ -20,11 +20,14 @@
 /* Meatball interface is imported via compositor.h */
 #include "compositor.h"
 
-/* GLOBAL */ pthread_t meatball_thread;
-/* GLOBAL */ Compositor compositor;
+/* GLOBAL */
+pthread_t meatball_thread;
+/* GLOBAL */
+Compositor compositor;
 
 static void
-DetermineServerTime(void) {
+DetermineServerTime(void)
+{
 	struct timespec clock_spec;
 	uint64_t clock_ms, truncated;
 
@@ -48,18 +51,21 @@ DetermineServerTime(void) {
 	truncated = clock_ms;
 
 	/* Compare the clock time with the server time.  */
-	if (llabs((long long) server_time - (long long) truncated) <= 5) {
+	if (llabs((long long) server_time - (long long) truncated) <= 5)
+	{
 		/* Since the difference between the server time and the monotonic
 		   time is less than 5 ms, the server time is most likely the
 		   monotonic time.  */
 		compositor.server_time_monotonic = True;
-	} else {
+	}
+	else
+	{
 	overflow:
 		compositor.server_time_monotonic = False;
 		MBLog(MB_LOG_WARNING, "meatball: the X server time does not seem to"
-		           " be synchronized with the monotonic time.  Multiple"
-		           " subsurfaces may be displayed at a reduced maximum"
-		           " frame rate.\n");
+		      " be synchronized with the monotonic time.  Multiple"
+		      " subsurfaces may be displayed at a reduced maximum"
+		      " frame rate.\n");
 	}
 }
 
@@ -67,9 +73,9 @@ DetermineServerTime(void) {
  * Main work thread, intended to be called via pthreads.
  */
 static void
-*meatball_thread_init(void* __config_ptr__)
+*meatball_thread_init(void *__config_ptr__)
 {
-	struct meatball_config* config = __config_ptr__;
+	struct meatball_config *config = __config_ptr__;
 
 	/* Set the locale.  */
 	setlocale(LC_ALL, "");
@@ -80,14 +86,16 @@ static void
 	Display *dpy = XOpenDisplay(NULL);
 	struct wl_display *wl_display = wl_display_create();
 
-	if (!dpy || !wl_display) {
+	if (!dpy || !wl_display)
+	{
 		MBLog(MB_LOG_ERROR, "meatball: Display initialization failed\n");
 		exit(1);
 	}
 
 	const char *socket = wl_display_add_socket_auto(wl_display);
 
-	if (!socket) {
+	if (!socket)
+	{
 		MBLog(MB_LOG_ERROR, "meatball: Unable to add socket to Wayland display\n");
 		exit(1);
 	}
@@ -166,7 +174,7 @@ static void
 }
 
 _MEATBALL_BOOL
-meatball_initialize(struct meatball_config* config)
+meatball_initialize(struct meatball_config *config)
 {
 	if (!config)
 		return MEATBALL_FALSE;

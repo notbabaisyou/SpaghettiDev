@@ -29,8 +29,7 @@ typedef enum _ClientMemoryCategory ClientMemoryCategory;
 
 /* See the comment in HandleBadAlloc for the meaning of these
    enumerators.  */
-enum _ClientMemoryCategory
-{
+enum _ClientMemoryCategory {
 	MemoryCategoryI,
 	MemoryCategoryII,
 	MemoryCategoryIII,
@@ -81,7 +80,8 @@ Bool UncatchXErrors(XErrorEvent *event)
 	/* Try to avoid syncing to obtain errors if we know none could have
 	   been generated, because either no request has been made, or all
 	   requests have been processed.  */
-	if ((LastKnownRequestProcessed(compositor.display) != XNextRequest(compositor.display) - 1) && (NextRequest(compositor.display) > first_error_req))
+	if ((LastKnownRequestProcessed(compositor.display) != XNextRequest(compositor.display) - 1) && (
+		    NextRequest(compositor.display) > first_error_req))
 		/* If none of those conditions apply, catch errors now.  */
 		XSync(compositor.display, False);
 
@@ -116,7 +116,7 @@ HandleClientDestroy(struct wl_listener *listener, void *data)
 	pending_disconnect_clients = XLListRemove(pending_disconnect_clients, client);
 
 	/* listener is actually the ClientErrorData.  */
-	ReleaseClientData((ClientErrorData *)listener);
+	ReleaseClientData((ClientErrorData *) listener);
 }
 
 ClientErrorData *
@@ -126,10 +126,10 @@ ErrorDataForClient(struct wl_client *client)
 	ClientErrorData *data;
 
 	listener = wl_client_get_destroy_listener(client,
-											  HandleClientDestroy);
+	                                          HandleClientDestroy);
 
 	if (listener)
-		return (ClientErrorData *)listener;
+		return (ClientErrorData *) listener;
 
 	/* Allocate the data and set it as the client's destroy
 	   listener.  */
@@ -147,9 +147,9 @@ ErrorDataForClient(struct wl_client *client)
 
 static void
 CategorizeClients(struct wl_list *client_list,
-				  struct wl_client **clients,
-				  ClientMemoryCategory *categories,
-				  ClientMemoryCategory *max_category)
+                  struct wl_client **clients,
+                  ClientMemoryCategory *categories,
+                  ClientMemoryCategory *max_category)
 {
 	struct wl_list *list;
 	struct wl_client *client;
@@ -312,9 +312,10 @@ HandleBadAlloc(XErrorEvent *event)
 	{
 		/* If there are no clients, just exit immediately.  */
 		XGetErrorText(compositor.display, event->error_code,
-					  buf, sizeof buf);
-		fprintf(stderr, "X protocol error: %s on protocol request %d\n",
-				buf, event->request_code);
+		              buf, sizeof buf);
+		MBLog(MB_LOG_ERROR,
+		      "X protocol error: %s on protocol request %d\n",
+		      buf, event->request_code);
 		exit(70);
 	}
 
@@ -328,7 +329,7 @@ HandleBadAlloc(XErrorEvent *event)
 
 	/* Organize the clients by category.  */
 	CategorizeClients(client_list, clients_by_category,
-					  categories, &max_category);
+	                  categories, &max_category);
 
 	/* Ignore future BadAlloc errors caused by requests generated before
 	   this BadAlloc error was processed.  */
@@ -389,9 +390,10 @@ ErrorHandler(Display *display, XErrorEvent *event)
 		return 0;
 
 	if (bad_alloc_experienced
-		/* See the comment at the end of HandleBadAlloc for why this is
-	   done.  */
-		&& (event->error_code == BadDrawable || event->error_code == BadWindow || event->error_code == BadPixmap || event->error_code == (render_first_error + BadPicture)))
+	    /* See the comment at the end of HandleBadAlloc for why this is
+       done.  */
+	    && (event->error_code == BadDrawable || event->error_code == BadWindow || event->error_code == BadPixmap ||
+	        event->error_code == (render_first_error + BadPicture)))
 		return 0;
 
 	if (event->error_code == BadAlloc)
@@ -404,8 +406,10 @@ ErrorHandler(Display *display, XErrorEvent *event)
 	}
 
 	XGetErrorText(display, event->error_code, buf, sizeof buf);
-	fprintf(stderr, "X protocol error: %s on protocol request %d\n",
-			buf, event->request_code);
+	MBLog(MB_LOG_ERROR,
+	      "X protocol error: %s on protocol request %d\n",
+	      buf,
+	      event->request_code);
 	exit(70);
 }
 

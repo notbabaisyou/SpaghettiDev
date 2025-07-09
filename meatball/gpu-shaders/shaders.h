@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _MEATBALL_SHADERS_H_
+#define _MEATBALL_SHADERS_H_
 
 const char* clear_rectangle_fragment_shader = R"(
 void
@@ -139,3 +141,5 @@ main (void)
 		gl_FragColor = source_color;
 }
 )";
+
+#endif // _MEATBALL_SHADERS_H_

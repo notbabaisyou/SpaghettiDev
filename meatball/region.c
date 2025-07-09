@@ -32,7 +32,7 @@ DestroyRegion(struct wl_client *client, struct wl_resource *resource)
 
 static void
 SubtractRegion(struct wl_client *client, struct wl_resource *resource,
-			   int32_t x, int32_t y, int32_t width, int32_t height)
+               int32_t x, int32_t y, int32_t width, int32_t height)
 {
 	pixman_region32_t *region, operand;
 
@@ -43,7 +43,7 @@ SubtractRegion(struct wl_client *client, struct wl_resource *resource,
 
 static void
 AddRegion(struct wl_client *client, struct wl_resource *resource,
-		  int32_t x, int32_t y, int32_t width, int32_t height)
+          int32_t x, int32_t y, int32_t width, int32_t height)
 {
 	pixman_region32_t *region, operand;
 
@@ -70,8 +70,8 @@ HandleResourceDestroy(struct wl_resource *resource)
 }
 
 void XLCreateRegion(struct wl_client *client,
-					struct wl_resource *resource,
-					uint32_t id)
+                    struct wl_resource *resource,
+                    uint32_t id)
 {
 	pixman_region32_t *region;
 	struct wl_resource *region_resource;
@@ -85,8 +85,8 @@ void XLCreateRegion(struct wl_client *client,
 	}
 
 	region_resource = wl_resource_create(client, &wl_region_interface,
-										 wl_resource_get_version(resource),
-										 id);
+	                                     wl_resource_get_version(resource),
+	                                     id);
 
 	if (!resource)
 	{
@@ -98,7 +98,7 @@ void XLCreateRegion(struct wl_client *client,
 
 	pixman_region32_init(region);
 	wl_resource_set_implementation(region_resource,
-								   &wl_region_impl,
-								   region,
-								   HandleResourceDestroy);
+	                               &wl_region_impl,
+	                               region,
+	                               HandleResourceDestroy);
 }

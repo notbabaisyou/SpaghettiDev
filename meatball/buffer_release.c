@@ -24,8 +24,7 @@
 
 typedef struct _ReleaseLaterRecord ReleaseLaterRecord;
 
-struct _ReleaseLaterRecord
-{
+struct _ReleaseLaterRecord {
 	/* A monotonically (overflow aside) increasing identifier.  */
 	uint64_t id;
 
@@ -43,8 +42,7 @@ struct _ReleaseLaterRecord
 	ReleaseLaterRecord *next, *last;
 };
 
-struct _BufferReleaseHelper
-{
+struct _BufferReleaseHelper {
 	/* Queue of buffers pending release.  */
 	ReleaseLaterRecord records;
 
@@ -57,7 +55,7 @@ struct _BufferReleaseHelper
 
 BufferReleaseHelper *
 MakeBufferReleaseHelper(AllReleasedCallback callback,
-						void *callback_data)
+                        void *callback_data)
 {
 	BufferReleaseHelper *helper;
 
@@ -122,7 +120,7 @@ BufferIdleCallback(RenderBuffer buffer, void *data)
 }
 
 void ReleaseBufferWithHelper(BufferReleaseHelper *helper, ExtBuffer *buffer,
-							 RenderTarget target)
+                             RenderTarget target)
 {
 	ReleaseLaterRecord *record;
 	RenderBuffer render_buffer;
@@ -139,7 +137,7 @@ void ReleaseBufferWithHelper(BufferReleaseHelper *helper, ExtBuffer *buffer,
 	   add an idle callback.  */
 	record->buffer = buffer;
 	record->key = RenderAddIdleCallback(render_buffer, target,
-										BufferIdleCallback,
-										record);
+	                                    BufferIdleCallback,
+	                                    record);
 	record->helper = helper;
 }

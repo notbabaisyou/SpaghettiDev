@@ -31,18 +31,16 @@
 typedef struct _XdgPopup XdgPopup;
 typedef struct _PropMotifWmHints PropMotifWmHints;
 
-enum
-{
-	StateIsMapped = 1,
-	StateIsGrabbed = (1 << 1),
-	StatePendingGrab = (1 << 2),
+enum {
+	StateIsMapped        = 1,
+	StateIsGrabbed       = (1 << 1),
+	StatePendingGrab     = (1 << 2),
 	StatePendingPosition = (1 << 3),
-	StateAckPosition = (1 << 4),
-	StateIsTopmost = (1 << 5),
+	StateAckPosition     = (1 << 4),
+	StateIsTopmost       = (1 << 5),
 };
 
-struct _PropMotifWmHints
-{
+struct _PropMotifWmHints {
 	unsigned long flags;
 	unsigned long functions;
 	unsigned long decorations;
@@ -50,8 +48,7 @@ struct _PropMotifWmHints
 	unsigned long status;
 };
 
-struct _XdgPopup
-{
+struct _XdgPopup {
 	/* The parent role implementation.  */
 	XdgRoleImplementation impl;
 
@@ -112,6 +109,7 @@ struct _XdgPopup
 /* Forward declarations.  */
 
 static void DoGrab(XdgPopup *, Seat *, uint32_t);
+
 static void Dismiss(XdgPopup *, Bool);
 
 static void
@@ -170,7 +168,7 @@ Attach(Role *role, XdgRoleImplementation *impl)
 	/* Make the popup override-redirect.  */
 	attrs.override_redirect = True;
 	XChangeWindowAttributes(compositor.display, window,
-							CWOverrideRedirect, &attrs);
+	                        CWOverrideRedirect, &attrs);
 
 	/* It turns out that Mutter still draws drop shadows for popups, so
 	   turn them off.  */
@@ -179,12 +177,12 @@ Attach(Role *role, XdgRoleImplementation *impl)
 
 	/* Add _NET_WM_SYNC_REQUEST to the list of supported protocols.  */
 	XSetWMProtocols(compositor.display, XLWindowFromXdgRole(role),
-					&_NET_WM_SYNC_REQUEST, 1);
+	                &_NET_WM_SYNC_REQUEST, 1);
 
 	XChangeProperty(compositor.display, window,
-					_MOTIF_WM_HINTS, _MOTIF_WM_HINTS, 32,
-					PropModeReplace,
-					(unsigned char *)&hints, 5);
+	                _MOTIF_WM_HINTS, _MOTIF_WM_HINTS, 32,
+	                PropModeReplace,
+	                (unsigned char *) &hints, 5);
 }
 
 static void
@@ -193,7 +191,7 @@ Unmap(XdgPopup *popup)
 	popup->state &= ~StateIsMapped;
 
 	XUnmapWindow(compositor.display,
-				 XLWindowFromXdgRole(popup->role));
+	             XLWindowFromXdgRole(popup->role));
 }
 
 static void
@@ -210,7 +208,7 @@ RevertGrabTo(XdgPopup *popup, Role *parent_role)
 	parent = PopupFromRoleImpl(impl);
 
 	DoGrab(parent, popup->grab_holder,
-		   popup->current_grab_serial);
+	       popup->current_grab_serial);
 }
 
 static void
@@ -277,8 +275,8 @@ Detach(Role *role, XdgRoleImplementation *impl)
 	/* Make the window non-override-redirect.  */
 	attrs.override_redirect = False;
 	XChangeWindowAttributes(compositor.display,
-							XLWindowFromXdgRole(role),
-							CWOverrideRedirect, &attrs);
+	                        XLWindowFromXdgRole(role),
+	                        CWOverrideRedirect, &attrs);
 }
 
 static void
@@ -291,7 +289,7 @@ SendConfigure(XdgPopup *popup, int x, int y, int width, int height)
 	if (width != -1 && height != -1)
 	{
 		xdg_popup_send_configure(popup->resource,
-								 x, y, width, height);
+		                         x, y, width, height);
 		popup->state |= StateAckPosition;
 	}
 
@@ -321,28 +319,28 @@ MoveWindow(XdgPopup *popup)
 	window = XLWindowFromXdgRole(popup->role);
 
 	XLXdgRoleGetCurrentGeometry(popup->parent, &parent_gx,
-								&parent_gy, NULL, NULL);
+	                            &parent_gy, NULL, NULL);
 	XLXdgRoleGetCurrentGeometry(popup->role, &geometry_x,
-								&geometry_y, NULL, NULL);
+	                            &geometry_y, NULL, NULL);
 	XLXdgRoleCurrentRootPosition(popup->parent, &root_x,
-								 &root_y);
+	                             &root_y);
 
 	/* Parent geometry is relative to the parent coordinate system.  */
 	TruncateSurfaceToWindow(popup->parent->surface, parent_gx, parent_gy,
-							&parent_gx, &parent_gy);
+	                        &parent_gx, &parent_gy);
 
 	/* geometry_x and geometry_y are relative to the local coordinate
 	   system.  */
 	TruncateSurfaceToWindow(popup->role->surface, geometry_x,
-							geometry_y, &geometry_x, &geometry_y);
+	                        geometry_y, &geometry_x, &geometry_y);
 
 	/* X and Y are relative to the parent coordinate system.  */
 	TruncateSurfaceToWindow(popup->parent->surface, popup->x,
-							popup->y, &x, &y);
+	                        popup->y, &x, &y);
 
 	XMoveWindow(compositor.display, window,
-				x + root_x + parent_gx - geometry_x,
-				y + root_y + parent_gy - geometry_y);
+	            x + root_x + parent_gx - geometry_x,
+	            y + root_y + parent_gy - geometry_y);
 }
 
 static void
@@ -366,7 +364,7 @@ Map(XdgPopup *popup)
 	{
 		if (popup->pending_grab_seat)
 			DoGrab(popup, popup->pending_grab_seat,
-				   popup->pending_grab_serial);
+			       popup->pending_grab_serial);
 		else
 			Dismiss(popup, False);
 
@@ -446,14 +444,14 @@ InternalReposition(XdgPopup *popup)
 		return;
 
 	XLPositionerCalculateGeometry(&popup->positioner,
-								  popup->parent, &x, &y,
-								  &width, &height);
+	                              popup->parent, &x, &y,
+	                              &width, &height);
 
 	popup->pending_x = x;
 	popup->pending_y = y;
 
 	SendConfigure(popup, popup->pending_x, popup->pending_y,
-				  width, height);
+	              width, height);
 
 	popup->state |= StateAckPosition;
 }
@@ -528,14 +526,15 @@ SaveGrabHolder(XdgPopup *popup, Seat *seat)
 	{
 		popup->grab_holder = seat;
 		popup->seat_callback_key = XLSeatRunOnDestroy(seat, HandleGrabHolderDestroy,
-													  popup);
+		                                              popup);
 	}
 }
 
 static void
 DoGrab(XdgPopup *popup, Seat *seat, uint32_t serial)
 {
-	if (popup->resource && popup->role && popup->role->surface && CheckCanGrab(popup->parent, seat) && XLSeatExplicitlyGrabSurface(seat, popup->role->surface, serial))
+	if (popup->resource && popup->role && popup->role->surface && CheckCanGrab(popup->parent, seat) &&
+	    XLSeatExplicitlyGrabSurface(seat, popup->role->surface, serial))
 	{
 		popup->current_grab_serial = serial;
 		SaveGrabHolder(popup, seat);
@@ -621,7 +620,7 @@ RecordGrabPending(XdgPopup *popup, Seat *seat, uint32_t serial)
 
 static void
 Grab(struct wl_client *client, struct wl_resource *resource,
-	 struct wl_resource *seat_resource, uint32_t serial)
+     struct wl_resource *seat_resource, uint32_t serial)
 {
 	Seat *seat;
 	XdgPopup *popup;
@@ -639,12 +638,12 @@ Grab(struct wl_client *client, struct wl_resource *resource,
 		RecordGrabPending(popup, seat, serial);
 	else
 		wl_resource_post_error(resource, XDG_POPUP_ERROR_INVALID_GRAB,
-							   "trying to grab mapped popup");
+		                       "trying to grab mapped popup");
 }
 
 static void
 Reposition(struct wl_client *client, struct wl_resource *resource,
-		   struct wl_resource *positioner_resource, uint32_t token)
+           struct wl_resource *positioner_resource, uint32_t token)
 {
 	XdgPopup *popup;
 	Positioner *positioner;
@@ -688,12 +687,12 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 	if (!CanDestroyPopup(popup))
 		wl_resource_post_error(resource,
-							   XDG_WM_BASE_ERROR_NOT_THE_TOPMOST_POPUP,
-							   "trying to destroy non-topmost popup");
+		                       XDG_WM_BASE_ERROR_NOT_THE_TOPMOST_POPUP,
+		                       "trying to destroy non-topmost popup");
 
 	if (popup->role)
 		XLXdgRoleDetachImplementation(popup->role,
-									  &popup->impl);
+		                              &popup->impl);
 
 	wl_resource_destroy(resource);
 }
@@ -717,7 +716,7 @@ HandleOneConfigureNotify(XEvent *event)
 
 static void
 NoteSize(Role *role, XdgRoleImplementation *impl,
-		 int width, int height)
+         int width, int height)
 {
 	XdgPopup *popup;
 
@@ -765,8 +764,8 @@ static const struct xdg_popup_interface xdg_popup_impl =
 };
 
 void XLGetXdgPopup(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t id, struct wl_resource *parent_resource,
-				   struct wl_resource *positioner_resource)
+                   uint32_t id, struct wl_resource *parent_resource,
+                   struct wl_resource *positioner_resource)
 {
 	XdgPopup *popup;
 	Role *role, *parent;
@@ -784,8 +783,8 @@ void XLGetXdgPopup(struct wl_client *client, struct wl_resource *resource,
 
 	memset(popup, 0, sizeof *popup);
 	popup->resource = wl_resource_create(client, &xdg_popup_interface,
-										 wl_resource_get_version(resource),
-										 id);
+	                                     wl_resource_get_version(resource),
+	                                     id);
 
 	if (!popup->resource)
 	{
@@ -807,7 +806,7 @@ void XLGetXdgPopup(struct wl_client *client, struct wl_resource *resource,
 	{
 		parent = wl_resource_get_user_data(parent_resource);
 		key = XLXdgRoleRunOnReconstrain(parent, HandleParentConfigure,
-										HandleParentResize, popup);
+		                                HandleParentResize, popup);
 		XLRetainXdgRole(parent);
 
 		popup->parent = parent;
@@ -829,7 +828,7 @@ void XLGetXdgPopup(struct wl_client *client, struct wl_resource *resource,
 	popup->positioner.resource = NULL;
 
 	wl_resource_set_implementation(popup->resource, &xdg_popup_impl,
-								   popup, HandleResourceDestroy);
+	                               popup, HandleResourceDestroy);
 	popup->refcount++;
 
 	XLXdgRoleAttachImplementation(role, &popup->impl);

@@ -82,30 +82,27 @@ XLList *live_seats;
 #define AllKeyMask \
 	(ShiftMask | LockMask | ControlMask | Mod1Mask | Mod2Mask | Mod3Mask | Mod4Mask)
 
-enum
-{
-	IsInert = 1,
-	IsWindowMenuShown = (1 << 2),
-	IsDragging = (1 << 3),
-	IsDropped = (1 << 4),
-	IsTextInputSeat = (1 << 5),
-	IsPointerLocked = (1 << 6),
-	IsSurfaceCoordSet = (1 << 7),
+enum {
+	IsInert               = 1,
+	IsWindowMenuShown     = (1 << 2),
+	IsDragging            = (1 << 3),
+	IsDropped             = (1 << 4),
+	IsTextInputSeat       = (1 << 5),
+	IsPointerLocked       = (1 << 6),
+	IsSurfaceCoordSet     = (1 << 7),
 	IsExternalGrabApplied = (1 << 8),
-	IsInPinchGesture = (1 << 9),
-	IsInSwipeGesture = (1 << 10),
-	IsTestSeat = (1 << 11),
+	IsInPinchGesture      = (1 << 9),
+	IsInSwipeGesture      = (1 << 10),
+	IsTestSeat            = (1 << 11),
 	IsTestDeviceSpecified = (1 << 12),
 };
 
-enum
-{
+enum {
 	StateIsRaw = 1,
 };
 
-enum
-{
-	AnyVerticalAxis = 1,
+enum {
+	AnyVerticalAxis   = 1,
 	AnyHorizontalAxis = (1 << 1),
 };
 
@@ -126,45 +123,40 @@ typedef enum _ResizeEdge ResizeEdge;
 typedef enum _WhatEdge WhatEdge;
 typedef enum _Direction Direction;
 
-enum _ResizeEdge
-{
-	NoneEdge = 65535,
-	TopLeftEdge = 0,
-	TopEdge = 1,
-	TopRightEdge = 2,
-	RightEdge = 3,
+enum _ResizeEdge {
+	NoneEdge        = 65535,
+	TopLeftEdge     = 0,
+	TopEdge         = 1,
+	TopRightEdge    = 2,
+	RightEdge       = 3,
 	BottomRightEdge = 4,
-	BottomEdge = 5,
-	BottomLeftEdge = 6,
-	LeftEdge = 7,
-	MoveEdge = 8,
+	BottomEdge      = 5,
+	BottomLeftEdge  = 6,
+	LeftEdge        = 7,
+	MoveEdge        = 8,
 };
 
-enum _WhatEdge
-{
+enum _WhatEdge {
 	APointerEdge,
 	AKeyboardEdge,
 };
 
-enum _Direction
-{
+enum _Direction {
 	Vertical,
 	Horizontal,
 };
 
-enum
-{
-	ResizeAxisTop = 1,
-	ResizeAxisLeft = (1 << 1),
-	ResizeAxisRight = (1 << 2),
+enum {
+	ResizeAxisTop    = 1,
+	ResizeAxisLeft   = (1 << 1),
+	ResizeAxisRight  = (1 << 2),
 	ResizeAxisBottom = (1 << 3),
-	ResizeAxisMove = (1 << 16),
+	ResizeAxisMove   = (1 << 16),
 };
 
-enum
-{
+enum {
 	DeviceCanFingerScroll = 1,
-	DeviceCanEdgeScroll = 2,
+	DeviceCanEdgeScroll   = 2,
 };
 
 /* Array indiced by ResizeEdge containing axes along which the edge
@@ -186,8 +178,7 @@ static int resize_edges[] =
 #define CursorRingElements 2
 #define CursorRingBusy 3
 
-struct _CursorRing
-{
+struct _CursorRing {
 	/* The width and height of the RenderTargets within.  */
 	int width, height;
 
@@ -201,8 +192,7 @@ struct _CursorRing
 	short used;
 };
 
-struct _DestroyListener
-{
+struct _DestroyListener {
 	/* Function called when seat is destroyed.  */
 	void (*destroy)(void *);
 
@@ -213,8 +203,7 @@ struct _DestroyListener
 	DestroyListener *next, *last;
 };
 
-struct _SeatCursor
-{
+struct _SeatCursor {
 	/* The parent role.  Note that there is no wl_resource associated
 	   with it.  */
 	Role role;
@@ -243,8 +232,7 @@ struct _SeatCursor
 	Bool holding_cursor_clock;
 };
 
-struct _ResizeDoneCallback
-{
+struct _ResizeDoneCallback {
 	/* Function called when a resize operation finishes.  */
 	void (*done)(void *, void *);
 
@@ -255,8 +243,7 @@ struct _ResizeDoneCallback
 	ResizeDoneCallback *next, *last;
 };
 
-struct _ScrollValuator
-{
+struct _ScrollValuator {
 	/* The next scroll valuator in this list.  */
 	ScrollValuator *next;
 
@@ -276,8 +263,7 @@ struct _ScrollValuator
 	Direction direction;
 };
 
-struct _Pointer
-{
+struct _Pointer {
 	/* The seat this pointer object refers to.  */
 	Seat *seat;
 
@@ -295,8 +281,7 @@ struct _Pointer
 	int state;
 };
 
-struct _Keyboard
-{
+struct _Keyboard {
 	/* The seat this keyboard object refers to.  */
 	Seat *seat;
 
@@ -311,8 +296,7 @@ struct _Keyboard
 	Keyboard *next, *next1, *last, *last1;
 };
 
-struct _RelativePointer
-{
+struct _RelativePointer {
 	/* The seat this relative pointer refers to.  */
 	Seat *seat;
 
@@ -328,8 +312,7 @@ struct _RelativePointer
 	RelativePointer *next, *last;
 };
 
-struct _SwipeGesture
-{
+struct _SwipeGesture {
 	/* The seat this swipe gesture refers to.  */
 	Seat *seat;
 
@@ -345,8 +328,7 @@ struct _SwipeGesture
 	SwipeGesture *next, *last;
 };
 
-struct _PinchGesture
-{
+struct _PinchGesture {
 	/* The seat this pinch gesture refers to.  */
 	Seat *seat;
 
@@ -361,8 +343,7 @@ struct _PinchGesture
 	PinchGesture *next, *last;
 };
 
-struct _SeatClientInfo
-{
+struct _SeatClientInfo {
 	/* The next and last structures in the client info chain.  */
 	SeatClientInfo *next, *last;
 
@@ -391,8 +372,7 @@ struct _SeatClientInfo
 	PinchGesture pinch_gestures;
 };
 
-struct _ModifierChangeCallback
-{
+struct _ModifierChangeCallback {
 	/* Callback run when modifiers change.  */
 	void (*changed)(unsigned int, void *);
 
@@ -403,8 +383,7 @@ struct _ModifierChangeCallback
 	ModifierChangeCallback *next, *last;
 };
 
-struct _Seat
-{
+struct _Seat {
 	/* The last user time.  */
 	Timestamp last_user_time;
 
@@ -613,8 +592,7 @@ struct _Seat
 	struct wl_array keys;
 };
 
-struct _DeviceInfo
-{
+struct _DeviceInfo {
 	/* Some flags associated with this device.  */
 	int flags;
 
@@ -655,9 +633,9 @@ QueryPointer(Seat *seat, Window relative_to, double *x, double *y)
 	*y = 0;
 
 	if (XIQueryPointer(compositor.display, seat->master_pointer,
-					   relative_to, &root, &child, &root_x, &root_y,
-					   &win_x, &win_y, &buttons, &modifiers,
-					   &group))
+	                   relative_to, &root, &child, &root_x, &root_y,
+	                   &win_x, &win_y, &buttons, &modifiers,
+	                   &group))
 	{
 		*x = win_x;
 		*y = win_y;
@@ -796,9 +774,9 @@ MaybeCreateCursor(CursorRing *ring, int index)
 		return;
 
 	ring->pixmaps[index] = XCreatePixmap(compositor.display,
-										 DefaultRootWindow(compositor.display),
-										 ring->width, ring->height,
-										 compositor.n_planes);
+	                                     DefaultRootWindow(compositor.display),
+	                                     ring->width, ring->height,
+	                                     compositor.n_planes);
 	ring->targets[index] = RenderTargetFromPixmap(ring->pixmaps[index]);
 
 	/* For simplicity reasons we do not handle idle notifications
@@ -894,7 +872,7 @@ UpdateCursorOutput(SeatCursor *cursor, int root_x, int root_y)
 	/* We use a rectangle 1 pixel wide and tall, originating from the
 	   hotspot of the pointer.  */
 	XLUpdateSurfaceOutputs(cursor->role.surface, root_x + hotspot_x,
-						   root_y + hotspot_y, 1, 1);
+	                       root_y + hotspot_y, 1, 1);
 }
 
 static Window
@@ -930,7 +908,7 @@ StartCursorClock(SeatCursor *cursor)
 		return;
 
 	cursor->cursor_frame_key = XLAddCursorClockCallback(HandleCursorFrame,
-														cursor);
+	                                                    cursor);
 	cursor->holding_cursor_clock = True;
 }
 
@@ -951,7 +929,7 @@ XLFreeCursor(SeatCursor *cursor)
 
 	if (cursor->role.surface)
 		XLSurfaceReleaseRole(cursor->role.surface,
-							 &cursor->role);
+		                     &cursor->role);
 
 	/* Now any attached views should have been released, so free the
 	   subcompositor.  */
@@ -966,8 +944,8 @@ XLFreeCursor(SeatCursor *cursor)
 
 	if (!(cursor->seat->flags & IsInert) && window)
 		XIDefineCursor(compositor.display,
-					   cursor->seat->master_pointer,
-					   window, InitDefaultCursor());
+		               cursor->seat->master_pointer,
+		               window, InitDefaultCursor());
 
 	/* And release the cursor ring.  */
 	if (cursor->cursor_ring)
@@ -1094,7 +1072,7 @@ ReleaseSeat(Seat *seat)
 
 static void
 ComputeHotspot(SeatCursor *cursor, int min_x, int min_y,
-			   int *x, int *y)
+               int *x, int *y)
 {
 	int dx, dy;
 	int hotspot_x, hotspot_y;
@@ -1121,7 +1099,7 @@ ComputeHotspot(SeatCursor *cursor, int min_x, int min_y,
 
 static void
 ApplyCursor(SeatCursor *cursor, RenderTarget target,
-			int min_x, int min_y)
+            int min_x, int min_y)
 {
 	Window window;
 	int x, y;
@@ -1134,16 +1112,16 @@ ApplyCursor(SeatCursor *cursor, RenderTarget target,
 
 	picture = RenderPictureFromTarget(target);
 	cursor->cursor = XRenderCreateCursor(compositor.display,
-										 picture, MAX(0, x),
-										 MAX(0, y));
+	                                     picture, MAX(0, x),
+	                                     MAX(0, y));
 	RenderFreePictureFromTarget(picture);
 
 	window = CursorWindow(cursor);
 
 	if (!(cursor->seat->flags & IsInert) && window != None)
 		XIDefineCursor(compositor.display,
-					   cursor->seat->master_pointer,
-					   window, cursor->cursor);
+		               cursor->seat->master_pointer,
+		               window, cursor->cursor);
 }
 
 static void
@@ -1156,7 +1134,7 @@ UpdateCursorFromSubcompositor(SeatCursor *cursor)
 
 	/* First, compute the bounds of the subcompositor.  */
 	SubcompositorBounds(cursor->subcompositor,
-						&min_x, &min_y, &max_x, &max_y);
+	                    &min_x, &min_y, &max_x, &max_y);
 
 	/* Then, its width and height.  */
 	width = max_x - min_x + 1;
@@ -1209,7 +1187,7 @@ UpdateCursorFromSubcompositor(SeatCursor *cursor)
 
 	/* Set the right transform if the hotspot is negative.  */
 	SubcompositorSetProjectiveTransform(cursor->subcompositor,
-										MAX(0, -x), MAX(0, -x));
+	                                    MAX(0, -x), MAX(0, -x));
 
 	SubcompositorSetTarget(cursor->subcompositor, &target);
 	SubcompositorUpdate(cursor->subcompositor);
@@ -1244,8 +1222,8 @@ ApplyEmptyCursor(SeatCursor *cursor)
 
 	if (window != None)
 		XIDefineCursor(compositor.display,
-					   cursor->seat->master_pointer,
-					   window, InitDefaultCursor());
+		               cursor->seat->master_pointer,
+		               window, InitDefaultCursor());
 
 	if (cursor->cursor_ring)
 		/* This means no cursor in the ring is currently being used.  */
@@ -1319,7 +1297,7 @@ ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer)
 	{
 		if (cursor->cursor_ring->pixmaps[i])
 			RenderWaitForIdle(XLRenderBufferFromBuffer(buffer),
-							  cursor->cursor_ring->targets[i]);
+			                  cursor->cursor_ring->targets[i]);
 	}
 
 	XLReleaseBuffer(buffer);
@@ -1350,9 +1328,9 @@ MakeCurrentCursor(Seat *seat, Surface *surface, int x, int y)
 
 	role = XLCalloc(1, sizeof *role);
 	XIDefineCursor(compositor.display,
-				   seat->master_pointer,
-				   window,
-				   InitDefaultCursor());
+	               seat->master_pointer,
+	               window,
+	               InitDefaultCursor());
 
 	role->hotspot_x = x;
 	role->hotspot_y = y;
@@ -1380,7 +1358,7 @@ MakeCurrentCursor(Seat *seat, Surface *surface, int x, int y)
 	/* Tell the cursor surface what output(s) it is in.  */
 
 	UpdateCursorOutput(role, seat->last_motion_x,
-					   seat->last_motion_y);
+	                   seat->last_motion_y);
 
 	/* If something was committed, update the cursor now.  */
 
@@ -1390,8 +1368,8 @@ MakeCurrentCursor(Seat *seat, Surface *surface, int x, int y)
 
 static void
 SetCursor(struct wl_client *client, struct wl_resource *resource,
-		  uint32_t serial, struct wl_resource *surface_resource,
-		  int32_t hotspot_x, int32_t hotspot_y)
+          uint32_t serial, struct wl_resource *surface_resource,
+          int32_t hotspot_x, int32_t hotspot_y)
 {
 	Surface *surface, *seen;
 	Pointer *pointer;
@@ -1431,22 +1409,22 @@ SetCursor(struct wl_client *client, struct wl_resource *resource,
 	if (surface->role_type != AnythingType && surface->role_type != CursorType)
 	{
 		wl_resource_post_error(resource, WL_POINTER_ERROR_ROLE,
-							   "surface already has or had a different role");
+		                       "surface already has or had a different role");
 		return;
 	}
 
 	if (surface->role && !seat->cursor && surface->role != &seat->cursor->role)
 	{
 		wl_resource_post_error(resource, WL_POINTER_ERROR_ROLE,
-							   "surface already has a cursor role"
-							   " on another seat");
+		                       "surface already has a cursor role"
+		                       " on another seat");
 		return;
 	}
 
 	if (surface->role)
 	{
 		UpdateCursor(CursorFromRole(surface->role),
-					 hotspot_x, hotspot_y);
+		             hotspot_x, hotspot_y);
 		return;
 	}
 
@@ -1470,14 +1448,14 @@ ReleaseKeyboard(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct wl_pointer_interface wl_pointer_impl =
-	{
-		.set_cursor = SetCursor,
-		.release = ReleasePointer,
+{
+	.set_cursor = SetCursor,
+	.release = ReleasePointer,
 };
 
 static const struct wl_keyboard_interface wl_keyboard_impl =
-	{
-		.release = ReleaseKeyboard,
+{
+	.release = ReleaseKeyboard,
 };
 
 static void
@@ -1514,7 +1492,7 @@ HandleKeyboardResourceDestroy(struct wl_resource *resource)
 
 static void
 GetPointer(struct wl_client *client, struct wl_resource *resource,
-		   uint32_t id)
+           uint32_t id)
 {
 	Seat *seat;
 	SeatClientInfo *info;
@@ -1522,8 +1500,8 @@ GetPointer(struct wl_client *client, struct wl_resource *resource,
 	struct wl_resource *pointer_resource;
 
 	pointer_resource = wl_resource_create(client, &wl_pointer_interface,
-										  wl_resource_get_version(resource),
-										  id);
+	                                      wl_resource_get_version(resource),
+	                                      id);
 
 	if (!pointer_resource)
 	{
@@ -1561,7 +1539,7 @@ GetPointer(struct wl_client *client, struct wl_resource *resource,
 	info->pointers.next = pointer;
 
 	wl_resource_set_implementation(pointer_resource, &wl_pointer_impl,
-								   pointer, HandlePointerResourceDestroy);
+	                               pointer, HandlePointerResourceDestroy);
 }
 
 static void
@@ -1571,8 +1549,8 @@ SendRepeatKeys(struct wl_resource *resource)
 		return;
 
 	wl_keyboard_send_repeat_info(resource,
-								 1000 / xkb_desc->ctrls->repeat_interval,
-								 xkb_desc->ctrls->repeat_delay);
+	                             1000 / xkb_desc->ctrls->repeat_interval,
+	                             xkb_desc->ctrls->repeat_delay);
 }
 
 static void
@@ -1587,15 +1565,15 @@ UpdateSingleKeyboard(Keyboard *keyboard)
 	}
 
 	wl_keyboard_send_keymap(keyboard->resource,
-							WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
-							keymap_fd, statb.st_size);
+	                        WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
+	                        keymap_fd, statb.st_size);
 
 	SendRepeatKeys(keyboard->resource);
 }
 
 static void
 GetKeyboard(struct wl_client *client, struct wl_resource *resource,
-			uint32_t id)
+            uint32_t id)
 {
 	SeatClientInfo *info;
 	Seat *seat;
@@ -1603,8 +1581,8 @@ GetKeyboard(struct wl_client *client, struct wl_resource *resource,
 	struct wl_resource *keyboard_resource;
 
 	keyboard_resource = wl_resource_create(client, &wl_keyboard_interface,
-										   wl_resource_get_version(resource),
-										   id);
+	                                       wl_resource_get_version(resource),
+	                                       id);
 
 	if (!keyboard_resource)
 	{
@@ -1645,7 +1623,7 @@ GetKeyboard(struct wl_client *client, struct wl_resource *resource,
 	seat->keyboards.next1 = keyboard;
 
 	wl_resource_set_implementation(keyboard_resource, &wl_keyboard_impl,
-								   keyboard, HandleKeyboardResourceDestroy);
+	                               keyboard, HandleKeyboardResourceDestroy);
 
 	UpdateSingleKeyboard(keyboard);
 
@@ -1653,16 +1631,16 @@ GetKeyboard(struct wl_client *client, struct wl_resource *resource,
 
 	if (seat->focus_surface && (wl_resource_get_client(seat->focus_surface->resource) == client))
 		wl_keyboard_send_enter(keyboard_resource,
-							   wl_display_next_serial(compositor.wl_display),
-							   seat->focus_surface->resource, &seat->keys);
+		                       wl_display_next_serial(compositor.wl_display),
+		                       seat->focus_surface->resource, &seat->keys);
 }
 
 static void
 GetTouch(struct wl_client *client, struct wl_resource *resource,
-		 uint32_t id)
+         uint32_t id)
 {
 	wl_resource_post_error(resource, WL_SEAT_ERROR_MISSING_CAPABILITY,
-						   "touch support not yet implemented");
+	                       "touch support not yet implemented");
 }
 
 static void
@@ -1672,11 +1650,11 @@ Release(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct wl_seat_interface wl_seat_impl =
-	{
-		.get_pointer = GetPointer,
-		.get_keyboard = GetKeyboard,
-		.get_touch = GetTouch,
-		.release = Release,
+{
+	.get_pointer = GetPointer,
+	.get_keyboard = GetKeyboard,
+	.get_touch = GetTouch,
+	.release = Release,
 };
 
 static void
@@ -1690,12 +1668,12 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 static void
 HandleBind1(struct wl_client *client, Seat *seat, uint32_t version,
-			uint32_t id)
+            uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_seat_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -1704,7 +1682,7 @@ HandleBind1(struct wl_client *client, Seat *seat, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &wl_seat_impl, seat,
-								   HandleResourceDestroy);
+	                               HandleResourceDestroy);
 
 	wl_seat_send_capabilities(resource, (WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD));
 
@@ -1716,7 +1694,7 @@ HandleBind1(struct wl_client *client, Seat *seat, uint32_t version,
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	HandleBind1(client, data, version, id);
 }
@@ -1751,7 +1729,7 @@ UpdateValuators(Seat *seat, XIDeviceInfo *device)
 	for (i = 0; i < device->num_classes; ++i)
 	{
 		if (device->classes[i]->type == XIScrollClass)
-			AddValuator(seat, (XIScrollClassInfo *)device->classes[i]);
+			AddValuator(seat, (XIScrollClassInfo *) device->classes[i]);
 	}
 }
 
@@ -1778,7 +1756,7 @@ InitSeatCommon(Seat *seat)
 
 static void
 MakeSeatForDevicePair(int master_keyboard, int master_pointer,
-					  XIDeviceInfo *pointer_info)
+                      XIDeviceInfo *pointer_info)
 {
 	Seat *seat;
 	XkbStateRec state;
@@ -1789,8 +1767,8 @@ MakeSeatForDevicePair(int master_keyboard, int master_pointer,
 	seat->master_pointer = master_pointer;
 	seat->name = XLStrdup(pointer_info->name);
 	seat->global = wl_global_create(compositor.wl_display,
-									&wl_seat_interface, 8,
-									seat, HandleBind);
+	                                &wl_seat_interface, 8,
+	                                seat, HandleBind);
 
 	InitSeatCommon(seat);
 
@@ -1845,8 +1823,8 @@ MakeSeatForDevicePair(int master_keyboard, int master_pointer,
 
 	CatchXErrors();
 	XkbSelectEventDetails(compositor.display, master_keyboard,
-						  /* Now enable everything in that mask.  */
-						  XkbStateNotify, mask, mask);
+	                      /* Now enable everything in that mask.  */
+	                      XkbStateNotify, mask, mask);
 	UncatchXErrors(NULL);
 
 	UpdateValuators(seat, pointer_info);
@@ -1866,10 +1844,10 @@ UpdateScrollMethods(DeviceInfo *info, int deviceid)
 
 	/* This only works with the libinput driver.  */
 	rc = XIGetProperty(compositor.display, deviceid,
-					   libinput_Scroll_Methods_Available,
-					   0, 3, False, XIAnyPropertyType,
-					   &actual_type, &actual_format,
-					   &nitems, &bytes_after, &data);
+	                   libinput_Scroll_Methods_Available,
+	                   0, 3, False, XIAnyPropertyType,
+	                   &actual_type, &actual_format,
+	                   &nitems, &bytes_after, &data);
 
 	/* If there aren't enough items in the data, or the format is wrong,
 	   return.  */
@@ -1908,10 +1886,10 @@ UpdateScrollPixelDistance(DeviceInfo *info, int deviceid)
 
 	/* This only works with the libinput driver.  */
 	rc = XIGetProperty(compositor.display, deviceid,
-					   libinput_Scrolling_Pixel_Distance,
-					   0, 1, False, XIAnyPropertyType,
-					   &actual_type, &actual_format,
-					   &nitems, &bytes_after, &data);
+	                   libinput_Scrolling_Pixel_Distance,
+	                   0, 1, False, XIAnyPropertyType,
+	                   &actual_type, &actual_format,
+	                   &nitems, &bytes_after, &data);
 
 	/* If there aren't enough items in the data, or the format is wrong,
 	   return.  */
@@ -1927,7 +1905,7 @@ UpdateScrollPixelDistance(DeviceInfo *info, int deviceid)
 	}
 
 	/* Now set the scroll pixel distance.  */
-	info->scroll_pixel_distance = ((long *)data)[0];
+	info->scroll_pixel_distance = ((long *) data)[0];
 
 	/* And free the data.  */
 	XLFree(data);
@@ -1977,7 +1955,7 @@ SetupInitialDevices(void)
 	int ndevices, i;
 
 	deviceinfo = XIQueryDevice(compositor.display,
-							   XIAllDevices, &ndevices);
+	                           XIAllDevices, &ndevices);
 
 	if (!deviceinfo)
 		return;
@@ -1986,8 +1964,8 @@ SetupInitialDevices(void)
 	{
 		if (deviceinfo[i].use == XIMasterPointer)
 			MakeSeatForDevicePair(deviceinfo[i].attachment,
-								  deviceinfo[i].deviceid,
-								  &deviceinfo[i]);
+			                      deviceinfo[i].deviceid,
+			                      &deviceinfo[i]);
 
 		RecordDeviceInformation(&deviceinfo[i]);
 	}
@@ -2018,12 +1996,14 @@ RunResizeDoneCallbacks(Seat *seat)
 
 /* Forward declarations.  */
 static void TransformToSurface(Surface *, double, double, double *, double *);
+
 static Surface *FindSurfaceUnder(Subcompositor *, double, double);
+
 static void EnteredSurface(Seat *, Surface *, Time, double, double, Bool);
 
 static void
 CancelResizeOperation(Seat *seat, Time time, Subcompositor *subcompositor,
-					  XIDeviceEvent *xev)
+                      XIDeviceEvent *xev)
 {
 	Surface *dispatch;
 	double x, y;
@@ -2038,7 +2018,7 @@ CancelResizeOperation(Seat *seat, Time time, Subcompositor *subcompositor,
 
 	/* Ungrab the pointer.  */
 	XIUngrabDevice(compositor.display, seat->master_pointer,
-				   time);
+	               time);
 
 	if (!subcompositor)
 		return;
@@ -2061,7 +2041,7 @@ CancelResizeOperation(Seat *seat, Time time, Subcompositor *subcompositor,
 
 static Bool
 InterceptButtonEventForResize(Seat *seat, Subcompositor *subcompositor,
-							  XIDeviceEvent *xev)
+                              XIDeviceEvent *xev)
 {
 	if (xev->type == XI_ButtonPress)
 		return True;
@@ -2077,7 +2057,7 @@ InterceptButtonEventForResize(Seat *seat, Subcompositor *subcompositor,
 /* Forward declaration.  */
 
 static Bool HandleValuatorMotion(Seat *, Surface *, double, double,
-								 XIDeviceEvent *);
+                                 XIDeviceEvent *);
 
 #define MoveLeft(flags, i) ((flags) & ResizeAxisLeft ? (i) : 0)
 #define MoveTop(flags, i) ((flags) & ResizeAxisTop ? (i) : 0)
@@ -2109,7 +2089,7 @@ InterceptMotionEventForResize(Seat *seat, XIDeviceEvent *xev)
 	if (seat->resize_axis_flags & ResizeAxisMove)
 	{
 		HandleMovement(seat, seat->resize_last_root_x - root_x,
-					   seat->resize_last_root_y - root_y);
+		               seat->resize_last_root_y - root_y);
 
 		seat->resize_last_root_x = root_x;
 		seat->resize_last_root_y = root_y;
@@ -2153,28 +2133,28 @@ InterceptMotionEventForResize(Seat *seat, XIDeviceEvent *xev)
 	   leftwards and topwards by diff_x and diff_y, should the resize
 	   direction go that way.  */
 	XLSurfacePostResize(seat->resize_surface,
-						MoveLeft(seat->resize_axis_flags, diff_x),
-						MoveTop(seat->resize_axis_flags, diff_y),
-						seat->resize_width + abs_diff_x,
-						seat->resize_height + abs_diff_y);
+	                    MoveLeft(seat->resize_axis_flags, diff_x),
+	                    MoveTop(seat->resize_axis_flags, diff_y),
+	                    seat->resize_width + abs_diff_x,
+	                    seat->resize_height + abs_diff_y);
 
 	return True;
 }
 
 static Bool
 InterceptResizeEvent(Seat *seat, Subcompositor *subcompositor,
-					 XIDeviceEvent *xev)
+                     XIDeviceEvent *xev)
 {
 	if (!seat->resize_surface)
 		return False;
 
 	switch (xev->evtype)
 	{
-	case XI_ButtonRelease:
-		return InterceptButtonEventForResize(seat, subcompositor, xev);
+		case XI_ButtonRelease:
+			return InterceptButtonEventForResize(seat, subcompositor, xev);
 
-	case XI_Motion:
-		return InterceptMotionEventForResize(seat, xev);
+		case XI_Motion:
+			return InterceptMotionEventForResize(seat, xev);
 	}
 
 	return True;
@@ -2280,7 +2260,7 @@ NoticeDeviceEnabled(int deviceid)
 
 	CatchXErrors();
 	info = XIQueryDevice(compositor.display, deviceid,
-						 &ndevices);
+	                     &ndevices);
 	UncatchXErrors(NULL);
 
 	if (info && info->use == XIMasterPointer)
@@ -2305,7 +2285,7 @@ NoticeSlaveAttached(int deviceid)
 
 	CatchXErrors();
 	info = XIQueryDevice(compositor.display, deviceid,
-						 &ndevices);
+	                     &ndevices);
 	UncatchXErrors(NULL);
 
 	/* A slave device was attached.  Take this opportunity to update its
@@ -2368,7 +2348,7 @@ ArrayRemove(struct wl_array *array, void *item, size_t size)
 
 	arith = item;
 
-	bytes = array->size - (arith + size - (char *)array->data);
+	bytes = array->size - (arith + size - (char *) array->data);
 	if (bytes > 0)
 		memmove(item, arith + size, bytes);
 	array->size -= size;
@@ -2397,7 +2377,7 @@ ClientInfoForResource(Seat *seat, struct wl_resource *resource)
 
 static void
 SendKeyboardKey(Seat *seat, Surface *focus, Time time,
-				uint32_t key, uint32_t state)
+                uint32_t key, uint32_t state)
 {
 	Keyboard *keyboard;
 	SeatClientInfo *info;
@@ -2415,7 +2395,7 @@ SendKeyboardKey(Seat *seat, Surface *focus, Time time,
 
 	for (; keyboard != &info->keyboards; keyboard = keyboard->next)
 		wl_keyboard_send_key(keyboard->resource, serial, time,
-							 key, state);
+		                     key, state);
 }
 
 static void
@@ -2496,10 +2476,10 @@ HandleResizeComplete(Seat *seat)
 	msg.xclient.data.l[4] = 1; /* Source indication.  */
 
 	XSendEvent(compositor.display,
-			   DefaultRootWindow(compositor.display),
-			   False,
-			   SubstructureRedirectMask | SubstructureNotifyMask,
-			   &msg);
+	           DefaultRootWindow(compositor.display),
+	           False,
+	           SubstructureRedirectMask | SubstructureNotifyMask,
+	           &msg);
 
 finish:
 
@@ -2513,8 +2493,9 @@ finish:
 /* Forward declarations.  */
 
 static int GetXButton(int);
+
 static void SendButton(Seat *, Surface *, Time, uint32_t, uint32_t,
-					   double, double);
+                       double, double);
 
 static void
 HandleRawButton(XIRawEvent *event)
@@ -2563,12 +2544,12 @@ HandleRawButton(XIRawEvent *event)
 			{
 				/* Otherwise, the pointer is on a different screen!  */
 				TransformToSurface(seat->last_seen_surface,
-								   win_x, win_y, &dispatch_x, &dispatch_y);
+				                   win_x, win_y, &dispatch_x, &dispatch_y);
 
 				/* And finally the button release.  */
 				SendButton(seat, seat->last_seen_surface, event->time,
-						   button, WL_POINTER_BUTTON_STATE_RELEASED,
-						   dispatch_x, dispatch_y);
+				           button, WL_POINTER_BUTTON_STATE_RELEASED,
+				           dispatch_x, dispatch_y);
 			}
 		}
 
@@ -2595,7 +2576,7 @@ HandleDeviceChanged(XIDeviceChangedEvent *event)
 
 	CatchXErrors();
 	info = XIQueryDevice(compositor.display, event->deviceid,
-						 &ndevices);
+	                     &ndevices);
 	UncatchXErrors(NULL);
 
 	if (!info)
@@ -2659,7 +2640,7 @@ HandleDragMotionEvent(XIDeviceEvent *xev)
 	/* Move the drag-and-drop icon window.  */
 	if (seat->icon_surface)
 		XLMoveIconSurface(seat->icon_surface, xev->root_x,
-						  xev->root_y);
+		                  xev->root_y);
 
 	/* Update information used for resize tracking.  */
 	seat->its_root_x = xev->root_x;
@@ -2695,33 +2676,33 @@ HandleOneGenericEvent(XGenericEventCookie *xcookie)
 {
 	switch (xcookie->evtype)
 	{
-	case XI_HierarchyChanged:
-		HandleHierarchyEvent(xcookie->data);
-		return True;
+		case XI_HierarchyChanged:
+			HandleHierarchyEvent(xcookie->data);
+			return True;
 
-	case XI_DeviceChanged:
-		HandleDeviceChanged(xcookie->data);
-		return True;
+		case XI_DeviceChanged:
+			HandleDeviceChanged(xcookie->data);
+			return True;
 
-	case XI_PropertyEvent:
-		HandlePropertyChanged(xcookie->data);
-		return True;
+		case XI_PropertyEvent:
+			HandlePropertyChanged(xcookie->data);
+			return True;
 
-	case XI_RawKeyPress:
-	case XI_RawKeyRelease:
-		HandleRawKey(xcookie->data);
-		return True;
+		case XI_RawKeyPress:
+		case XI_RawKeyRelease:
+			HandleRawKey(xcookie->data);
+			return True;
 
-	case XI_RawButtonRelease:
-		HandleRawButton(xcookie->data);
-		return True;
+		case XI_RawButtonRelease:
+			HandleRawButton(xcookie->data);
+			return True;
 
-	case XI_Motion:
-		return HandleDragMotionEvent(xcookie->data);
+		case XI_Motion:
+			return HandleDragMotionEvent(xcookie->data);
 
-	case XI_ButtonPress:
-	case XI_ButtonRelease:
-		return HandleDragButtonEvent(xcookie->data);
+		case XI_ButtonPress:
+		case XI_ButtonRelease:
+			return HandleDragButtonEvent(xcookie->data);
 	}
 
 	return False;
@@ -2745,8 +2726,8 @@ SelectDeviceEvents(void)
 	XISetMask(mask.mask, XI_DeviceChanged);
 
 	XISelectEvents(compositor.display,
-				   DefaultRootWindow(compositor.display),
-				   &mask, 1);
+	               DefaultRootWindow(compositor.display),
+	               &mask, 1);
 
 	memset(mask.mask, 0, length);
 
@@ -2757,8 +2738,8 @@ SelectDeviceEvents(void)
 	XISetMask(mask.mask, XI_RawButtonRelease);
 
 	XISelectEvents(compositor.display,
-				   DefaultRootWindow(compositor.display),
-				   &mask, 1);
+	               DefaultRootWindow(compositor.display),
+	               &mask, 1);
 }
 
 static void
@@ -2795,16 +2776,16 @@ SendKeyboardLeave(Seat *seat, Surface *focus)
 
 	for (; keyboard != &info->keyboards; keyboard = keyboard->next)
 		wl_keyboard_send_leave(keyboard->resource,
-							   serial, focus->resource);
+		                       serial, focus->resource);
 }
 
 static void
 UpdateSingleModifiers(Seat *seat, Keyboard *keyboard, uint32_t serial)
 {
 	wl_keyboard_send_modifiers(keyboard->resource, serial,
-							   seat->base, seat->latched,
-							   seat->locked,
-							   seat->effective_group);
+	                           seat->base, seat->latched,
+	                           seat->locked,
+	                           seat->effective_group);
 }
 
 static void
@@ -2830,7 +2811,7 @@ SendKeyboardEnter(Seat *seat, Surface *enter)
 	for (; keyboard != &info->keyboards; keyboard = keyboard->next)
 	{
 		wl_keyboard_send_enter(keyboard->resource, serial,
-							   enter->resource, &seat->keys);
+		                       enter->resource, &seat->keys);
 		UpdateSingleModifiers(seat, keyboard, serial);
 	}
 }
@@ -2856,7 +2837,7 @@ SendKeyboardModifiers(Seat *seat, Surface *focus)
 
 static void
 HackKeyboardModifiers(Seat *seat, Surface *focus, int effective,
-					  int group)
+                      int group)
 {
 	Keyboard *keyboard;
 	uint32_t serial;
@@ -2874,7 +2855,7 @@ HackKeyboardModifiers(Seat *seat, Surface *focus, int effective,
 		/* It is wrong to send the new modifiers in seat->based, but I
 		   don't know anything better.  */
 		wl_keyboard_send_modifiers(keyboard->resource, serial,
-								   effective, 0, 0, group);
+		                           effective, 0, 0, group);
 }
 
 static void
@@ -2883,17 +2864,17 @@ SendUpdatedModifiers(Seat *seat)
 	ModifierChangeCallback *callback;
 
 	for (callback = seat->modifier_callbacks.next;
-		 callback != &seat->modifier_callbacks;
-		 callback = callback->next)
+	     callback != &seat->modifier_callbacks;
+	     callback = callback->next)
 		/* Send the effective modifiers.  */
 		callback->changed(seat->base | seat->locked | seat->latched,
-						  callback->data);
+		                  callback->data);
 
 	/* If drag and drop is in progress, update the data source
 	   actions.  */
 	if (seat->flags & IsDragging && seat->data_source
-		/* Don't do this during external drag and drop.  */
-		&& seat->drag_last_surface)
+	    /* Don't do this during external drag and drop.  */
+	    && seat->drag_last_surface)
 		XLDataSourceUpdateDeviceActions(seat->data_source);
 
 	if (seat->focus_surface)
@@ -2902,10 +2883,10 @@ SendUpdatedModifiers(Seat *seat)
 
 static void
 UpdateModifiersForSeat(Seat *seat,
-					   unsigned int base, unsigned int locked,
-					   unsigned int latched, int base_group,
-					   int locked_group, int latched_group,
-					   int effective_group)
+                       unsigned int base, unsigned int locked,
+                       unsigned int latched, int base_group,
+                       int locked_group, int latched_group,
+                       int effective_group)
 {
 	seat->base = base;
 	seat->locked = locked;
@@ -3014,7 +2995,7 @@ FindSurfaceUnder(Subcompositor *subcompositor, double x, double y)
 	/* Do not round these figures.  Instead, cut off the fractional,
 	   like the X server does when deciding when to set the cursor.  */
 	view = SubcompositorLookupView(subcompositor, x, y,
-								   &x_off, &y_off);
+	                               &x_off, &y_off);
 
 	if (view)
 		return ViewGetData(view);
@@ -3033,12 +3014,12 @@ DragLeave(Seat *seat)
 	{
 		if (seat->flags & IsDragging)
 			XLDataDeviceSendLeave(seat, seat->drag_last_surface,
-								  seat->data_source);
+			                      seat->data_source);
 		else
 			/* If nothing is being dragged anymore, avoid sending flags to
 			   the source after drop or cancel.  */
 			XLDataDeviceSendLeave(seat, seat->drag_last_surface,
-								  NULL);
+			                      NULL);
 
 		XLSurfaceCancelRunOnFree(seat->drag_last_surface_destroy_callback);
 
@@ -3069,19 +3050,20 @@ DragEnter(Seat *seat, Surface *surface, double x, double y)
 
 	/* If no data source is specified, only send motion events to
 	   surfaces created by the same client.  */
-	if (!seat->data_source && (wl_resource_get_client(seat->drag_start_surface->resource) != wl_resource_get_client(surface->resource)))
+	if (!seat->data_source && (wl_resource_get_client(seat->drag_start_surface->resource) != wl_resource_get_client(
+		                           surface->resource)))
 		return;
 
 	seat->drag_last_surface = surface;
 	seat->drag_last_surface_destroy_callback = XLSurfaceRunOnFree(surface, HandleDragLastSurfaceDestroy,
-																  seat);
+	                                                              seat);
 
 	XLDataDeviceSendEnter(seat, surface, x, y, seat->data_source);
 }
 
 static void
 DragMotion(Seat *seat, Surface *surface, double x, double y,
-		   Time time)
+           Time time)
 {
 	if (!seat->drag_last_surface)
 		return;
@@ -3129,8 +3111,8 @@ DragButton(Seat *seat, XIDeviceEvent *xev)
 					XLDataSourceSendDropPerformed(seat->data_source);
 				}
 				else
-					/* Otherwise, the data source is not eligible for
-					   dropping; simply send cancel.  */
+				/* Otherwise, the data source is not eligible for
+				   dropping; simply send cancel.  */
 					XLDataSourceSendDropCancelled(seat->data_source);
 			}
 			else if (seat->data_source)
@@ -3142,13 +3124,13 @@ DragButton(Seat *seat, XIDeviceEvent *xev)
 		seat->flags |= IsDropped;
 
 		CancelDrag(seat, xev->event, xev->event_x,
-				   xev->event_y);
+		           xev->event_y);
 	}
 }
 
 static void
 SendMotion(Seat *seat, Surface *surface, double x, double y,
-		   Time time)
+           Time time)
 {
 	Pointer *pointer;
 	uint32_t serial;
@@ -3167,9 +3149,9 @@ SendMotion(Seat *seat, Surface *surface, double x, double y,
 		if (pointer->state & StateIsRaw)
 		{
 			wl_pointer_send_enter(pointer->resource, serial,
-								  surface->resource,
-								  wl_fixed_from_double(x),
-								  wl_fixed_from_double(y));
+			                      surface->resource,
+			                      wl_fixed_from_double(x),
+			                      wl_fixed_from_double(y));
 			pointer->info->last_enter_serial = serial;
 		}
 
@@ -3178,8 +3160,8 @@ SendMotion(Seat *seat, Surface *surface, double x, double y,
 
 		if (!(seat->flags & IsPointerLocked))
 			wl_pointer_send_motion(pointer->resource, time,
-								   wl_fixed_from_double(x),
-								   wl_fixed_from_double(y));
+			                       wl_fixed_from_double(x),
+			                       wl_fixed_from_double(y));
 
 		if (wl_resource_get_version(pointer->resource) >= 5)
 			wl_pointer_send_frame(pointer->resource);
@@ -3190,7 +3172,7 @@ SendMotion(Seat *seat, Surface *surface, double x, double y,
 
 static void
 SendRelativeMotion(Seat *seat, Surface *surface, double dx, double dy,
-				   Time time)
+                   Time time)
 {
 	SeatClientInfo *info;
 	uint64_t microsecond_time;
@@ -3215,7 +3197,7 @@ SendRelativeMotion(Seat *seat, Surface *surface, double dx, double dy,
 	{
 		/* Send the relative deltas.  */
 		XLRelativePointerSendRelativeMotion(relative_pointer->resource,
-											microsecond_time, dx, dy);
+		                                    microsecond_time, dx, dy);
 
 		/* Move to the next relative pointer.  */
 		relative_pointer = relative_pointer->next;
@@ -3240,7 +3222,7 @@ SendLeave(Seat *seat, Surface *surface)
 	for (; pointer != &info->pointers; pointer = pointer->next)
 	{
 		wl_pointer_send_leave(pointer->resource, serial,
-							  surface->resource);
+		                      surface->resource);
 
 		/* Apparently this is necessary on both leave and enter
 	   events.  */
@@ -3276,9 +3258,9 @@ SendEnter(Seat *seat, Surface *surface, double x, double y)
 		pointer->state &= ~StateIsRaw;
 
 		wl_pointer_send_enter(pointer->resource, serial,
-							  surface->resource,
-							  wl_fixed_from_double(x),
-							  wl_fixed_from_double(y));
+		                      surface->resource,
+		                      wl_fixed_from_double(x),
+		                      wl_fixed_from_double(y));
 
 		/* Apparently this is necessary on both leave and enter
 		   events.  */
@@ -3293,8 +3275,8 @@ SendEnter(Seat *seat, Surface *surface, double x, double y)
 
 static void
 SendButton(Seat *seat, Surface *surface, Time time,
-		   uint32_t button, uint32_t state, double x,
-		   double y)
+           uint32_t button, uint32_t state, double x,
+           double y)
 {
 	Pointer *pointer;
 	uint32_t serial;
@@ -3321,14 +3303,14 @@ SendButton(Seat *seat, Surface *surface, Time time,
 		if (pointer->state & StateIsRaw)
 		{
 			wl_pointer_send_enter(pointer->resource, serial,
-								  surface->resource,
-								  wl_fixed_from_double(x),
-								  wl_fixed_from_double(y));
+			                      surface->resource,
+			                      wl_fixed_from_double(x),
+			                      wl_fixed_from_double(y));
 			pointer->info->last_enter_serial = serial;
 		}
 
 		wl_pointer_send_button(pointer->resource,
-							   serial, time, button, state);
+		                       serial, time, button, state);
 
 		if (wl_resource_get_version(pointer->resource) >= 5)
 			wl_pointer_send_frame(pointer->resource);
@@ -3398,8 +3380,8 @@ UndefineCursorOn(Seat *seat, Surface *surface)
 		return;
 
 	XIUndefineCursor(compositor.display,
-					 seat->master_pointer,
-					 window);
+	                 seat->master_pointer,
+	                 window);
 
 	/* In addition to undefining the seat specific cursor, also undefine
 	   the core cursor specified during window creation.  */
@@ -3409,11 +3391,12 @@ UndefineCursorOn(Seat *seat, Surface *surface)
 /* Forward declaration.  */
 
 static void SendGesturePinchEnd(Seat *, Surface *, Time, int);
+
 static void SendGestureSwipeEnd(Seat *, Surface *, Time, int);
 
 static void
 EnteredSurface(Seat *seat, Surface *surface, Time time,
-			   double x, double y, Bool preserve_cursor)
+               double x, double y, Bool preserve_cursor)
 {
 	Time gesture_time;
 
@@ -3428,8 +3411,8 @@ EnteredSurface(Seat *seat, Surface *surface, Time time,
 	   any ongoing gestures.  */
 
 	if (seat->flags & IsInPinchGesture
-		/* Not sure if this can actually be NULL here.  */
-		&& seat->last_seen_surface)
+	    /* Not sure if this can actually be NULL here.  */
+	    && seat->last_seen_surface)
 	{
 		/* If time is 0 (CurrentTime), then just use the last user
 		   time.  */
@@ -3437,15 +3420,15 @@ EnteredSurface(Seat *seat, Surface *surface, Time time,
 
 		/* Send the gesture end event.  */
 		SendGesturePinchEnd(seat, seat->last_seen_surface,
-							gesture_time, 1);
+		                    gesture_time, 1);
 
 		/* And clear the flag so further updates are not sent.  */
 		seat->flags &= ~IsInPinchGesture;
 	}
 
 	if (seat->flags & IsInSwipeGesture
-		/* Not sure if this can actually be NULL here.  */
-		&& seat->last_seen_surface)
+	    /* Not sure if this can actually be NULL here.  */
+	    && seat->last_seen_surface)
 	{
 		/* If time is 0 (CurrentTime), then just use the last user
 		   time.  */
@@ -3453,7 +3436,7 @@ EnteredSurface(Seat *seat, Surface *surface, Time time,
 
 		/* Send the gesture end event.  */
 		SendGestureSwipeEnd(seat, seat->last_seen_surface,
-							gesture_time, 1);
+		                    gesture_time, 1);
 
 		/* And clear the flag so further updates are not sent.  */
 		seat->flags &= ~IsInSwipeGesture;
@@ -3504,7 +3487,7 @@ EnteredSurface(Seat *seat, Surface *surface, Time time,
 
 static void
 TransformToSurface(Surface *surface, double event_x, double event_y,
-				   double *view_x_out, double *view_y_out)
+                   double *view_x_out, double *view_y_out)
 {
 	int int_x, int_y, x, y;
 	double view_x, view_y;
@@ -3515,14 +3498,14 @@ TransformToSurface(Surface *surface, double event_x, double event_y,
 
 	/* Even though event_x and event_y are doubles, they cannot exceed
 	   65535.0, so this cannot overflow.  */
-	int_x = (int)event_x;
-	int_y = (int)event_y;
+	int_x = (int) event_x;
+	int_y = (int) event_y;
 
 	ViewTranslate(view, int_x, int_y, &x, &y);
 
 	/* Add the fractional part back to the final result.  */
-	view_x = ((double)x) + event_x - int_x;
-	view_y = ((double)y) + event_y - int_y;
+	view_x = ((double) x) + event_x - int_x;
+	view_y = ((double) y) + event_y - int_y;
 
 	/* Finally, transform the coordinates by the global output
 	   scale.  */
@@ -3543,17 +3526,17 @@ CanDeliverEvents(Seat *seat, Surface *dispatch)
 
 static void
 TranslateCoordinates(Window source, Window target, double x, double y,
-					 double *x_out, double *y_out)
+                     double *x_out, double *y_out)
 {
 	Window child_return;
 	int int_x, int_y, t1, t2;
 
-	int_x = (int)x;
-	int_y = (int)y;
+	int_x = (int) x;
+	int_y = (int) y;
 
 	XTranslateCoordinates(compositor.display, source,
-						  target, int_x, int_y, &t1, &t2,
-						  &child_return);
+	                      target, int_x, int_y, &t1, &t2,
+	                      &child_return);
 
 	/* Add the fractional part back.  */
 	*x_out = (x - int_x) + t1;
@@ -3562,7 +3545,7 @@ TranslateCoordinates(Window source, Window target, double x, double y,
 
 static Surface *
 ComputeGrabPosition(Seat *seat, Surface *dispatch,
-					double *event_x, double *event_y)
+                    double *event_x, double *event_y)
 {
 	Window toplevel, grab;
 
@@ -3570,20 +3553,20 @@ ComputeGrabPosition(Seat *seat, Surface *dispatch,
 	grab = XLWindowFromSurface(seat->grab_surface);
 
 	TranslateCoordinates(toplevel, grab, *event_x, *event_y,
-						 event_x, event_y);
+	                     event_x, event_y);
 	return seat->grab_surface;
 }
 
 static void
 TranslateGrabPosition(Seat *seat, Window window, double *event_x,
-					  double *event_y)
+                      double *event_y)
 {
 	Window grab;
 
 	grab = XLWindowFromSurface(seat->grab_surface);
 
 	TranslateCoordinates(window, grab, *event_x, *event_y,
-						 event_x, event_y);
+	                     event_x, event_y);
 	return;
 }
 
@@ -3631,8 +3614,8 @@ DispatchEntryExit(Subcompositor *subcompositor, XIEnterEvent *event)
 			/* Attach the new subcompositor.  */
 			seat->last_seen_subcompositor = subcompositor;
 			seat->subcompositor_callback = SubcompositorOnDestroy(subcompositor,
-																  HandleSubcompositorDestroy,
-																  seat);
+			                                                      HandleSubcompositorDestroy,
+			                                                      seat);
 
 			/* Also set the window used.  */
 			seat->last_seen_subcompositor_window = event->event;
@@ -3647,7 +3630,7 @@ DispatchEntryExit(Subcompositor *subcompositor, XIEnterEvent *event)
 	if (event->mode == XINotifyUngrab && seat->flags & IsDragging)
 		/* The active grab was released.  */
 		CancelDrag(seat, event->event, event->event_x,
-				   event->event_y);
+		           event->event_y);
 
 	if (event->evtype == XI_Leave && (event->mode == XINotifyGrab || event->mode == XINotifyUngrab))
 		/* Ignore grab-related weirdness in XI_Leave events.  */
@@ -3665,7 +3648,7 @@ DispatchEntryExit(Subcompositor *subcompositor, XIEnterEvent *event)
 		dispatch = NULL;
 	else
 		dispatch = FindSurfaceUnder(subcompositor, event->event_x,
-									event->event_y);
+		                            event->event_y);
 
 	event_x = event->event_x;
 	event_y = event->event_y;
@@ -3675,7 +3658,7 @@ DispatchEntryExit(Subcompositor *subcompositor, XIEnterEvent *event)
 		/* If the grab surface is set, translate the coordinates to
 	   it and use it instead.  */
 		TranslateGrabPosition(seat, event->event,
-							  &event_x, &event_y);
+		                      &event_x, &event_y);
 		dispatch = seat->grab_surface;
 
 		goto after_dispatch_set;
@@ -3690,7 +3673,7 @@ DispatchEntryExit(Subcompositor *subcompositor, XIEnterEvent *event)
 		   window.  */
 		if (!CanDeliverEvents(seat, dispatch))
 			dispatch = ComputeGrabPosition(seat, dispatch,
-										   &event_x, &event_y);
+			                               &event_x, &event_y);
 
 	after_dispatch_set:
 
@@ -3710,7 +3693,7 @@ DispatchEntryExit(Subcompositor *subcompositor, XIEnterEvent *event)
 
 static Bool
 ProcessValuator(Seat *seat, XIDeviceEvent *event, ScrollValuator *valuator,
-				double value, double *total_x, double *total_y, int *flags)
+                double value, double *total_x, double *total_y, int *flags)
 {
 	double diff;
 	Bool valid;
@@ -3761,8 +3744,8 @@ FindScrollValuator(Seat *seat, int number)
 
 static void
 InterpolateAxes(Surface *surface, DeviceInfo *info,
-				double movement_x, double movement_y,
-				double *x_out, double *y_out)
+                double movement_x, double movement_y,
+                double *x_out, double *y_out)
 {
 	if (!info)
 	{
@@ -3781,8 +3764,8 @@ InterpolateAxes(Surface *surface, DeviceInfo *info,
 
 static void
 SendScrollAxis(Seat *seat, Surface *surface, Time time,
-			   double x, double y, double axis_x, double axis_y,
-			   int flags, int sourceid)
+               double x, double y, double axis_x, double axis_y,
+               int flags, int sourceid)
 {
 	Pointer *pointer;
 	uint32_t serial;
@@ -3803,31 +3786,31 @@ SendScrollAxis(Seat *seat, Surface *surface, Time time,
 		if (pointer->state & StateIsRaw)
 		{
 			wl_pointer_send_enter(pointer->resource, serial,
-								  surface->resource,
-								  wl_fixed_from_double(x),
-								  wl_fixed_from_double(y));
+			                      surface->resource,
+			                      wl_fixed_from_double(x),
+			                      wl_fixed_from_double(y));
 			pointer->info->last_enter_serial = serial;
 		}
 
 		if (wl_resource_get_version(pointer->resource) < 8
-			/* Send pixel-wise axis events from devices that are most
-			   likely touchpads.  */
-			|| (deviceinfo && (deviceinfo->flags & DeviceCanFingerScroll || deviceinfo->flags & DeviceCanEdgeScroll)))
+		    /* Send pixel-wise axis events from devices that are most
+		       likely touchpads.  */
+		    || (deviceinfo && (deviceinfo->flags & DeviceCanFingerScroll || deviceinfo->flags & DeviceCanEdgeScroll)))
 		{
 			/* Interpolate the increment-relative axis values to pixel
 			   values.  */
 			InterpolateAxes(surface, deviceinfo, axis_x, axis_y,
-							&axis_x, &axis_y);
+			                &axis_x, &axis_y);
 
 			if (axis_x != 0.0)
 				wl_pointer_send_axis(pointer->resource, time,
-									 WL_POINTER_AXIS_HORIZONTAL_SCROLL,
-									 wl_fixed_from_double(axis_x));
+				                     WL_POINTER_AXIS_HORIZONTAL_SCROLL,
+				                     wl_fixed_from_double(axis_x));
 
 			if (axis_y != 0.0)
 				wl_pointer_send_axis(pointer->resource, time,
-									 WL_POINTER_AXIS_VERTICAL_SCROLL,
-									 wl_fixed_from_double(axis_y));
+				                     WL_POINTER_AXIS_VERTICAL_SCROLL,
+				                     wl_fixed_from_double(axis_y));
 		}
 		else
 		{
@@ -3836,13 +3819,13 @@ SendScrollAxis(Seat *seat, Surface *surface, Time time,
 
 			if (axis_x != 0.0)
 				wl_pointer_send_axis_value120(pointer->resource,
-											  WL_POINTER_AXIS_HORIZONTAL_SCROLL,
-											  axis_x * 120);
+				                              WL_POINTER_AXIS_HORIZONTAL_SCROLL,
+				                              axis_x * 120);
 
 			if (axis_y != 0.0)
 				wl_pointer_send_axis_value120(pointer->resource,
-											  WL_POINTER_AXIS_VERTICAL_SCROLL,
-											  axis_y * 120);
+				                              WL_POINTER_AXIS_VERTICAL_SCROLL,
+				                              axis_y * 120);
 		}
 
 		if (axis_y == 0.0 && axis_x == 0.0)
@@ -3857,11 +3840,11 @@ SendScrollAxis(Seat *seat, Surface *surface, Time time,
 
 				if (flags & AnyVerticalAxis)
 					wl_pointer_send_axis_stop(pointer->resource, time,
-											  WL_POINTER_AXIS_VERTICAL_SCROLL);
+					                          WL_POINTER_AXIS_VERTICAL_SCROLL);
 
 				if (flags & AnyHorizontalAxis)
 					wl_pointer_send_axis_stop(pointer->resource, time,
-											  WL_POINTER_AXIS_HORIZONTAL_SCROLL);
+					                          WL_POINTER_AXIS_HORIZONTAL_SCROLL);
 			}
 		}
 
@@ -3874,7 +3857,7 @@ SendScrollAxis(Seat *seat, Surface *surface, Time time,
 
 			if (deviceinfo && (deviceinfo->flags & DeviceCanFingerScroll || deviceinfo->flags & DeviceCanEdgeScroll))
 				wl_pointer_send_axis_source(pointer->resource,
-											WL_POINTER_AXIS_SOURCE_FINGER);
+				                            WL_POINTER_AXIS_SOURCE_FINGER);
 		}
 
 		if (axis_x != 0.0 || axis_y != 0.0 || flags || pointer->state & StateIsRaw)
@@ -3889,7 +3872,7 @@ SendScrollAxis(Seat *seat, Surface *surface, Time time,
 
 static Bool
 HandleValuatorMotion(Seat *seat, Surface *dispatch, double x, double y,
-					 XIDeviceEvent *event)
+                     XIDeviceEvent *event)
 {
 	double total_x, total_y, *values;
 	ScrollValuator *valuator;
@@ -3915,7 +3898,7 @@ HandleValuatorMotion(Seat *seat, Surface *dispatch, double x, double y,
 			goto next;
 
 		value |= ProcessValuator(seat, event, valuator, *values,
-								 &total_x, &total_y, &flags);
+		                         &total_x, &total_y, &flags);
 
 	next:
 		values++;
@@ -3923,17 +3906,17 @@ HandleValuatorMotion(Seat *seat, Surface *dispatch, double x, double y,
 
 	if (value && dispatch)
 		SendScrollAxis(seat, dispatch, event->time, x, y, total_x,
-					   total_y, flags,
-					   /* Also pass the event source device ID, which is
-						  used in an attempt to determine the axis
-						  source.  */
-					   event->sourceid);
+		               total_y, flags,
+		               /* Also pass the event source device ID, which is
+			              used in an attempt to determine the axis
+			              source.  */
+		               event->sourceid);
 	return value;
 }
 
 static void
 CheckPointerBarrier(Seat *seat, Surface *dispatch, double x, double y,
-					double root_x, double root_y)
+                    double root_x, double root_y)
 {
 	/* Check if DISPATCH has a pointer confinement that would be
 	   activated by this motion.  */
@@ -3959,7 +3942,7 @@ DispatchMotion(Subcompositor *subcompositor, XIDeviceEvent *xev)
 	/* Move the drag-and-drop icon window.  */
 	if (seat->icon_surface)
 		XLMoveIconSurface(seat->icon_surface, xev->root_x,
-						  xev->root_y);
+		                  xev->root_y);
 
 	/* Update information used for resize tracking.  */
 	seat->its_root_x = xev->root_x;
@@ -3972,7 +3955,7 @@ DispatchMotion(Subcompositor *subcompositor, XIDeviceEvent *xev)
 		seat->last_user_time = TimestampFromServerTime(xev->time);
 
 	actual_dispatch = FindSurfaceUnder(subcompositor, xev->event_x,
-									   xev->event_y);
+	                                   xev->event_y);
 
 	if (seat->grab_held)
 		dispatch = seat->last_seen_surface;
@@ -3989,7 +3972,7 @@ DispatchMotion(Subcompositor *subcompositor, XIDeviceEvent *xev)
 			/* If the grab surface is set, translate the coordinates to
 			   it and use it instead.  */
 			TranslateGrabPosition(seat, xev->event,
-								  &event_x, &event_y);
+			                      &event_x, &event_y);
 			dispatch = seat->grab_surface;
 
 			goto after_dispatch_set;
@@ -4009,13 +3992,13 @@ DispatchMotion(Subcompositor *subcompositor, XIDeviceEvent *xev)
 	   inside, since it evidently moved.  */
 	if (seat->cursor)
 		UpdateCursorOutput(seat->cursor, xev->root_x,
-						   xev->root_y);
+		                   xev->root_y);
 
 	/* If dispatching during an active grab, and the event is for the
 	   wrong client, translate the coordinates to the grab window.  */
 	if (!CanDeliverEvents(seat, dispatch))
 		dispatch = ComputeGrabPosition(seat, dispatch,
-									   &event_x, &event_y);
+		                               &event_x, &event_y);
 
 after_dispatch_set:
 
@@ -4042,12 +4025,12 @@ after_dispatch_set:
 			   instead.  */
 			if (x - seat->last_surface_x != 0.0 || y - seat->last_surface_y != 0.0)
 				SendRelativeMotion(seat, dispatch, x - seat->last_surface_x,
-								   y - seat->last_surface_y, xev->time);
+				                   y - seat->last_surface_y, xev->time);
 
 			/* Check if this motion would cause a pointer constraint to
 			   activate.  */
 			CheckPointerBarrier(seat, dispatch, x, y, xev->root_x,
-								xev->root_y);
+			                    xev->root_y);
 		}
 
 		/* Set the last movement location.  */
@@ -4067,23 +4050,23 @@ GetXButton(int detail)
 {
 	switch (detail)
 	{
-	case Button1:
-		return BTN_LEFT;
+		case Button1:
+			return BTN_LEFT;
 
-	case Button2:
-		return BTN_MIDDLE;
+		case Button2:
+			return BTN_MIDDLE;
 
-	case Button3:
-		return BTN_RIGHT;
+		case Button3:
+			return BTN_RIGHT;
 
-	default:
-		return -1;
+		default:
+			return -1;
 	}
 }
 
 static void
 CancelGrab1(Seat *seat, Subcompositor *subcompositor,
-			Time time, double x, double y)
+            Time time, double x, double y)
 {
 	Surface *surface;
 
@@ -4100,7 +4083,7 @@ CancelGrab1(Seat *seat, Subcompositor *subcompositor,
 
 static void
 CancelGrab(Seat *seat, Time time, Window source, double x,
-		   double y)
+           double y)
 {
 	if (!seat->grab_held)
 		return;
@@ -4116,13 +4099,13 @@ CancelGrab(Seat *seat, Time time, Window source, double x,
 		/* Avoid translating coordinates if not necessary.  */
 		if (source != seat->last_seen_subcompositor_window)
 			TranslateCoordinates(source, seat->last_seen_subcompositor_window,
-								 x, y, &x, &y);
+			                     x, y, &x, &y);
 
 		/* And cancel the grab.  */
 		CancelGrab1(seat, seat->last_seen_subcompositor, time, x, y);
 	}
 	else
-		/* Otherwise, just leave the surface.  */
+	/* Otherwise, just leave the surface.  */
 		EnteredSurface(seat, NULL, time, 0, 0, False);
 
 	/* Cancel the unmap callback.  */
@@ -4139,8 +4122,8 @@ CancelGrabEarly(Seat *seat)
 	/* Cancelling the grab should also result in the unmap callback
 	   being cancelled.  */
 	CancelGrab(seat, seat->its_press_time,
-			   DefaultRootWindow(compositor.display),
-			   seat->its_root_x, seat->its_root_y);
+	           DefaultRootWindow(compositor.display),
+	           seat->its_root_x, seat->its_root_y);
 }
 
 static void
@@ -4164,7 +4147,7 @@ LockSurfaceFocus(Seat *seat)
 	{
 		/* Also cancel the grab upon the surface being unmapped.  */
 		callback = XLSurfaceRunAtUnmap(seat->last_seen_surface,
-									   HandleGrabUnmapped, seat);
+		                               HandleGrabUnmapped, seat);
 		seat->grab_unmap_callback = callback;
 	}
 }
@@ -4236,7 +4219,7 @@ DispatchButton(Subcompositor *subcompositor, XIDeviceEvent *xev)
 		return;
 
 	actual_dispatch = FindSurfaceUnder(subcompositor, xev->event_x,
-									   xev->event_y);
+	                                   xev->event_y);
 
 	if (seat->grab_held)
 		dispatch = seat->last_seen_surface;
@@ -4253,7 +4236,7 @@ DispatchButton(Subcompositor *subcompositor, XIDeviceEvent *xev)
 			/* If the grab surface is set, translate the coordinates to
 			   it and use it instead.  */
 			TranslateGrabPosition(seat, xev->event,
-								  &event_x, &event_y);
+			                      &event_x, &event_y);
 			dispatch = seat->grab_surface;
 
 			goto after_dispatch_set;
@@ -4267,21 +4250,21 @@ DispatchButton(Subcompositor *subcompositor, XIDeviceEvent *xev)
 	   wrong client, translate the coordinates to the grab window.  */
 	if (!CanDeliverEvents(seat, dispatch))
 		dispatch = ComputeGrabPosition(seat, dispatch,
-									   &event_x, &event_y);
+		                               &event_x, &event_y);
 
 after_dispatch_set:
 
 	TransformToSurface(dispatch, xev->event_x, xev->event_y,
-					   &x, &y);
+	                   &x, &y);
 	EnteredSurface(seat, dispatch, xev->time, x, y,
-				   False);
+	               False);
 
 	state = (xev->evtype == XI_ButtonPress
-				 ? WL_POINTER_BUTTON_STATE_PRESSED
-				 : WL_POINTER_BUTTON_STATE_RELEASED);
+		         ? WL_POINTER_BUTTON_STATE_PRESSED
+		         : WL_POINTER_BUTTON_STATE_RELEASED);
 
 	SendButton(seat, dispatch, xev->time, button,
-			   state, x, y);
+	           state, x, y);
 
 	if (xev->evtype == XI_ButtonPress)
 	{
@@ -4298,7 +4281,7 @@ after_dispatch_set:
 		LockSurfaceFocus(seat);
 	else
 		CancelGrab(seat, xev->time, xev->event,
-				   xev->event_x, xev->event_y);
+		           xev->event_x, xev->event_y);
 }
 
 static void
@@ -4320,7 +4303,8 @@ DispatchKey(XIDeviceEvent *xev)
 	{
 		keycode = 0;
 
-		if (input_funcs && seat->flags & IsTextInputSeat && input_funcs->filter_input(seat, seat->focus_surface, xev, &keycode))
+		if (input_funcs && seat->flags & IsTextInputSeat && input_funcs->filter_input(
+			    seat, seat->focus_surface, xev, &keycode))
 			/* The input method decided to filter the key.  */
 			return;
 
@@ -4334,12 +4318,12 @@ DispatchKey(XIDeviceEvent *xev)
 
 		if (xev->evtype == XI_KeyPress)
 			SendKeyboardKey(seat, seat->focus_surface,
-							xev->time, WaylandKeycode(keycode),
-							WL_KEYBOARD_KEY_STATE_PRESSED);
+			                xev->time, WaylandKeycode(keycode),
+			                WL_KEYBOARD_KEY_STATE_PRESSED);
 		else
 			SendKeyboardKey(seat, seat->focus_surface,
-							xev->time, WaylandKeycode(keycode),
-							WL_KEYBOARD_KEY_STATE_RELEASED);
+			                xev->time, WaylandKeycode(keycode),
+			                WL_KEYBOARD_KEY_STATE_RELEASED);
 	}
 }
 
@@ -4357,8 +4341,8 @@ DispatchBarrierHit(XIBarrierEvent *barrier)
 
 	if (seat->last_seen_surface)
 		SendRelativeMotion(seat, seat->last_seen_surface,
-						   barrier->dx, barrier->dy,
-						   barrier->time);
+		                   barrier->dx, barrier->dy,
+		                   barrier->time);
 
 	/* Set the last user time.  */
 
@@ -4368,7 +4352,7 @@ DispatchBarrierHit(XIBarrierEvent *barrier)
 
 static void
 SendGesturePinchBegin(Seat *seat, Surface *dispatch, Time time,
-					  int detail)
+                      int detail)
 {
 	PinchGesture *gesture;
 	uint32_t serial;
@@ -4384,14 +4368,14 @@ SendGesturePinchBegin(Seat *seat, Surface *dispatch, Time time,
 
 	for (; gesture != &info->pinch_gestures; gesture = gesture->next)
 		zwp_pointer_gesture_pinch_v1_send_begin(gesture->resource,
-												serial, time,
-												dispatch->resource,
-												detail);
+		                                        serial, time,
+		                                        dispatch->resource,
+		                                        detail);
 }
 
 static void
 SendGesturePinchUpdate(Seat *seat, Surface *dispatch, Time time,
-					   double dx, double dy, double scale, double rotation)
+                       double dx, double dy, double scale, double rotation)
 {
 	PinchGesture *gesture;
 	SeatClientInfo *info;
@@ -4405,11 +4389,11 @@ SendGesturePinchUpdate(Seat *seat, Surface *dispatch, Time time,
 
 	for (; gesture != &info->pinch_gestures; gesture = gesture->next)
 		zwp_pointer_gesture_pinch_v1_send_update(gesture->resource,
-												 time,
-												 wl_fixed_from_double(dx),
-												 wl_fixed_from_double(dy),
-												 wl_fixed_from_double(scale),
-												 wl_fixed_from_double(rotation));
+		                                         time,
+		                                         wl_fixed_from_double(dx),
+		                                         wl_fixed_from_double(dy),
+		                                         wl_fixed_from_double(scale),
+		                                         wl_fixed_from_double(rotation));
 }
 
 static void
@@ -4429,7 +4413,7 @@ SendGesturePinchEnd(Seat *seat, Surface *dispatch, Time time, int cancelled)
 
 	for (; gesture != &info->pinch_gestures; gesture = gesture->next)
 		zwp_pointer_gesture_pinch_v1_send_end(gesture->resource,
-											  serial, time, cancelled);
+		                                      serial, time, cancelled);
 }
 
 static void
@@ -4447,7 +4431,7 @@ DispatchGesturePinch(Subcompositor *subcompositor, XIGesturePinchEvent *pinch)
 	/* Move the icon surface.  */
 	if (seat->icon_surface)
 		XLMoveIconSurface(seat->icon_surface, pinch->root_x,
-						  pinch->root_y);
+		                  pinch->root_y);
 
 	/* Update information used for resize tracking.  */
 	seat->its_root_x = pinch->root_x;
@@ -4463,7 +4447,7 @@ DispatchGesturePinch(Subcompositor *subcompositor, XIGesturePinchEvent *pinch)
 	   Most of this code is copied from DispatchMotion; it should
 	   probably be moved to a separate function.  */
 	actual_dispatch = FindSurfaceUnder(subcompositor, pinch->event_x,
-									   pinch->event_y);
+	                                   pinch->event_y);
 
 	if (seat->grab_held)
 		dispatch = seat->last_seen_surface;
@@ -4480,7 +4464,7 @@ DispatchGesturePinch(Subcompositor *subcompositor, XIGesturePinchEvent *pinch)
 			/* If the grab surface is set, translate the coordinates to
 			   it and use it instead.  */
 			TranslateGrabPosition(seat, pinch->event,
-								  &event_x, &event_y);
+			                      &event_x, &event_y);
 			dispatch = seat->grab_surface;
 
 			goto after_dispatch_set;
@@ -4497,45 +4481,45 @@ after_dispatch_set:
 	/* Now do the actual event dispatch.  */
 	switch (pinch->evtype)
 	{
-	case XI_GesturePinchBegin:
-		/* Send a motion event, in case the position changed.  */
-		SendMotion(seat, dispatch, x, y, pinch->time);
+		case XI_GesturePinchBegin:
+			/* Send a motion event, in case the position changed.  */
+			SendMotion(seat, dispatch, x, y, pinch->time);
 
-		/* Send a begin event.  */
-		SendGesturePinchBegin(seat, dispatch, pinch->time, pinch->detail);
+			/* Send a begin event.  */
+			SendGesturePinchBegin(seat, dispatch, pinch->time, pinch->detail);
 
-		/* Say that the seat is in the middle of a pinch gesture, so it
-	   can be cancelled should the pointer move out of this
-	   surface.  */
-		seat->flags |= IsInPinchGesture;
-		break;
+			/* Say that the seat is in the middle of a pinch gesture, so it
+		   can be cancelled should the pointer move out of this
+		   surface.  */
+			seat->flags |= IsInPinchGesture;
+			break;
 
-	case XI_GesturePinchUpdate:
-		/* The gesture sequence was cancelled for some other reason.  */
-		if (!(seat->flags & IsInPinchGesture))
-			return;
+		case XI_GesturePinchUpdate:
+			/* The gesture sequence was cancelled for some other reason.  */
+			if (!(seat->flags & IsInPinchGesture))
+				return;
 
-		/* Send an update event.  */
-		SendGesturePinchUpdate(seat, dispatch, pinch->time,
-							   pinch->delta_x, pinch->delta_y,
-							   pinch->scale, pinch->delta_angle);
-		break;
+			/* Send an update event.  */
+			SendGesturePinchUpdate(seat, dispatch, pinch->time,
+			                       pinch->delta_x, pinch->delta_y,
+			                       pinch->scale, pinch->delta_angle);
+			break;
 
-	case XI_GesturePinchEnd:
-		/* The gesture sequence was cancelled for some other reason.  */
-		if (!(seat->flags & IsInPinchGesture))
-			return;
+		case XI_GesturePinchEnd:
+			/* The gesture sequence was cancelled for some other reason.  */
+			if (!(seat->flags & IsInPinchGesture))
+				return;
 
-		/* Send an end event.  */
-		SendGesturePinchEnd(seat, dispatch, pinch->time,
-							pinch->flags & XIGesturePinchEventCancelled);
-		break;
+			/* Send an end event.  */
+			SendGesturePinchEnd(seat, dispatch, pinch->time,
+			                    pinch->flags & XIGesturePinchEventCancelled);
+			break;
 	}
 }
 
 static void
 SendGestureSwipeBegin(Seat *seat, Surface *dispatch, Time time,
-					  int detail)
+                      int detail)
 {
 	SwipeGesture *gesture;
 	uint32_t serial;
@@ -4551,14 +4535,14 @@ SendGestureSwipeBegin(Seat *seat, Surface *dispatch, Time time,
 
 	for (; gesture != &info->swipe_gestures; gesture = gesture->next)
 		zwp_pointer_gesture_swipe_v1_send_begin(gesture->resource,
-												serial, time,
-												dispatch->resource,
-												detail);
+		                                        serial, time,
+		                                        dispatch->resource,
+		                                        detail);
 }
 
 static void
 SendGestureSwipeUpdate(Seat *seat, Surface *dispatch, Time time,
-					   double dx, double dy)
+                       double dx, double dy)
 {
 	SwipeGesture *gesture;
 	SeatClientInfo *info;
@@ -4572,9 +4556,9 @@ SendGestureSwipeUpdate(Seat *seat, Surface *dispatch, Time time,
 
 	for (; gesture != &info->swipe_gestures; gesture = gesture->next)
 		zwp_pointer_gesture_swipe_v1_send_update(gesture->resource,
-												 time,
-												 wl_fixed_from_double(dx),
-												 wl_fixed_from_double(dy));
+		                                         time,
+		                                         wl_fixed_from_double(dx),
+		                                         wl_fixed_from_double(dy));
 }
 
 static void
@@ -4594,7 +4578,7 @@ SendGestureSwipeEnd(Seat *seat, Surface *dispatch, Time time, int cancelled)
 
 	for (; gesture != &info->swipe_gestures; gesture = gesture->next)
 		zwp_pointer_gesture_swipe_v1_send_end(gesture->resource,
-											  serial, time, cancelled);
+		                                      serial, time, cancelled);
 }
 
 static void
@@ -4612,7 +4596,7 @@ DispatchGestureSwipe(Subcompositor *subcompositor, XIGestureSwipeEvent *swipe)
 	/* Move the icon surface.  */
 	if (seat->icon_surface)
 		XLMoveIconSurface(seat->icon_surface, swipe->root_x,
-						  swipe->root_y);
+		                  swipe->root_y);
 
 	/* Update information used for resize tracking.  */
 	seat->its_root_x = swipe->root_x;
@@ -4628,7 +4612,7 @@ DispatchGestureSwipe(Subcompositor *subcompositor, XIGestureSwipeEvent *swipe)
 	   Most of this code is copied from DispatchMotion; it should
 	   probably be moved to a separate function.  */
 	actual_dispatch = FindSurfaceUnder(subcompositor, swipe->event_x,
-									   swipe->event_y);
+	                                   swipe->event_y);
 
 	if (seat->grab_held)
 		dispatch = seat->last_seen_surface;
@@ -4645,7 +4629,7 @@ DispatchGestureSwipe(Subcompositor *subcompositor, XIGestureSwipeEvent *swipe)
 			/* If the grab surface is set, translate the coordinates to
 			   it and use it instead.  */
 			TranslateGrabPosition(seat, swipe->event,
-								  &event_x, &event_y);
+			                      &event_x, &event_y);
 			dispatch = seat->grab_surface;
 
 			goto after_dispatch_set;
@@ -4662,38 +4646,38 @@ after_dispatch_set:
 	/* Now do the actual event dispatch.  */
 	switch (swipe->evtype)
 	{
-	case XI_GestureSwipeBegin:
-		/* Send a motion event, in case the position changed.  */
-		SendMotion(seat, dispatch, x, y, swipe->time);
+		case XI_GestureSwipeBegin:
+			/* Send a motion event, in case the position changed.  */
+			SendMotion(seat, dispatch, x, y, swipe->time);
 
-		/* Send a begin event.  */
-		SendGestureSwipeBegin(seat, dispatch, swipe->time, swipe->detail);
+			/* Send a begin event.  */
+			SendGestureSwipeBegin(seat, dispatch, swipe->time, swipe->detail);
 
-		/* Say that the seat is in the middle of a swipe gesture, so it
-	   can be cancelled should the pointer move out of this
-	   surface.  */
-		seat->flags |= IsInSwipeGesture;
-		break;
+			/* Say that the seat is in the middle of a swipe gesture, so it
+		   can be cancelled should the pointer move out of this
+		   surface.  */
+			seat->flags |= IsInSwipeGesture;
+			break;
 
-	case XI_GestureSwipeUpdate:
-		/* The gesture sequence was cancelled for some other reason.  */
-		if (!(seat->flags & IsInSwipeGesture))
-			return;
+		case XI_GestureSwipeUpdate:
+			/* The gesture sequence was cancelled for some other reason.  */
+			if (!(seat->flags & IsInSwipeGesture))
+				return;
 
-		/* Send an update event.  */
-		SendGestureSwipeUpdate(seat, dispatch, swipe->time,
-							   swipe->delta_x, swipe->delta_y);
-		break;
+			/* Send an update event.  */
+			SendGestureSwipeUpdate(seat, dispatch, swipe->time,
+			                       swipe->delta_x, swipe->delta_y);
+			break;
 
-	case XI_GestureSwipeEnd:
-		/* The gesture sequence was cancelled for some other reason.  */
-		if (!(seat->flags & IsInSwipeGesture))
-			return;
+		case XI_GestureSwipeEnd:
+			/* The gesture sequence was cancelled for some other reason.  */
+			if (!(seat->flags & IsInSwipeGesture))
+				return;
 
-		/* Send an end event.  */
-		SendGestureSwipeEnd(seat, dispatch, swipe->time,
-							swipe->flags & XIGestureSwipeEventCancelled);
-		break;
+			/* Send an end event.  */
+			SendGestureSwipeEnd(seat, dispatch, swipe->time,
+			                    swipe->flags & XIGestureSwipeEventCancelled);
+			break;
 	}
 }
 
@@ -4737,14 +4721,14 @@ WriteKeymap(void)
 	}
 
 	ok = XkbWriteXKBFile(file, &result,
-						 /* libxkbcommon doesn't read comments in
-							virtual_modifier lines.  */
-						 False, NULL, NULL);
+	                     /* libxkbcommon doesn't read comments in
+		                    virtual_modifier lines.  */
+	                     False, NULL, NULL);
 
 	if (!ok)
 		fprintf(stderr, "Warning: the XKB keymap could not be written\n"
-						"Programs might not continue to interpret keyboard input"
-						" correctly.\n");
+		        "Programs might not continue to interpret keyboard input"
+		        " correctly.\n");
 
 	fclose(file);
 }
@@ -4759,21 +4743,21 @@ AfterMapUpdate(void)
 	}
 
 	if (XkbGetControls(compositor.display,
-					   XkbAllControlsMask, xkb_desc) != Success)
+	                   XkbAllControlsMask, xkb_desc) != Success)
 	{
 		fprintf(stderr, "Could not load keyboard controls\n");
 		exit(1);
 	}
 
 	if (XkbGetCompatMap(compositor.display,
-						XkbAllCompatMask, xkb_desc) != Success)
+	                    XkbAllCompatMask, xkb_desc) != Success)
 	{
 		fprintf(stderr, "Could not load compatibility map\n");
 		exit(1);
 	}
 
 	if (XkbGetNames(compositor.display,
-					XkbAllNamesMask, xkb_desc) != Success)
+	                XkbAllNamesMask, xkb_desc) != Success)
 	{
 		fprintf(stderr, "Could not load names\n");
 		exit(1);
@@ -4797,11 +4781,11 @@ UpdateKeymapInfo(void)
 			seat->key_pressed = XLCalloc(MaskLen(xkb_desc->max_key_code - xkb_desc->min_key_code), 1);
 		else
 			seat->key_pressed = XLRealloc(seat->key_pressed,
-										  MaskLen(xkb_desc->max_key_code - xkb_desc->min_key_code));
+			                              MaskLen(xkb_desc->max_key_code - xkb_desc->min_key_code));
 
 		for (keyboard = seat->keyboards.next1;
-			 keyboard != &seat->keyboards;
-			 keyboard = keyboard->next1)
+		     keyboard != &seat->keyboards;
+		     keyboard = keyboard->next1)
 			UpdateSingleKeyboard(keyboard);
 	}
 }
@@ -4814,15 +4798,15 @@ SetupKeymap(void)
 	xkb_minor = XkbMinorVersion;
 
 	if (!XkbLibraryVersion(&xkb_major, &xkb_minor) || !XkbQueryExtension(compositor.display, &xkb_op, &xkb_event_type,
-																		 &xkb_error_code, &xkb_major, &xkb_minor))
+	                                                                     &xkb_error_code, &xkb_major, &xkb_minor))
 	{
 		fprintf(stderr, "Failed to set up Xkb\n");
 		exit(1);
 	}
 
 	xkb_desc = XkbGetMap(compositor.display,
-						 XkbAllMapComponentsMask,
-						 XkbUseCoreKbd);
+	                     XkbAllMapComponentsMask,
+	                     XkbUseCoreKbd);
 
 	if (!xkb_desc)
 	{
@@ -4834,8 +4818,8 @@ SetupKeymap(void)
 	WriteKeymap();
 
 	XkbSelectEvents(compositor.display, XkbUseCoreKbd,
-					XkbMapNotifyMask | XkbNewKeyboardNotifyMask,
-					XkbMapNotifyMask | XkbNewKeyboardNotifyMask);
+	                XkbMapNotifyMask | XkbNewKeyboardNotifyMask,
+	                XkbMapNotifyMask | XkbNewKeyboardNotifyMask);
 	UpdateKeymapInfo();
 }
 
@@ -4848,11 +4832,11 @@ HandleXkbEvent(XkbEvent *event)
 	{
 		XkbRefreshKeyboardMapping(&event->map);
 		XkbFreeKeyboard(xkb_desc, XkbAllMapComponentsMask,
-						True);
+		                True);
 
 		xkb_desc = XkbGetMap(compositor.display,
-							 XkbAllMapComponentsMask,
-							 XkbUseCoreKbd);
+		                     XkbAllMapComponentsMask,
+		                     XkbUseCoreKbd);
 
 		if (!xkb_desc)
 		{
@@ -4874,13 +4858,13 @@ HandleXkbEvent(XkbEvent *event)
 		/* And update the modifiers for that seat.  */
 		if (seat)
 			UpdateModifiersForSeat(seat,
-								   event->state.base_mods,
-								   event->state.locked_mods,
-								   event->state.latched_mods,
-								   event->state.base_group,
-								   event->state.locked_group,
-								   event->state.latched_group,
-								   event->state.group);
+			                       event->state.base_mods,
+			                       event->state.locked_mods,
+			                       event->state.latched_mods,
+			                       event->state.base_group,
+			                       event->state.locked_group,
+			                       event->state.latched_group,
+			                       event->state.group);
 		return True;
 	}
 
@@ -4924,7 +4908,7 @@ GetLastUserTime(Seat *seat)
 
 static Bool
 HandleKeyboardEdge(Seat *seat, Surface *target, uint32_t serial,
-				   ResizeEdge edge)
+                   ResizeEdge edge)
 {
 	Surface *surface;
 	XEvent msg;
@@ -4947,11 +4931,11 @@ HandleKeyboardEdge(Seat *seat, Surface *target, uint32_t serial,
 
 	/* Release all grabs to the pointer device in question.  */
 	XIUngrabDevice(compositor.display, seat->master_pointer,
-				   seat->its_press_time);
+	               seat->its_press_time);
 
 	/* Also release all grabs to the keyboard device.  */
 	XIUngrabDevice(compositor.display, seat->master_keyboard,
-				   seat->its_press_time);
+	               seat->its_press_time);
 
 	/* Clear the grab immediately since it is no longer used.  */
 
@@ -4964,10 +4948,10 @@ HandleKeyboardEdge(Seat *seat, Surface *target, uint32_t serial,
 
 	/* Send the message to the window manager.  */
 	XSendEvent(compositor.display,
-			   DefaultRootWindow(compositor.display),
-			   False,
-			   SubstructureRedirectMask | SubstructureNotifyMask,
-			   &msg);
+	           DefaultRootWindow(compositor.display),
+	           False,
+	           SubstructureRedirectMask | SubstructureNotifyMask,
+	           &msg);
 
 	/* There's no way to determine whether or not a keyboard resize has
 	   ended.  */
@@ -4981,12 +4965,12 @@ HandleResizeUnmapped(void *data)
 
 	seat = data;
 	CancelResizeOperation(seat, seat->resize_time,
-						  NULL, NULL);
+	                      NULL, NULL);
 }
 
 static Bool
 FakePointerEdge(Seat *seat, Surface *target, uint32_t serial,
-				ResizeEdge edge)
+                ResizeEdge edge)
 {
 	Cursor cursor;
 	Status state;
@@ -5020,7 +5004,7 @@ FakePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 	/* Get the dimensions of the surface when it was first seen.
 	   This can fail if the surface does not support the operation.  */
 	if (!XLSurfaceGetResizeDimensions(target, &seat->resize_width,
-									  &seat->resize_height))
+	                                  &seat->resize_height))
 		return False;
 
 	/* Set up the event mask for the pointer grab.  */
@@ -5044,8 +5028,8 @@ FakePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 		/* Grab the pointer, and don't let go until the button is
 	   released.  */
 		state = XIGrabDevice(compositor.display, seat->master_pointer,
-							 window, seat->its_press_time, cursor,
-							 XIGrabModeAsync, XIGrabModeAsync, False, &mask);
+		                     window, seat->its_press_time, cursor,
+		                     XIGrabModeAsync, XIGrabModeAsync, False, &mask);
 
 		if (state != Success)
 			return False;
@@ -5067,7 +5051,7 @@ FakePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 	/* Set the surface as the surface undergoing resize.  */
 	seat->resize_surface = target;
 	seat->resize_surface_callback = XLSurfaceRunAtUnmap(seat->resize_surface,
-														HandleResizeUnmapped, seat);
+	                                                    HandleResizeUnmapped, seat);
 	seat->resize_axis_flags = resize_edges[edge];
 	seat->resize_button = seat->last_button;
 	seat->resize_time = seat->its_press_time;
@@ -5077,7 +5061,7 @@ FakePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 
 static Bool
 HandlePointerEdge(Seat *seat, Surface *target, uint32_t serial,
-				  ResizeEdge edge)
+                  ResizeEdge edge)
 {
 	Surface *surface;
 	XEvent msg;
@@ -5103,7 +5087,7 @@ HandlePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 
 	/* Release all grabs to the pointer device in question.  */
 	XIUngrabDevice(compositor.display, seat->master_pointer,
-				   seat->its_press_time);
+	               seat->its_press_time);
 
 	/* Also clear the core grab, even though it's not used anywhere.  */
 	XUngrabPointer(compositor.display, seat->its_press_time);
@@ -5114,10 +5098,10 @@ HandlePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 
 	/* Send the message to the window manager.  */
 	XSendEvent(compositor.display,
-			   DefaultRootWindow(compositor.display),
-			   False,
-			   SubstructureRedirectMask | SubstructureNotifyMask,
-			   &msg);
+	           DefaultRootWindow(compositor.display),
+	           False,
+	           SubstructureRedirectMask | SubstructureNotifyMask,
+	           &msg);
 
 	/* Assume a resize is in progress.  Stop resizing upon
 	   seat->last_button being released.  */
@@ -5126,7 +5110,7 @@ HandlePointerEdge(Seat *seat, Surface *target, uint32_t serial,
 
 static Bool
 StartResizeTracking(Seat *seat, Surface *surface, uint32_t serial,
-					ResizeEdge edge)
+                    ResizeEdge edge)
 {
 	WhatEdge type;
 
@@ -5148,7 +5132,7 @@ Bool XLHandleOneXEventForSeats(XEvent *event)
 		return HandleOneGenericEvent(&event->xcookie);
 
 	if (event->type == xkb_event_type)
-		return HandleXkbEvent((XkbEvent *)event);
+		return HandleXkbEvent((XkbEvent *) event);
 
 	return False;
 }
@@ -5167,39 +5151,39 @@ XLGetGEWindowForSeats(XEvent *event)
 	{
 		switch (event->xgeneric.evtype)
 		{
-		case XI_FocusIn:
-		case XI_FocusOut:
-			focusin = event->xcookie.data;
-			return focusin->event;
+			case XI_FocusIn:
+			case XI_FocusOut:
+				focusin = event->xcookie.data;
+				return focusin->event;
 
-		case XI_Motion:
-		case XI_ButtonPress:
-		case XI_ButtonRelease:
-		case XI_KeyPress:
-		case XI_KeyRelease:
-			xev = event->xcookie.data;
-			return xev->event;
+			case XI_Motion:
+			case XI_ButtonPress:
+			case XI_ButtonRelease:
+			case XI_KeyPress:
+			case XI_KeyRelease:
+				xev = event->xcookie.data;
+				return xev->event;
 
-		case XI_Enter:
-		case XI_Leave:
-			enter = event->xcookie.data;
-			return enter->event;
+			case XI_Enter:
+			case XI_Leave:
+				enter = event->xcookie.data;
+				return enter->event;
 
-		case XI_BarrierHit:
-			barrier = event->xcookie.data;
-			return barrier->event;
+			case XI_BarrierHit:
+				barrier = event->xcookie.data;
+				return barrier->event;
 
-		case XI_GesturePinchBegin:
-		case XI_GesturePinchEnd:
-		case XI_GesturePinchUpdate:
-			pinch = event->xcookie.data;
-			return pinch->event;
+			case XI_GesturePinchBegin:
+			case XI_GesturePinchEnd:
+			case XI_GesturePinchUpdate:
+				pinch = event->xcookie.data;
+				return pinch->event;
 
-		case XI_GestureSwipeBegin:
-		case XI_GestureSwipeEnd:
-		case XI_GestureSwipeUpdate:
-			swipe = event->xcookie.data;
-			return swipe->event;
+			case XI_GestureSwipeBegin:
+			case XI_GestureSwipeEnd:
+			case XI_GestureSwipeUpdate:
+				swipe = event->xcookie.data;
+				return swipe->event;
 		}
 	}
 
@@ -5245,7 +5229,7 @@ void XLSelectStandardEvents(Window window)
 }
 
 void XLDispatchGEForSeats(XEvent *event, Surface *surface,
-						  Subcompositor *subcompositor)
+                          Subcompositor *subcompositor)
 {
 	if (event->xgeneric.evtype == XI_FocusIn)
 		DispatchFocusIn(surface, event->xcookie.data);
@@ -5261,9 +5245,11 @@ void XLDispatchGEForSeats(XEvent *event, Surface *surface,
 		DispatchKey(event->xcookie.data);
 	else if (event->xgeneric.evtype == XI_BarrierHit)
 		DispatchBarrierHit(event->xcookie.data);
-	else if (event->xgeneric.evtype == XI_GesturePinchBegin || event->xgeneric.evtype == XI_GesturePinchUpdate || event->xgeneric.evtype == XI_GesturePinchEnd)
+	else if (event->xgeneric.evtype == XI_GesturePinchBegin || event->xgeneric.evtype == XI_GesturePinchUpdate || event
+	         ->xgeneric.evtype == XI_GesturePinchEnd)
 		DispatchGesturePinch(subcompositor, event->xcookie.data);
-	else if (event->xgeneric.evtype == XI_GestureSwipeBegin || event->xgeneric.evtype == XI_GestureSwipeUpdate || event->xgeneric.evtype == XI_GestureSwipeEnd)
+	else if (event->xgeneric.evtype == XI_GestureSwipeBegin || event->xgeneric.evtype == XI_GestureSwipeUpdate || event
+	         ->xgeneric.evtype == XI_GestureSwipeEnd)
 		DispatchGestureSwipe(subcompositor, event->xcookie.data);
 }
 
@@ -5280,8 +5266,8 @@ InitDefaultCursor(void)
 		no_data[0] = 0;
 
 		pixmap = XCreateBitmapFromData(compositor.display,
-									   DefaultRootWindow(compositor.display),
-									   no_data, 1, 1);
+		                               DefaultRootWindow(compositor.display),
+		                               no_data, 1, 1);
 		color.pixel = 0;
 		color.red = 0;
 		color.green = 0;
@@ -5289,8 +5275,8 @@ InitDefaultCursor(void)
 		color.flags = DoRed | DoGreen | DoBlue;
 
 		empty_cursor = XCreatePixmapCursor(compositor.display,
-										   pixmap, pixmap,
-										   &color, &color, 0, 0);
+		                                   pixmap, pixmap,
+		                                   &color, &color, 0, 0);
 
 		XFreePixmap(compositor.display, pixmap);
 	}
@@ -5299,7 +5285,7 @@ InitDefaultCursor(void)
 }
 
 Bool XLResizeToplevel(Seat *seat, Surface *surface, uint32_t serial,
-					  uint32_t xdg_edge)
+                      uint32_t xdg_edge)
 {
 	ResizeEdge edge;
 
@@ -5308,45 +5294,45 @@ Bool XLResizeToplevel(Seat *seat, Surface *surface, uint32_t serial,
 
 	switch (xdg_edge)
 	{
-	case XDG_TOPLEVEL_RESIZE_EDGE_NONE:
-		edge = NoneEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_NONE:
+			edge = NoneEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:
-		edge = TopLeftEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:
+			edge = TopLeftEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:
-		edge = TopRightEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:
+			edge = TopRightEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_TOP:
-		edge = TopEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_TOP:
+			edge = TopEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:
-		edge = RightEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:
+			edge = RightEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:
-		edge = BottomEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:
+			edge = BottomEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT:
-		edge = BottomRightEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT:
+			edge = BottomRightEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:
-		edge = BottomLeftEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:
+			edge = BottomLeftEdge;
+			break;
 
-	case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:
-		edge = LeftEdge;
-		break;
+		case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:
+			edge = LeftEdge;
+			break;
 
-	default:
-		edge = NoneEdge;
-		break;
+		default:
+			edge = NoneEdge;
+			break;
 	}
 
 	return StartResizeTracking(seat, surface, serial, edge);
@@ -5359,7 +5345,7 @@ Bool XLMoveToplevel(Seat *seat, Surface *surface, uint32_t serial)
 
 void *
 XLSeatRunAfterResize(Seat *seat, void (*func)(void *, void *),
-					 void *data)
+                     void *data)
 {
 	ResizeDoneCallback *callback;
 
@@ -5392,7 +5378,7 @@ void XLSeatCancelResizeCallback(void *key)
 
 void *
 XLSeatRunOnDestroy(Seat *seat, void (*destroy_func)(void *),
-				   void *data)
+                   void *data)
 {
 	DestroyListener *listener;
 
@@ -5434,8 +5420,8 @@ Bool XLSeatExplicitlyGrabSurface(Seat *seat, Surface *surface, uint32_t serial)
 	Cursor cursor;
 
 	if (seat->flags & IsInert
-		/* This would interfere with the drag-and-drop grab.  */
-		|| seat->flags & IsDragging)
+	    /* This would interfere with the drag-and-drop grab.  */
+	    || seat->flags & IsDragging)
 		return False;
 
 	window = XLWindowFromSurface(surface);
@@ -5488,8 +5474,8 @@ Bool XLSeatExplicitlyGrabSurface(Seat *seat, Surface *surface, uint32_t serial)
 	cursor = (seat->cursor ? seat->cursor->cursor : None);
 
 	state = XIGrabDevice(compositor.display, seat->master_pointer,
-						 window, time, cursor, XIGrabModeAsync,
-						 XIGrabModeAsync, True, &mask);
+	                     window, time, cursor, XIGrabModeAsync,
+	                     XIGrabModeAsync, True, &mask);
 
 	if (state != Success)
 		return False;
@@ -5506,8 +5492,8 @@ Bool XLSeatExplicitlyGrabSurface(Seat *seat, Surface *surface, uint32_t serial)
 	   correctly.  */
 
 	state = XIGrabDevice(compositor.display, seat->master_keyboard,
-						 window, time, None, XIGrabModeAsync,
-						 XIGrabModeAsync, False, &mask);
+	                     window, time, None, XIGrabModeAsync,
+	                     XIGrabModeAsync, False, &mask);
 
 	/* Cancel any external grab that might be applied if the keyboard
 	   grab succeeded.  */
@@ -5558,7 +5544,7 @@ XLSeatGetFocus(Seat *seat)
 }
 
 void XLSeatShowWindowMenu(Seat *seat, Surface *surface, int root_x,
-						  int root_y)
+                          int root_y)
 {
 	XEvent msg;
 	Window window;
@@ -5579,7 +5565,7 @@ void XLSeatShowWindowMenu(Seat *seat, Surface *surface, int root_x,
 	/* Ungrab the pointer.  Also cancel any focus locking, if
 	   active.  */
 	XIUngrabDevice(compositor.display, seat->master_pointer,
-				   seat->its_press_time);
+	               seat->its_press_time);
 
 	/* Also clear the core grab, even though it's not used anywhere.  */
 	XUngrabPointer(compositor.display, seat->its_press_time);
@@ -5619,10 +5605,10 @@ void XLSeatShowWindowMenu(Seat *seat, Surface *surface, int root_x,
 	msg.xclient.data.l[2] = root_y;
 
 	XSendEvent(compositor.display,
-			   DefaultRootWindow(compositor.display),
-			   False,
-			   SubstructureRedirectMask | SubstructureNotifyMask,
-			   &msg);
+	           DefaultRootWindow(compositor.display),
+	           False,
+	           SubstructureRedirectMask | SubstructureNotifyMask,
+	           &msg);
 }
 
 static void
@@ -5685,7 +5671,7 @@ CancelDrag(Seat *seat, Window event_source, double x, double y)
 		DragLeave(seat);
 
 	XIUngrabDevice(compositor.display, seat->master_pointer,
-				   seat->drag_grab_time);
+	               seat->drag_grab_time);
 
 	if (seat->data_source)
 	{
@@ -5731,12 +5717,12 @@ HandleDragSurfaceUnmapped(void *data)
 	   pointer is ATM, so query for that information.  */
 
 	QueryPointer(seat, DefaultRootWindow(compositor.display),
-				 &root_x, &root_y);
+	             &root_x, &root_y);
 
 	/* And cancel the drag with the pointer position.  */
 
 	CancelDrag(seat, DefaultRootWindow(compositor.display),
-			   root_x, root_y);
+	           root_x, root_y);
 }
 
 static void
@@ -5756,12 +5742,12 @@ HandleDataSourceDestroyed(void *data)
 	   pointer is ATM, so query for that information.  */
 
 	QueryPointer(seat, DefaultRootWindow(compositor.display),
-				 &root_x, &root_y);
+	             &root_x, &root_y);
 
 	/* And cancel the drag with the pointer position.  */
 
 	CancelDrag(seat, DefaultRootWindow(compositor.display),
-			   root_x, root_y);
+	           root_x, root_y);
 }
 
 static Window
@@ -5776,14 +5762,14 @@ MakeGrabWindow(void)
 	/* The window has to be mapped and visible, or the grab will
 	   fail.  */
 	window = XCreateWindow(compositor.display,
-						   DefaultRootWindow(compositor.display),
-						   0, 0, 1, 1, 0, CopyFromParent, InputOnly,
-						   CopyFromParent, CWOverrideRedirect, &attrs);
+	                       DefaultRootWindow(compositor.display),
+	                       0, 0, 1, 1, 0, CopyFromParent, InputOnly,
+	                       CopyFromParent, CWOverrideRedirect, &attrs);
 
 	/* Clear the input region of the window.  */
 	XShapeCombineRectangles(compositor.display, window,
-							ShapeInput, 0, 0, NULL, 0, ShapeSet,
-							Unsorted);
+	                        ShapeInput, 0, 0, NULL, 0, ShapeSet,
+	                        Unsorted);
 
 	/* Map and return it.  */
 	XMapRaised(compositor.display, window);
@@ -5791,7 +5777,7 @@ MakeGrabWindow(void)
 }
 
 void XLSeatBeginDrag(Seat *seat, DataSource *data_source, Surface *start_surface,
-					 Surface *icon_surface, uint32_t serial)
+                     Surface *icon_surface, uint32_t serial)
 {
 	Window window;
 	Time time;
@@ -5871,8 +5857,8 @@ void XLSeatBeginDrag(Seat *seat, DataSource *data_source, Surface *start_surface
 	   to the grab window.  */
 
 	state = XIGrabDevice(compositor.display, seat->master_pointer,
-						 seat->grab_window, time, None, XIGrabModeAsync,
-						 XIGrabModeAsync, True, &mask);
+	                     seat->grab_window, time, None, XIGrabModeAsync,
+	                     XIGrabModeAsync, True, &mask);
 
 	if (state != Success)
 	{
@@ -5892,7 +5878,7 @@ void XLSeatBeginDrag(Seat *seat, DataSource *data_source, Surface *start_surface
 	   callback.  */
 	seat->drag_start_surface = start_surface;
 	seat->drag_start_unmap_callback = XLSurfaceRunAtUnmap(start_surface, HandleDragSurfaceUnmapped,
-														  seat);
+	                                                      seat);
 
 	seat->flags &= ~IsDragging;
 
@@ -5905,16 +5891,16 @@ void XLSeatBeginDrag(Seat *seat, DataSource *data_source, Surface *start_surface
 	{
 		/* Record the data source.  */
 		XLDataSourceAttachDragDevice(data_source,
-									 seat->data_device);
+		                             seat->data_device);
 		seat->data_source = data_source;
 
 		/* Add a destroy callback.  */
 		seat->data_source_destroy_callback = XLDataSourceAddDestroyCallback(data_source,
-																			HandleDataSourceDestroyed,
-																			seat);
+		                                                                    HandleDataSourceDestroyed,
+		                                                                    seat);
 	}
 	else
-		/* This should've been destroyed by CancelGrab.  */
+	/* This should've been destroyed by CancelGrab.  */
 		XLAssert(seat->data_source == NULL);
 
 	/* If the icon surface was specified, give it the right type and
@@ -5929,7 +5915,7 @@ void XLSeatBeginDrag(Seat *seat, DataSource *data_source, Surface *start_surface
 		/* Move the icon surface to the last known root window position
 	   of the pointer.  */
 		XLMoveIconSurface(seat->icon_surface, seat->its_root_x,
-						  seat->its_root_y);
+		                  seat->its_root_y);
 	}
 
 	/* Record that the drag has really started.  */
@@ -5953,14 +5939,14 @@ void XLInitSeats(void)
 	xi2_minor = 4;
 
 	if (XQueryExtension(compositor.display, "XInputExtension",
-						&xi2_opcode, &xi_first_event, &xi_first_error))
+	                    &xi2_opcode, &xi_first_event, &xi_first_error))
 	{
 		rc = XIQueryVersion(compositor.display, &xi2_major, &xi2_minor);
 
 		if (xi2_major < 2 || (xi2_major == 2 && xi2_minor < 3) || rc)
 		{
 			fprintf(stderr, "version 2.3 or later of of the X Input Extension is"
-							" not present on the X server\n");
+			        " not present on the X server\n");
 			exit(1);
 		}
 	}
@@ -5982,7 +5968,7 @@ XLSeatGetDragDataSource(Seat *seat)
 
 void *
 XLSeatAddModifierCallback(Seat *seat, void (*changed)(unsigned int, void *),
-						  void *data)
+                          void *data)
 {
 	ModifierChangeCallback *callback;
 
@@ -6082,12 +6068,12 @@ void XLSeatDispatchCoreKeyEvent(Seat *seat, Surface *surface, XEvent *event)
 	/* Then send the event.  */
 	if (event->xkey.type == KeyPress)
 		SendKeyboardKey(seat, seat->focus_surface, event->xkey.time,
-						WaylandKeycode(event->xkey.keycode),
-						WL_KEYBOARD_KEY_STATE_PRESSED);
+		                WaylandKeycode(event->xkey.keycode),
+		                WL_KEYBOARD_KEY_STATE_PRESSED);
 	else
 		SendKeyboardKey(seat, seat->focus_surface, event->xkey.time,
-						WaylandKeycode(event->xkey.keycode),
-						WL_KEYBOARD_KEY_STATE_RELEASED);
+		                WaylandKeycode(event->xkey.keycode),
+		                WL_KEYBOARD_KEY_STATE_RELEASED);
 
 	/* Restore the modifiers.  */
 	if (group != seat->effective_group || state != effective)
@@ -6101,8 +6087,8 @@ XLPointerGetSeat(Pointer *pointer)
 }
 
 void XLSeatGetMouseData(Seat *seat, Surface **last_seen_surface,
-						double *last_surface_x, double *last_surface_y,
-						double *its_root_x, double *its_root_y)
+                        double *last_surface_x, double *last_surface_y,
+                        double *its_root_x, double *its_root_y)
 {
 	*last_seen_surface = seat->last_seen_surface;
 	*last_surface_x = seat->last_surface_x;
@@ -6265,8 +6251,8 @@ Bool XLSeatApplyExternalGrab(Seat *seat, Surface *surface)
 	XISetMask(mask.mask, XI_KeyRelease);
 
 	state = XIGrabDevice(compositor.display, seat->master_keyboard,
-						 window, seat->last_focus_time.milliseconds, None,
-						 XIGrabModeAsync, XIGrabModeAsync, True, &mask);
+	                     window, seat->last_focus_time.milliseconds, None,
+	                     XIGrabModeAsync, XIGrabModeAsync, True, &mask);
 	if (state == Success)
 	{
 		/* Mark an external grab as having been applied.  */
@@ -6288,7 +6274,7 @@ void XLSeatCancelExternalGrab(Seat *seat)
 
 	/* Cancel the external grab.  */
 	XIUngrabDevice(compositor.display, seat->master_keyboard,
-				   seat->external_grab_time);
+	               seat->external_grab_time);
 }
 
 KeyCode
@@ -6306,8 +6292,8 @@ XLKeysymToKeycode(KeySym keysym, XEvent *event)
 	for (i = xkb_desc->min_key_code; i <= xkb_desc->max_key_code; ++i)
 	{
 		if (XkbTranslateKeyCode(xkb_desc, i, event->xkey.state,
-								&mods_return, &keysym_return) &&
-			keysym_return == keysym)
+		                        &mods_return, &keysym_return) &&
+		    keysym_return == keysym)
 			return i;
 	}
 
@@ -6319,10 +6305,12 @@ Bool XLSeatCheckActivationSerial(Seat *seat, uint32_t serial)
 	/* Check if the specified serial can be used to activate surfaces on
 	   behalf of seat.  */
 
-	return ((seat->last_button_press_serial && serial >= seat->last_button_press_serial) || (seat->last_button_serial && serial >= seat->last_button_serial) || (seat->last_keyboard_serial && serial >= seat->last_keyboard_serial)
-			/* Also allow using the serial at which the focus last
-			   changed, if there currently is a keyboard focus.  */
-			|| (serial == seat->last_enter_serial && seat->focus_surface));
+	return ((seat->last_button_press_serial && serial >= seat->last_button_press_serial) || (
+		        seat->last_button_serial && serial >= seat->last_button_serial) || (
+		        seat->last_keyboard_serial && serial >= seat->last_keyboard_serial)
+	        /* Also allow using the serial at which the focus last
+	           changed, if there currently is a keyboard focus.  */
+	        || (serial == seat->last_enter_serial && seat->focus_surface));
 }
 
 /* This is a particularly ugly hack, but there is no other way to

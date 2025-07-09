@@ -120,9 +120,9 @@ struct _FormatInfo {
 
 enum {
 	IsTextureGenerated = 1,
-	HasAlpha = (1 << 2),
-	CanRelease = (1 << 3),
-	InvertY = (1 << 4),
+	HasAlpha           = (1 << 2),
+	CanRelease         = (1 << 3),
+	InvertY            = (1 << 4),
 };
 
 struct _EglBuffer {
@@ -164,7 +164,7 @@ struct _EglBuffer {
 
 enum {
 	SwapPreservesContents = 1,
-	IsPixmap = 2,
+	IsPixmap              = 2,
 };
 
 struct _EglTarget {
@@ -455,16 +455,19 @@ static unsigned int damage_mode = 0;
 	}
 
 static Bool
-HaveEglExtension1(const char *extensions, const char *extension) {
+HaveEglExtension1(const char *extensions, const char *extension)
+{
 	const char *end;
 	size_t extlen, n;
 
 	extlen = strlen(extension);
 	end = extensions + strlen(extensions);
 
-	while (extensions < end) {
+	while (extensions < end)
+	{
 		/* Skip spaces, if any.  */
-		if (*extensions == ' ') {
+		if (*extensions == ' ')
+		{
 			extensions++;
 			continue;
 		}
@@ -483,12 +486,14 @@ HaveEglExtension1(const char *extensions, const char *extension) {
 }
 
 static Bool
-HaveEglExtension(const char *extension) {
+HaveEglExtension(const char *extension)
+{
 	return epoxy_has_egl_extension(egl_display ? egl_display : EGL_NO_DISPLAY, extension);
 }
 
 static void
-EglInitFuncsEarly(void) {
+EglInitFuncsEarly(void)
+{
 	LoadProc(GetPlatformDisplay, "", "EGL_EXT_platform_base");
 	LoadProc(CreatePlatformWindowSurface, "", "EGL_EXT_platform_base");
 	LoadProc(CreatePlatformPixmapSurface, "", "EGL_EXT_platform_base");
@@ -499,7 +504,8 @@ EglInitFuncsEarly(void) {
 }
 
 static void
-EglInitFuncs(void) {
+EglInitFuncs(void)
+{
 	/* Initialize extensions.  */
 	LoadProc(CreateImage, "KHR", "EGL_KHR_image_base");
 	LoadProc(DestroyImage, "KHR", "EGL_KHR_image_base");
@@ -522,7 +528,8 @@ EglInitFuncs(void) {
 }
 
 static void
-EglInitGlFuncs(void) {
+EglInitGlFuncs(void)
+{
 	LoadProcGl(EGLImageTargetTexture2D, "OES", "GL_OES_EGL_image");
 
 	/* We treat eglWaitSyncKHR specially, since it only works if the
@@ -532,7 +539,8 @@ EglInitGlFuncs(void) {
 }
 
 static Visual *
-PickBetterVisual(Visual *visual, int *depth) {
+PickBetterVisual(Visual *visual, int *depth)
+{
 	XRenderPictFormat target_format, *format, *found;
 	int i, num_x_formats, bpp, n_visuals, j;
 	EGLint alpha_size;
@@ -579,12 +587,14 @@ PickBetterVisual(Visual *visual, int *depth) {
 	/* Obtain the number of bits per pixel for the given depth.  */
 	bpp = 0;
 
-	for (i = 0; i < num_x_formats; ++i) {
+	for (i = 0; i < num_x_formats; ++i)
+	{
 		if (formats[i].depth == format->depth)
 			bpp = formats[i].bits_per_pixel;
 	}
 
-	if (!bpp) {
+	if (!bpp)
+	{
 		XFree(formats);
 		return visual;
 	}
@@ -594,15 +604,18 @@ PickBetterVisual(Visual *visual, int *depth) {
 	visuals = XGetVisualInfo(compositor.display, VisualScreenMask,
 	                         &empty_template, &n_visuals);
 
-	if (!visuals) {
+	if (!visuals)
+	{
 		XFree(formats);
 		return visual;
 	}
 
 	/* Now, loop through each depth.  */
 
-	for (i = 0; i < num_x_formats; ++i) {
-		if (formats[i].depth > format->depth && formats[i].bits_per_pixel == bpp) {
+	for (i = 0; i < num_x_formats; ++i)
+	{
+		if (formats[i].depth > format->depth && formats[i].bits_per_pixel == bpp)
+		{
 			/* Try to find a matching picture format.  */
 			target_format.depth = formats[i].depth;
 
@@ -612,15 +625,18 @@ PickBetterVisual(Visual *visual, int *depth) {
 			                          PictFormatAlphaMask,
 			                          &target_format, 0);
 
-			if (found) {
+			if (found)
+			{
 				/* Now try to find the corresponding visual.  */
 
-				for (j = 0; j < n_visuals; ++j) {
+				for (j = 0; j < n_visuals; ++j)
+				{
 					if (visuals[j].depth != formats[i].depth)
 						continue;
 
 					if (XRenderFindVisualFormat(compositor.display,
-					                            visuals[j].visual) == found) {
+					                            visuals[j].visual) == found)
+					{
 						/* We got a usable visual with an alpha channel
 					   otherwise matching the characteristics of the
 					   visual specified by EGL.  Return.  */
@@ -644,7 +660,8 @@ PickBetterVisual(Visual *visual, int *depth) {
 }
 
 static Visual *
-FindVisual(VisualID visual, int *depth) {
+FindVisual(VisualID visual, int *depth)
+{
 	XVisualInfo vinfo, *visuals;
 	Visual *value;
 	int nvisuals;
@@ -669,7 +686,8 @@ FindVisual(VisualID visual, int *depth) {
 	if (!visuals)
 		return NULL;
 
-	if (!nvisuals) {
+	if (!nvisuals)
+	{
 		XLFree(visuals);
 		return NULL;
 	}
@@ -692,7 +710,8 @@ FindVisual(VisualID visual, int *depth) {
 }
 
 static Bool
-EglPickConfig(void) {
+EglPickConfig(void)
+{
 	EGLint egl_config_attribs[20];
 	EGLint n_configs;
 	EGLint visual_id;
@@ -762,7 +781,8 @@ EglPickConfig(void) {
 }
 
 static Bool
-EglCreateContext(void) {
+EglCreateContext(void)
+{
 	EGLint attrs[3];
 
 	/* Require GLES 2.0.  eglBindAPI is not called, so the API used
@@ -780,7 +800,8 @@ EglCreateContext(void) {
 }
 
 static void
-CheckShaderCompilation(GLuint shader, const char *name) {
+CheckShaderCompilation(GLuint shader, const char *name)
+{
 	char msg[1024];
 	GLint success;
 
@@ -797,7 +818,8 @@ CheckShaderCompilation(GLuint shader, const char *name) {
 }
 
 static void
-CheckProgramLink(GLuint program, const char *name) {
+CheckProgramLink(GLuint program, const char *name)
+{
 	char msg[1024];
 	GLint success;
 
@@ -815,7 +837,8 @@ CheckProgramLink(GLuint program, const char *name) {
 
 static void
 EglCompileCompositeProgram(CompositeProgram *program,
-                           const char *fragment_shader) {
+                           const char *fragment_shader)
+{
 	GLuint vertex, fragment;
 
 	/* There are different composite programs for different
@@ -859,7 +882,8 @@ EglCompileCompositeProgram(CompositeProgram *program,
 }
 
 static void
-EglCompileShaders(void) {
+EglCompileShaders(void)
+{
 	GLuint vertex, fragment;
 
 	vertex = glCreateShader(GL_VERTEX_SHADER);
@@ -901,7 +925,8 @@ EglCompileShaders(void) {
 static void AddRenderFlag(int);
 
 static Bool
-EglInitDisplay(void) {
+EglInitDisplay(void)
+{
 	EGLDisplay *display;
 	EGLint major, minor;
 
@@ -931,7 +956,8 @@ EglInitDisplay(void) {
 
 	egl_display = display;
 
-	if (!epoxy_has_egl_extension(egl_display, "EGL_EXT_image_dma_buf_import")) {
+	if (!epoxy_has_egl_extension(egl_display, "EGL_EXT_image_dma_buf_import"))
+	{
 		eglTerminate(display);
 
 		MBLog(MB_LOG_ERROR, "meatball(EGL): EGL_EXT_image_dma_buf_import not found.");
@@ -942,11 +968,16 @@ EglInitDisplay(void) {
 	have_egl_ext_buffer_age = epoxy_has_egl_extension(egl_display, "EGL_EXT_buffer_age");
 
 	/* Setup damage tracking.  */
-	if (epoxy_has_egl_extension(egl_display, "EGL_KHR_partial_update") && have_egl_ext_buffer_age) {
+	if (epoxy_has_egl_extension(egl_display, "EGL_KHR_partial_update") && have_egl_ext_buffer_age)
+	{
 		damage_mode = EGL_DAMAGE_CAP_PARTIAL_UPDATE;
-	} else if (epoxy_has_egl_extension(egl_display, "EGL_KHR_swap_buffers_with_damage")) {
+	}
+	else if (epoxy_has_egl_extension(egl_display, "EGL_KHR_swap_buffers_with_damage"))
+	{
 		damage_mode = EGL_DAMAGE_CAP_SWAP_DAMAGE;
-	} else {
+	}
+	else
+	{
 		damage_mode = EGL_DAMAGE_CAP_NONE;
 	}
 
@@ -967,13 +998,15 @@ EglInitDisplay(void) {
 	egl_minor = minor;
 
 	/* Now, try to pick a framebuffer configuration.  */
-	if (!EglPickConfig()) {
+	if (!EglPickConfig())
+	{
 		/* Initializing the framebuffer configuration failed.  */
 		eglTerminate(display);
 		return False;
 	}
 
-	if (!EglCreateContext()) {
+	if (!EglCreateContext())
+	{
 		/* A GL context could not be created.  */
 		eglTerminate(display);
 		return False;
@@ -1002,12 +1035,14 @@ EglInitDisplay(void) {
 }
 
 static Bool
-InitRenderFuncs(void) {
+InitRenderFuncs(void)
+{
 	return EglInitDisplay();
 }
 
 static Bool
-TryPreserveOnSwap(EGLSurface *surface) {
+TryPreserveOnSwap(EGLSurface *surface)
+{
 	EGLint value;
 
 	/* Enable preserving the color buffer post eglSwapBuffers.  */
@@ -1025,7 +1060,8 @@ TryPreserveOnSwap(EGLSurface *surface) {
 }
 
 static RenderTarget
-TargetFromWindow(Window window, unsigned long standard_event_mask) {
+TargetFromWindow(Window window, unsigned long standard_event_mask)
+{
 	EglTarget *target;
 
 	target = XLMalloc(sizeof *target);
@@ -1046,7 +1082,8 @@ TargetFromWindow(Window window, unsigned long standard_event_mask) {
 }
 
 static RenderTarget
-TargetFromPixmap(Pixmap pixmap) {
+TargetFromPixmap(Pixmap pixmap)
+{
 	EglTarget *target;
 
 	target = XLMalloc(sizeof *target);
@@ -1072,12 +1109,14 @@ TargetFromPixmap(Pixmap pixmap) {
 }
 
 static void
-SetStandardEventMask(RenderTarget target, unsigned long standard_event_mask) {
+SetStandardEventMask(RenderTarget target, unsigned long standard_event_mask)
+{
 	/* Ignored.  */
 }
 
 static void
-NoteTargetSize(RenderTarget target, int width, int height) {
+NoteTargetSize(RenderTarget target, int width, int height)
+{
 	EglTarget *egl_target;
 
 	egl_target = target.pointer;
@@ -1088,7 +1127,8 @@ NoteTargetSize(RenderTarget target, int width, int height) {
 }
 
 static Picture
-PictureFromTarget(RenderTarget target) {
+PictureFromTarget(RenderTarget target)
+{
 	EglTarget *egl_target;
 	XRenderPictureAttributes picture_attrs;
 
@@ -1104,12 +1144,14 @@ PictureFromTarget(RenderTarget target) {
 }
 
 static void
-FreePictureFromTarget(Picture picture) {
+FreePictureFromTarget(Picture picture)
+{
 	XRenderFreePicture(compositor.display, picture);
 }
 
 static void
-DestroyRenderTarget(RenderTarget target) {
+DestroyRenderTarget(RenderTarget target)
+{
 	EglTarget *egl_target;
 
 	egl_target = target.pointer;
@@ -1118,7 +1160,8 @@ DestroyRenderTarget(RenderTarget target) {
 	eglDestroySurface(egl_display, egl_target->surface);
 
 	/* If the target is current, clear the current target.  */
-	if (egl_target == current_target) {
+	if (egl_target == current_target)
+	{
 		current_target = NULL;
 
 		/* Make the context current with no surface.  */
@@ -1131,7 +1174,8 @@ DestroyRenderTarget(RenderTarget target) {
 }
 
 static void
-MakeRenderTargetCurrent(RenderTarget target) {
+MakeRenderTargetCurrent(RenderTarget target)
+{
 	EglTarget *egl_target;
 
 	if (target.pointer == current_target)
@@ -1157,7 +1201,8 @@ MakeRenderTargetCurrent(RenderTarget target) {
 }
 
 static void
-StartRender(RenderTarget target) {
+StartRender(RenderTarget target)
+{
 	EglTarget *egl_target;
 
 	MakeRenderTargetCurrent(target);
@@ -1174,7 +1219,8 @@ StartRender(RenderTarget target) {
 
 static void
 FillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
-                          int nboxes, int min_x, int min_y) {
+                          int nboxes, int min_x, int min_y)
+{
 	GLfloat *verts;
 	EglTarget *egl_target;
 	int i;
@@ -1188,7 +1234,8 @@ FillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
 	/* Allocate enough to hold each triangle.  */
 	verts = alloca(sizeof *verts * nboxes * 8);
 
-	for (i = 0; i < nboxes; ++i) {
+	for (i = 0; i < nboxes; ++i)
+	{
 		/* Translate the coordinates by the min_x and min_y.  */
 		x1 = boxes[i].x1 - min_x;
 		x2 = boxes[i].x2 - min_x;
@@ -1225,7 +1272,8 @@ FillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
 }
 
 static void
-ClearRectangle(RenderTarget target, int x, int y, int width, int height) {
+ClearRectangle(RenderTarget target, int x, int y, int width, int height)
+{
 	pixman_box32_t box;
 
 	box.x1 = x;
@@ -1237,8 +1285,10 @@ ClearRectangle(RenderTarget target, int x, int y, int width, int height) {
 }
 
 static CompositeProgram *
-FindProgram(EglBuffer *buffer) {
-	switch (buffer->u.type) {
+FindProgram(EglBuffer *buffer)
+{
+	switch (buffer->u.type)
+	{
 		case SinglePixelBuffer:
 			/* Use the single-pixel buffer program.  */
 			return &single_pixel_buffer_program;
@@ -1259,8 +1309,10 @@ FindProgram(EglBuffer *buffer) {
 }
 
 static GLenum
-GetTextureTarget(EglBuffer *buffer) {
-	switch (buffer->u.type) {
+GetTextureTarget(EglBuffer *buffer)
+{
+	switch (buffer->u.type)
+	{
 		case DmaBufBuffer:
 			return (buffer->u.dmabuf.format->flags & NeedExternalTarget
 				        ? GL_TEXTURE_EXTERNAL_OES
@@ -1279,7 +1331,8 @@ GetTextureTarget(EglBuffer *buffer) {
 }
 
 static void
-ComputeTransformMatrix(EglBuffer *buffer, DrawParams *params) {
+ComputeTransformMatrix(EglBuffer *buffer, DrawParams *params)
+{
 	/* Update the transformation matrix of BUFFER.  This is a 3x3
 	   transformation matrix that maps from texcoords to actual
 	   coordinates in the buffer.  */
@@ -1288,13 +1341,15 @@ ComputeTransformMatrix(EglBuffer *buffer, DrawParams *params) {
 	MatrixIdentity(&buffer->matrix);
 
 	/* Set the X and Y scales.  */
-	if (params->flags & ScaleSet) {
+	if (params->flags & ScaleSet)
+	{
 		Index(buffer->matrix, 0, 0) = (float) (1.0 / params->scale);
 		Index(buffer->matrix, 1, 1) = (float) (1.0 / params->scale);
 	}
 
 	/* Set the rotation.  */
-	if (params->flags & TransformSet) {
+	if (params->flags & TransformSet)
+	{
 		/* Apply the inverse transform.  */
 
 		ApplyInverseTransform(1, 1, &buffer->matrix,
@@ -1329,7 +1384,8 @@ static void EnsureTexture(EglBuffer *);
 static void
 Composite(RenderBuffer buffer, RenderTarget target,
           Operation op, int src_x, int src_y, int x, int y,
-          int width, int height, DrawParams *params) {
+          int width, int height, DrawParams *params)
+{
 	GLfloat verts[8], texcoord[8];
 	GLfloat x1, x2, y1, y2;
 	EglTarget *egl_target;
@@ -1340,7 +1396,8 @@ Composite(RenderBuffer buffer, RenderTarget target,
 	egl_target = target.pointer;
 	egl_buffer = buffer.pointer;
 
-	if (egl_buffer->u.type != SinglePixelBuffer) {
+	if (egl_buffer->u.type != SinglePixelBuffer)
+	{
 		/* If no texture was generated, upload the buffer contents
 	   now.  */
 		if (!(egl_buffer->flags & IsTextureGenerated))
@@ -1348,7 +1405,8 @@ Composite(RenderBuffer buffer, RenderTarget target,
 
 		/* Get the texturing target.  */
 		tex_target = GetTextureTarget(egl_buffer);
-	} else
+	}
+	else
 	/* This value is not actually used.  */
 		tex_target = 0;
 
@@ -1404,7 +1462,8 @@ Composite(RenderBuffer buffer, RenderTarget target,
 		glDisable(GL_BLEND);
 
 	/* Single pixel buffers have no textures.  */
-	if (egl_buffer->u.type != SinglePixelBuffer) {
+	if (egl_buffer->u.type != SinglePixelBuffer)
+	{
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(tex_target, egl_buffer->texture);
 		glTexParameteri(tex_target, GL_TEXTURE_MIN_FILTER,
@@ -1449,19 +1508,23 @@ Composite(RenderBuffer buffer, RenderTarget target,
 
 static RenderCompletionKey
 FinishRender(RenderTarget target, pixman_region32_t *damage,
-             RenderCompletionFunc callback, void *data) {
+             RenderCompletionFunc callback, void *data)
+{
 	const EglTarget *egl_target = target.pointer;
 	EGLint *rects;
 	int nboxes, i;
 	pixman_box32_t *boxes;
 
-	if (egl_target->flags & IsPixmap) {
+	if (egl_target->flags & IsPixmap)
+	{
 		glFinish();
 		return NULL;
 	}
 
-	switch (damage_mode) {
-		case EGL_DAMAGE_CAP_SWAP_DAMAGE: {
+	switch (damage_mode)
+	{
+		case EGL_DAMAGE_CAP_SWAP_DAMAGE:
+		{
 			if (!damage)
 				goto no_damage;
 
@@ -1470,7 +1533,8 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 			boxes = pixman_region32_rectangles(damage, &nboxes);
 			rects = alloca(nboxes * 4 * sizeof *damage);
 
-			for (i = 0; i < nboxes; ++i) {
+			for (i = 0; i < nboxes; ++i)
+			{
 				rects[i * 4 + 0] = boxes[i].x1;
 				rects[i * 4 + 1] = egl_target->height - boxes[i].y2;
 				rects[i * 4 + 2] = boxes[i].x2 - boxes[i].x1;
@@ -1479,11 +1543,12 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 
 			/* Next, swap buffers with the damage.  */
 			ISwapBuffersWithDamage(egl_display, egl_target->surface,
-								   rects, nboxes);
+			                       rects, nboxes);
 			break;
 		}
 
-		case EGL_DAMAGE_CAP_PARTIAL_UPDATE: {
+		case EGL_DAMAGE_CAP_PARTIAL_UPDATE:
+		{
 			if (!damage)
 				goto no_damage;;
 
@@ -1492,7 +1557,8 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 			boxes = pixman_region32_rectangles(damage, &nboxes);
 			rects = alloca(nboxes * 4 * sizeof *damage);
 
-			for (i = 0; i < nboxes; ++i) {
+			for (i = 0; i < nboxes; ++i)
+			{
 				rects[i * 4 + 0] = boxes[i].x1;
 				rects[i * 4 + 1] = egl_target->height - boxes[i].y2;
 				rects[i * 4 + 2] = boxes[i].x2 - boxes[i].x1;
@@ -1504,8 +1570,9 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 			Fallthrough;
 		}
 
-no_damage:
-		default: {
+		no_damage:
+		default:
+		{
 			/* This should also do glFinish.  */
 			eglSwapBuffers(egl_display, egl_target->surface);
 			break;
@@ -1516,7 +1583,8 @@ no_damage:
 }
 
 static int
-TargetAge(RenderTarget target) {
+TargetAge(RenderTarget target)
+{
 	EglTarget *egl_target;
 	EGLint age;
 
@@ -1536,7 +1604,8 @@ TargetAge(RenderTarget target) {
 }
 
 static RenderFence
-ImportFdFence(int fd, Bool *error) {
+ImportFdFence(int fd, Bool *error)
+{
 	EGLSyncKHR *fence;
 	EGLint attribs[3];
 
@@ -1549,7 +1618,8 @@ ImportFdFence(int fd, Bool *error) {
 	fence = ICreateSync(egl_display, EGL_SYNC_NATIVE_FENCE_ANDROID,
 	                    attribs);
 
-	if (fence == EGL_NO_SYNC_KHR) {
+	if (fence == EGL_NO_SYNC_KHR)
+	{
 		*error = True;
 		return (RenderFence) NULL;
 	}
@@ -1558,7 +1628,8 @@ ImportFdFence(int fd, Bool *error) {
 }
 
 static void
-WaitFence(RenderFence fence) {
+WaitFence(RenderFence fence)
+{
 	/* N.B. that here egl_context must be current, which should always
 	   be true.  */
 
@@ -1576,7 +1647,8 @@ WaitFence(RenderFence fence) {
 }
 
 static void
-DeleteFence(RenderFence fence) {
+DeleteFence(RenderFence fence)
+{
 	if (!IDestroySync(egl_display, fence.pointer))
 		/* There is no way to continue without leaking memory, and this
 		   shouldn't happen.  */
@@ -1584,7 +1656,8 @@ DeleteFence(RenderFence fence) {
 }
 
 static void
-HandleFenceReadable(int fd, void *data, ReadFd *readfd) {
+HandleFenceReadable(int fd, void *data, ReadFd *readfd)
+{
 	XLRemoveReadFd(readfd);
 
 	/* Now destroy the native fence.  */
@@ -1596,7 +1669,8 @@ HandleFenceReadable(int fd, void *data, ReadFd *readfd) {
 }
 
 static int
-GetFinishFence(Bool *error) {
+GetFinishFence(Bool *error)
+{
 	EGLint attribs;
 	EGLSyncKHR *fence;
 	EGLint fd;
@@ -1609,7 +1683,8 @@ GetFinishFence(Bool *error) {
 	fence = ICreateSync(egl_display, EGL_SYNC_NATIVE_FENCE_ANDROID,
 	                    &attribs);
 
-	if (fence == EGL_NO_SYNC_KHR) {
+	if (fence == EGL_NO_SYNC_KHR)
+	{
 		*error = True;
 		return -1;
 	}
@@ -1651,19 +1726,23 @@ static RenderFuncs egl_render_funcs =
 };
 
 static void
-AddRenderFlag(int flags) {
+AddRenderFlag(int flags)
+{
 	egl_render_funcs.flags |= flags;
 }
 
 static DrmFormat *
-GetDrmFormats(int *num_formats) {
+GetDrmFormats(int *num_formats)
+{
 	*num_formats = n_drm_formats;
 	return drm_formats;
 }
 
 static dev_t *
-GetRenderDevices(int *num_devices) {
-	if (!drm_device_available) {
+GetRenderDevices(int *num_devices)
+{
+	if (!drm_device_available)
+	{
 		*num_devices = 0;
 		return NULL;
 	}
@@ -1673,16 +1752,19 @@ GetRenderDevices(int *num_devices) {
 }
 
 static ShmFormat *
-GetShmFormats(int *num_formats) {
+GetShmFormats(int *num_formats)
+{
 	*num_formats = n_shm_formats;
 	return shm_formats;
 }
 
 static DrmFormat *
-FindDrmFormat(uint32_t format, uint64_t modifier) {
+FindDrmFormat(uint32_t format, uint64_t modifier)
+{
 	/* Find the DRM format associated with FORMAT and MODIFIER.  This is
 	   mainly used to extract flags.  */
-	for (int i = 0; i < n_drm_formats; ++i) {
+	for (int i = 0; i < n_drm_formats; ++i)
+	{
 		if (drm_formats[i].drm_format == format && drm_formats[i].drm_modifier == modifier)
 			return &drm_formats[i];
 	}
@@ -1691,16 +1773,19 @@ FindDrmFormat(uint32_t format, uint64_t modifier) {
 }
 
 static void
-CloseFileDescriptors(const DmaBufAttributes *attributes) {
+CloseFileDescriptors(const DmaBufAttributes *attributes)
+{
 	for (int i = 0; i < attributes->n_planes; ++i)
 		close(attributes->fds[i]);
 }
 
 static FormatInfo *
-FindFormatInfoDrm(uint32_t drm_format) {
+FindFormatInfoDrm(uint32_t drm_format)
+{
 	int i;
 
-	for (i = 0; i < ArrayElements(known_shm_formats); ++i) {
+	for (i = 0; i < ArrayElements(known_shm_formats); ++i)
+	{
 		if (known_shm_formats[i].drm_format == drm_format)
 			return &known_shm_formats[i];
 	}
@@ -1709,7 +1794,8 @@ FindFormatInfoDrm(uint32_t drm_format) {
 }
 
 static RenderBuffer
-BufferFromDmaBuf(DmaBufAttributes *attributes, Bool *error) {
+BufferFromDmaBuf(DmaBufAttributes *attributes, Bool *error)
+{
 	EglBuffer *buffer;
 	DrmFormat *format;
 	EGLint attribs[50], i;
@@ -1832,7 +1918,8 @@ static void
 BufferFromDmaBufAsync(DmaBufAttributes *attributes,
                       DmaBufSuccessFunc success_callback,
                       DmaBufFailureFunc failure_callback,
-                      void *callback_data) {
+                      void *callback_data)
+{
 	Bool error = False;
 	RenderBuffer buffer = BufferFromDmaBuf(attributes, &error);
 
@@ -1843,8 +1930,10 @@ BufferFromDmaBufAsync(DmaBufAttributes *attributes,
 }
 
 static FormatInfo *
-FindFormatInfo(const uint32_t wl_format) {
-	for (int i = 0; i < ArrayElements(known_shm_formats); ++i) {
+FindFormatInfo(const uint32_t wl_format)
+{
+	for (int i = 0; i < ArrayElements(known_shm_formats); ++i)
+	{
 		if (known_shm_formats[i].wl_format == wl_format)
 			return &known_shm_formats[i];
 	}
@@ -1853,7 +1942,8 @@ FindFormatInfo(const uint32_t wl_format) {
 }
 
 static RenderBuffer
-BufferFromShm(SharedMemoryAttributes *attributes, Bool *error) {
+BufferFromShm(SharedMemoryAttributes *attributes, Bool *error)
+{
 	EglBuffer *buffer;
 
 	buffer = XLMalloc(EglBufferSize(EglShmBuffer));
@@ -1887,7 +1977,8 @@ BufferFromShm(SharedMemoryAttributes *attributes, Bool *error) {
 
 static RenderBuffer
 BufferFromSinglePixel(uint32_t red, uint32_t green, uint32_t blue,
-                      uint32_t alpha, Bool *error) {
+                      uint32_t alpha, Bool *error)
+{
 	EglBuffer *buffer;
 
 	buffer = XLMalloc(EglBufferSize(EglSinglePixelBuffer));
@@ -1915,7 +2006,8 @@ BufferFromSinglePixel(uint32_t red, uint32_t green, uint32_t blue,
 }
 
 static void
-FreeShmBuffer(RenderBuffer buffer) {
+FreeShmBuffer(RenderBuffer buffer)
+{
 	EglBuffer *egl_buffer;
 
 	egl_buffer = buffer.pointer;
@@ -1928,7 +2020,8 @@ FreeShmBuffer(RenderBuffer buffer) {
 }
 
 static void
-FreeDmabufBuffer(RenderBuffer buffer) {
+FreeDmabufBuffer(RenderBuffer buffer)
+{
 	EglBuffer *egl_buffer;
 
 	egl_buffer = buffer.pointer;
@@ -1944,7 +2037,8 @@ FreeDmabufBuffer(RenderBuffer buffer) {
 }
 
 static void
-FreeSinglePixelBuffer(RenderBuffer buffer) {
+FreeSinglePixelBuffer(RenderBuffer buffer)
+{
 	EglBuffer *egl_buffer;
 
 	egl_buffer = buffer.pointer;
@@ -1960,7 +2054,8 @@ FreeSinglePixelBuffer(RenderBuffer buffer) {
 
 static void
 AddDrmFormat(uint32_t format, uint64_t modifier,
-             int flags) {
+             int flags)
+{
 	/* First, make drm_formats big enough.  */
 	drm_formats = XLRealloc(drm_formats,
 	                        ++n_drm_formats * sizeof *drm_formats);
@@ -1972,7 +2067,8 @@ AddDrmFormat(uint32_t format, uint64_t modifier,
 }
 
 static void
-InitModifiersFor(uint32_t format) {
+InitModifiersFor(uint32_t format)
+{
 	EGLuint64KHR *modifiers;
 	EGLint i, n_total_modifiers;
 	EGLBoolean *external_only;
@@ -1992,7 +2088,8 @@ InitModifiersFor(uint32_t format) {
 	                      modifiers, external_only, &n_total_modifiers);
 
 	/* Add each modifier.  */
-	for (i = 0; i < n_total_modifiers; ++i) {
+	for (i = 0; i < n_total_modifiers; ++i)
+	{
 		/* If the modifier requires GL_TEXTURE_EXTERNAL_OES, specify
 	   that.  */
 		flags = external_only[i] ? NeedExternalTarget : 0;
@@ -2003,11 +2100,13 @@ InitModifiersFor(uint32_t format) {
 }
 
 static void
-InitDmaBufFormats(void) {
+InitDmaBufFormats(void)
+{
 	static DrmFormat fallback_formats[2];
 	EGLint i, n_total_formats, *formats;
 
-	if (!IQueryDmaBufModifiers) {
+	if (!IQueryDmaBufModifiers)
+	{
 		/* If the import_modifiers extension isn't supported, there's no
 		   way to query for supported formats.  Return a few formats
 		   that should probably be supported everywhere.  */
@@ -2033,7 +2132,8 @@ InitDmaBufFormats(void) {
 	IQueryDmaBufFormats(egl_display, n_total_formats, formats,
 	                    &n_total_formats);
 
-	for (i = 0; i < n_total_formats; ++i) {
+	for (i = 0; i < n_total_formats; ++i)
+	{
 		/* Now, add the implicit modifier.  */
 		AddDrmFormat(formats[i], DRM_FORMAT_MOD_INVALID, 0);
 
@@ -2043,14 +2143,16 @@ InitDmaBufFormats(void) {
 }
 
 static void
-AddShmFormat(uint32_t format) {
+AddShmFormat(uint32_t format)
+{
 	shm_formats = XLRealloc(shm_formats, (sizeof *shm_formats * ++n_shm_formats));
 
 	shm_formats[n_shm_formats - 1].format = format;
 }
 
 static void
-InitShmFormats(void) {
+InitShmFormats(void)
+{
 	int i;
 
 	/* Add formats always supported by GL.  */
@@ -2059,7 +2161,8 @@ InitShmFormats(void) {
 }
 
 static void
-InitBufferFuncs(void) {
+InitBufferFuncs(void)
+{
 	EGLAttrib attrib;
 	EGLDeviceEXT *device;
 	const char *extensions, *name;
@@ -2069,7 +2172,8 @@ InitBufferFuncs(void) {
 	   EGL display.  First, we try to look for render nodes, but settle
 	   for master nodes if render nodes are not available.  */
 
-	if (IQueryDisplayAttrib && IQueryDeviceString) {
+	if (IQueryDisplayAttrib && IQueryDeviceString)
+	{
 		if (!IQueryDisplayAttrib(egl_display, EGL_DEVICE_EXT, &attrib))
 			goto failed;
 
@@ -2102,7 +2206,8 @@ InitBufferFuncs(void) {
 
 		drm_device = dev_stat.st_rdev;
 		drm_device_available = True;
-	} else
+	}
+	else
 	failed:
 		fprintf(stderr, "Warning: failed to obtain device node of"
 		        " EGL display.  Hardware acceleration will probably not"
@@ -2119,7 +2224,8 @@ InitBufferFuncs(void) {
 
 static Bool
 ValidateShmParams(uint32_t format, uint32_t width, uint32_t height,
-                  int32_t offset, int32_t stride, size_t pool_size) {
+                  int32_t offset, int32_t stride, size_t pool_size)
+{
 	size_t total, after, min_stride;
 	FormatInfo *info;
 
@@ -2157,7 +2263,8 @@ ValidateShmParams(uint32_t format, uint32_t width, uint32_t height,
 }
 
 static void
-GetShmParams(EglBuffer *buffer, void **data_ptr, size_t *expected_size) {
+GetShmParams(EglBuffer *buffer, void **data_ptr, size_t *expected_size)
+{
 	char *pool_data;
 
 	/* The end of a buffer is as follows: pool data + offset + stride *
@@ -2171,7 +2278,8 @@ GetShmParams(EglBuffer *buffer, void **data_ptr, size_t *expected_size) {
 }
 
 static void
-UpdateTexture(EglBuffer *buffer) {
+UpdateTexture(EglBuffer *buffer)
+{
 	GLenum target;
 	void *data_ptr;
 	size_t expected_data_size;
@@ -2186,7 +2294,8 @@ UpdateTexture(EglBuffer *buffer) {
 	glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	switch (buffer->u.type) {
+	switch (buffer->u.type)
+	{
 		case DmaBufBuffer:
 			/* This is easy.  Simply bind the EGL image to the target.  */
 			IEGLImageTargetTexture2D(target, buffer->u.dmabuf.image);
@@ -2228,7 +2337,8 @@ UpdateTexture(EglBuffer *buffer) {
 }
 
 static void
-ReverseTransformToBox(DrawParams *params, pixman_box32_t *box) {
+ReverseTransformToBox(DrawParams *params, pixman_box32_t *box)
+{
 	double x_factor, y_factor;
 
 	if (!params)
@@ -2237,14 +2347,16 @@ ReverseTransformToBox(DrawParams *params, pixman_box32_t *box) {
 	/* Apply the inverse of PARAMS to BOX, for use in damage
 	   tracking.  */
 
-	if (params->flags & ScaleSet) {
+	if (params->flags & ScaleSet)
+	{
 		box->x1 = floor(box->x1 / params->scale);
 		box->y1 = floor(box->y1 / params->scale);
 		box->x2 = ceil(box->x2 / params->scale);
 		box->y2 = ceil(box->y2 / params->scale);
 	}
 
-	if (params->flags & OffsetSet) {
+	if (params->flags & OffsetSet)
+	{
 		/* Since the offset can be a fractional value, also try to
 	   include as much as possible in the box.  */
 		box->x1 = floor(box->x1 + params->off_x);
@@ -2253,7 +2365,8 @@ ReverseTransformToBox(DrawParams *params, pixman_box32_t *box) {
 		box->y2 = ceil(box->y2 + params->off_y);
 	}
 
-	if (params->flags & StretchSet) {
+	if (params->flags & StretchSet)
+	{
 		x_factor = params->crop_width / params->stretch_width;
 		y_factor = params->crop_height / params->stretch_height;
 
@@ -2266,7 +2379,8 @@ ReverseTransformToBox(DrawParams *params, pixman_box32_t *box) {
 
 static void
 UpdateShmBufferIncrementally(EglBuffer *buffer, pixman_region32_t *damage,
-                             DrawParams *params) {
+                             DrawParams *params)
+{
 	GLenum target;
 	pixman_box32_t *boxes, box;
 	int nboxes, i, width, height;
@@ -2291,7 +2405,8 @@ UpdateShmBufferIncrementally(EglBuffer *buffer, pixman_region32_t *damage,
 
 	/* And copy from the shm data to the texture according to
 	   the damage.  */
-	for (i = 0; i < nboxes; ++i) {
+	for (i = 0; i < nboxes; ++i)
+	{
 		/* Get a copy of the box.  */
 		box = boxes[i];
 
@@ -2342,7 +2457,8 @@ UpdateShmBufferIncrementally(EglBuffer *buffer, pixman_region32_t *damage,
 }
 
 static void
-EnsureTexture(EglBuffer *buffer) {
+EnsureTexture(EglBuffer *buffer)
+{
 	/* If a texture has already been created, return.  */
 	if (buffer->flags & IsTextureGenerated)
 		return;
@@ -2363,7 +2479,8 @@ EnsureTexture(EglBuffer *buffer) {
 
 static void
 UpdateBuffer(RenderBuffer buffer, pixman_region32_t *damage,
-             DrawParams *params) {
+             DrawParams *params)
+{
 	EglBuffer *egl_buffer;
 
 	egl_buffer = buffer.pointer;
@@ -2387,8 +2504,10 @@ UpdateBuffer(RenderBuffer buffer, pixman_region32_t *damage,
 		   may cause certain drivers to stop working in the future.  So
 		   still do it for buffers backed by EGLImages.  */
 		UpdateTexture(egl_buffer);
-	else if (pixman_region32_not_empty(damage)) {
-		switch (egl_buffer->u.type) {
+	else if (pixman_region32_not_empty(damage))
+	{
+		switch (egl_buffer->u.type)
+		{
 			case ShmBuffer:
 				/* Update the shared memory buffer incrementally, taking
 				   into account the damaged area and transform.  */
@@ -2408,12 +2527,14 @@ UpdateBuffer(RenderBuffer buffer, pixman_region32_t *damage,
 
 static void
 UpdateBufferForDamage(RenderBuffer buffer, pixman_region32_t *damage,
-                      DrawParams *params) {
+                      DrawParams *params)
+{
 	UpdateBuffer(buffer, damage, params);
 }
 
 static Bool
-CanReleaseNow(RenderBuffer buffer) {
+CanReleaseNow(RenderBuffer buffer)
+{
 	EglBuffer *egl_buffer;
 	Bool rc;
 
@@ -2429,7 +2550,8 @@ CanReleaseNow(RenderBuffer buffer) {
 }
 
 static Bool
-IsBufferOpaque(RenderBuffer buffer) {
+IsBufferOpaque(RenderBuffer buffer)
+{
 	EglBuffer *egl_buffer;
 
 	egl_buffer = buffer.pointer;
@@ -2438,7 +2560,7 @@ IsBufferOpaque(RenderBuffer buffer) {
 	return !(egl_buffer->flags & HasAlpha);
 }
 
-#if defined(HAVE_EGL_SUPPORT)
+
 static BufferFuncs egl_buffer_funcs =
 {
 	.get_drm_formats = GetDrmFormats,
@@ -2458,8 +2580,8 @@ static BufferFuncs egl_buffer_funcs =
 	.init_buffer_funcs = InitBufferFuncs,
 };
 
-void InitEGL(void) {
+void InitEGL(void)
+{
 	RegisterStaticRenderer("egl", &egl_render_funcs,
 	                       &egl_buffer_funcs);
 }
-#endif

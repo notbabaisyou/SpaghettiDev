@@ -77,7 +77,7 @@ static struct zwp_pointer_gesture_hold_v1_interface gesture_hold_impl =
 
 static void
 GetSwipeGesture(struct wl_client *client, struct wl_resource *resource,
-				uint32_t id, struct wl_resource *pointer_resource)
+                uint32_t id, struct wl_resource *pointer_resource)
 {
 	struct wl_resource *gesture_resource;
 	Pointer *pointer;
@@ -87,8 +87,8 @@ GetSwipeGesture(struct wl_client *client, struct wl_resource *resource,
 	pointer = wl_resource_get_user_data(pointer_resource);
 	seat = XLPointerGetSeat(pointer);
 	gesture_resource = wl_resource_create(client,
-										  &zwp_pointer_gesture_swipe_v1_interface,
-										  wl_resource_get_version(resource), id);
+	                                      &zwp_pointer_gesture_swipe_v1_interface,
+	                                      wl_resource_get_version(resource), id);
 
 	if (!gesture_resource)
 	{
@@ -98,13 +98,13 @@ GetSwipeGesture(struct wl_client *client, struct wl_resource *resource,
 
 	gesture_swipe = XLSeatGetSwipeGesture(seat, gesture_resource);
 	wl_resource_set_implementation(gesture_resource, &gesture_swipe_impl,
-								   gesture_swipe,
-								   HandleSwipeGestureResourceDestroy);
+	                               gesture_swipe,
+	                               HandleSwipeGestureResourceDestroy);
 }
 
 static void
 GetPinchGesture(struct wl_client *client, struct wl_resource *resource,
-				uint32_t id, struct wl_resource *pointer_resource)
+                uint32_t id, struct wl_resource *pointer_resource)
 {
 	struct wl_resource *gesture_resource;
 	Pointer *pointer;
@@ -114,8 +114,8 @@ GetPinchGesture(struct wl_client *client, struct wl_resource *resource,
 	pointer = wl_resource_get_user_data(pointer_resource);
 	seat = XLPointerGetSeat(pointer);
 	gesture_resource = wl_resource_create(client,
-										  &zwp_pointer_gesture_pinch_v1_interface,
-										  wl_resource_get_version(resource), id);
+	                                      &zwp_pointer_gesture_pinch_v1_interface,
+	                                      wl_resource_get_version(resource), id);
 
 	if (!gesture_resource)
 	{
@@ -125,8 +125,8 @@ GetPinchGesture(struct wl_client *client, struct wl_resource *resource,
 
 	gesture_pinch = XLSeatGetPinchGesture(seat, gesture_resource);
 	wl_resource_set_implementation(gesture_resource, &gesture_pinch_impl,
-								   gesture_pinch,
-								   HandlePinchGestureResourceDestroy);
+	                               gesture_pinch,
+	                               HandlePinchGestureResourceDestroy);
 }
 
 static void
@@ -137,14 +137,14 @@ Release(struct wl_client *client, struct wl_resource *resource)
 
 static void
 GetHoldGesture(struct wl_client *client, struct wl_resource *resource,
-			   uint32_t id, struct wl_resource *pointer_resource)
+               uint32_t id, struct wl_resource *pointer_resource)
 {
 	struct wl_resource *gesture_resource;
 
 	/* Hold gestures are not supported by the X Input extension, so a
 	   dummy resource is created that just does nothing.  */
 	gesture_resource = wl_resource_create(client, &zwp_pointer_gesture_hold_v1_interface,
-										  wl_resource_get_version(resource), id);
+	                                      wl_resource_get_version(resource), id);
 
 	if (!gesture_resource)
 	{
@@ -153,7 +153,7 @@ GetHoldGesture(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(gesture_resource, &gesture_hold_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 static struct zwp_pointer_gestures_v1_interface pointer_gestures_impl =
@@ -166,12 +166,12 @@ static struct zwp_pointer_gestures_v1_interface pointer_gestures_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &zwp_pointer_gestures_v1_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -180,7 +180,7 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &pointer_gestures_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 void XLInitPointerGestures(void)
@@ -188,8 +188,8 @@ void XLInitPointerGestures(void)
 	if (xi2_major > 2 || xi2_minor >= 4)
 		/* Create the pointer gestures global.  */
 		pointer_gestures_global = wl_global_create(compositor.wl_display,
-												   &zwp_pointer_gestures_v1_interface,
-												   3, NULL, HandleBind);
+		                                           &zwp_pointer_gestures_v1_interface,
+		                                           3, NULL, HandleBind);
 
 	/* Pointer gestures are not supported without XI 2.4 or later.  */
 }

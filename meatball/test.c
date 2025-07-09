@@ -29,7 +29,7 @@
   (ExposureMask | StructureNotifyMask | PropertyChangeMask)
 
 enum {
-	IsSurfaceMapped = 1,
+	IsSurfaceMapped      = 1,
 	PendingBufferRelease = 1 << 1,
 	PendingFrameCallback = 1 << 2,
 };
@@ -74,7 +74,8 @@ static struct wl_global *test_manager_global;
 static XLAssocTable *surfaces;
 
 static void
-HandleResizeDone(void *key, void *data) {
+HandleResizeDone(void *key, void *data)
+{
 	TestSurface *test;
 
 	test = data;
@@ -86,7 +87,8 @@ HandleResizeDone(void *key, void *data) {
 }
 
 static void
-DestroyBacking(TestSurface *test) {
+DestroyBacking(TestSurface *test)
+{
 	if (--test->refcount)
 		return;
 
@@ -113,7 +115,8 @@ DestroyBacking(TestSurface *test) {
 }
 
 static void
-RunFrameCallbacks(TestSurface *test) {
+RunFrameCallbacks(TestSurface *test)
+{
 	struct timespec time;
 
 	clock_gettime(CLOCK_MONOTONIC, &time);
@@ -123,7 +126,8 @@ RunFrameCallbacks(TestSurface *test) {
 }
 
 static void
-RunFrameCallbacksConditionally(TestSurface *test) {
+RunFrameCallbacksConditionally(TestSurface *test)
+{
 	if (!test->role.surface)
 		return;
 
@@ -135,7 +139,8 @@ RunFrameCallbacksConditionally(TestSurface *test) {
 }
 
 static void
-AllBuffersReleased(void *data) {
+AllBuffersReleased(void *data)
+{
 	TestSurface *test;
 
 	test = data;
@@ -151,7 +156,8 @@ AllBuffersReleased(void *data) {
 }
 
 static void
-NoteBounds(void *data, int min_x, int min_y, int max_x, int max_y) {
+NoteBounds(void *data, int min_x, int min_y, int max_x, int max_y)
+{
 	TestSurface *test;
 	int bounds_width, bounds_height;
 
@@ -164,7 +170,8 @@ NoteBounds(void *data, int min_x, int min_y, int max_x, int max_y) {
 	bounds_height = max_y - min_y + 1;
 
 	if (test->bounds_width != bounds_width
-	    || test->bounds_height != bounds_height) {
+	    || test->bounds_height != bounds_height)
+	{
 		/* Resize the window to fit.  */
 		XResizeWindow(compositor.display, test->window,
 		              bounds_width, bounds_height);
@@ -178,7 +185,8 @@ NoteBounds(void *data, int min_x, int min_y, int max_x, int max_y) {
 
 static void
 NoteFrame(FrameMode mode, uint64_t id, void *data,
-          uint64_t msc, uint64_t ust) {
+          uint64_t msc, uint64_t ust)
+{
 	if (mode != ModeComplete && mode != ModePresented)
 		return;
 
@@ -188,7 +196,8 @@ NoteFrame(FrameMode mode, uint64_t id, void *data,
 }
 
 static void
-MapTestSurface(TestSurface *test) {
+MapTestSurface(TestSurface *test)
+{
 	/* Set the bounds width and height.  */
 	test->bounds_width = SubcompositorWidth(test->subcompositor);
 	test->bounds_height = SubcompositorHeight(test->subcompositor);
@@ -206,14 +215,16 @@ MapTestSurface(TestSurface *test) {
 }
 
 static void
-UnmapTestSurface(TestSurface *test) {
+UnmapTestSurface(TestSurface *test)
+{
 	if (test->flags & IsSurfaceMapped)
 		/* Unmap the surface.  */
 		XUnmapWindow(compositor.display, test->window);
 }
 
 static void
-Commit(Surface *surface, Role *role) {
+Commit(Surface *surface, Role *role)
+{
 	TestSurface *test;
 
 	test = TestSurfaceFromRole(role);
@@ -222,7 +233,8 @@ Commit(Surface *surface, Role *role) {
 	    && !(test->flags & IsSurfaceMapped))
 		/* Map the surface now.  */
 		MapTestSurface(test);
-	else if (!surface->current_state.buffer) {
+	else if (!surface->current_state.buffer)
+	{
 		/* Unmap the surface now.  */
 		UnmapTestSurface(test);
 
@@ -242,7 +254,8 @@ Commit(Surface *surface, Role *role) {
 }
 
 static Bool
-Setup(Surface *surface, Role *role) {
+Setup(Surface *surface, Role *role)
+{
 	TestSurface *test;
 
 	test = TestSurfaceFromRole(role);
@@ -268,7 +281,8 @@ Setup(Surface *surface, Role *role) {
 }
 
 static void
-Teardown(Surface *surface, Role *role) {
+Teardown(Surface *surface, Role *role)
+{
 	TestSurface *test;
 
 	/* Clear role->surface here, since this is where the refcounting is
@@ -290,7 +304,8 @@ Teardown(Surface *surface, Role *role) {
 }
 
 static void
-Destroy(struct wl_client *client, struct wl_resource *resource) {
+Destroy(struct wl_client *client, struct wl_resource *resource)
+{
 	TestSurface *test;
 
 	test = wl_resource_get_user_data(resource);
@@ -305,7 +320,8 @@ Destroy(struct wl_client *client, struct wl_resource *resource) {
 }
 
 static void
-ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer) {
+ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer)
+{
 	TestSurface *test;
 	RenderBuffer render_buffer;
 
@@ -315,7 +331,8 @@ ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer) {
 	if (RenderIsBufferIdle(render_buffer, test->target))
 	/* Release the buffer now -- it is already idle.  */
 		XLReleaseBuffer(buffer);
-	else {
+	else
+	{
 		/* Release the buffer once it becomes idle, or is destroyed.  */
 		ReleaseBufferWithHelper(test->release_helper, buffer,
 		                        test->target);
@@ -327,7 +344,8 @@ ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer) {
 }
 
 static void
-SubsurfaceUpdate(Surface *surface, Role *role) {
+SubsurfaceUpdate(Surface *surface, Role *role)
+{
 	TestSurface *test;
 
 	test = TestSurfaceFromRole(role);
@@ -335,7 +353,8 @@ SubsurfaceUpdate(Surface *surface, Role *role) {
 }
 
 static Window
-GetWindow(Surface *surface, Role *role) {
+GetWindow(Surface *surface, Role *role)
+{
 	TestSurface *test;
 
 	test = TestSurfaceFromRole(role);
@@ -344,13 +363,15 @@ GetWindow(Surface *surface, Role *role) {
 
 static void
 Activate(Surface *surface, Role *role, int deviceid,
-         Timestamp timestamp, Surface *activator_surface) {
+         Timestamp timestamp, Surface *activator_surface)
+{
 	struct wl_resource *resource;
 	TestSurface *test;
 
 	test = TestSurfaceFromRole(role);
 
-	if (test->role.resource) {
+	if (test->role.resource)
+	{
 		/* If the activator surface belongs to the same client as the
 	   client who created the test surface, set the resource to the
 	   activator surface.  */
@@ -369,7 +390,8 @@ Activate(Surface *surface, Role *role, int deviceid,
 
 static void
 GetResizeDimensions(Surface *surface, Role *role, int *width,
-                    int *height) {
+                    int *height)
+{
 	TestSurface *test;
 
 	test = TestSurfaceFromRole(role);
@@ -379,7 +401,8 @@ GetResizeDimensions(Surface *surface, Role *role, int *width,
 }
 
 static void
-SetAlwaysGarbage(struct wl_client *client, struct wl_resource *resource) {
+SetAlwaysGarbage(struct wl_client *client, struct wl_resource *resource)
+{
 	TestSurface *test;
 
 	test = wl_resource_get_user_data(resource);
@@ -391,7 +414,8 @@ SetAlwaysGarbage(struct wl_client *client, struct wl_resource *resource) {
 static void
 MoveResize(struct wl_client *client, struct wl_resource *resource,
            uint32_t edge, uint32_t serial,
-           struct wl_resource *seat_resource) {
+           struct wl_resource *seat_resource)
+{
 	TestSurface *test;
 	Seat *seat;
 	void *key;
@@ -399,17 +423,20 @@ MoveResize(struct wl_client *client, struct wl_resource *resource,
 	test = wl_resource_get_user_data(resource);
 	seat = wl_resource_get_user_data(seat_resource);
 
-	if (!test->role.surface) {
+	if (!test->role.surface)
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_RESIZE_REJECTED,
 		                       "trying to resize test surface without surface");
 		return;
 	}
 
-	if (edge == TEST_MANAGER_RESIZE_EDGE_MOVE) {
+	if (edge == TEST_MANAGER_RESIZE_EDGE_MOVE)
+	{
 		if (!XLMoveToplevel(seat, test->role.surface, serial))
 			wl_resource_post_error(resource, TEST_MANAGER_ERROR_RESIZE_REJECTED,
 			                       "move rejected for unspecified reason");
-	} else if (!XLResizeToplevel(seat, test->role.surface, serial, edge))
+	}
+	else if (!XLResizeToplevel(seat, test->role.surface, serial, edge))
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_RESIZE_REJECTED,
 		                       "resize rejected for unspecified reason");
 
@@ -427,7 +454,8 @@ static const struct test_surface_interface test_surface_impl =
 };
 
 static void
-HandleResourceDestroy(struct wl_resource *resource) {
+HandleResourceDestroy(struct wl_resource *resource)
+{
 	TestSurface *test;
 
 	test = wl_resource_get_user_data(resource);
@@ -439,15 +467,18 @@ HandleResourceDestroy(struct wl_resource *resource) {
 
 
 static void
-DestroyScaleLock(struct wl_client *client, struct wl_resource *resource) {
+DestroyScaleLock(struct wl_client *client, struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
 static void
 SetScale(struct wl_client *client, struct wl_resource *resource,
-         uint32_t scale) {
+         uint32_t scale)
+{
 	/* If the scale is invalid, reject it.  */
-	if (!scale) {
+	if (!scale)
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_SCALE,
 		                       "scale of 0 specified");
 		return;
@@ -466,7 +497,8 @@ static const struct test_scale_lock_interface scale_lock_impl =
 };
 
 static void
-HandleScaleLockResourceDestroy(struct wl_resource *resource) {
+HandleScaleLockResourceDestroy(struct wl_resource *resource)
+{
 	/* There is no resource data associated with scale locks.  Just
 	   unlock the scale.  */
 	locked_output_scale = 0;
@@ -475,7 +507,8 @@ HandleScaleLockResourceDestroy(struct wl_resource *resource) {
 
 static void
 GetTestSurface(struct wl_client *client, struct wl_resource *resource,
-               uint32_t id, struct wl_resource *surface_resource) {
+               uint32_t id, struct wl_resource *surface_resource)
+{
 	Surface *surface;
 	TestSurface *test;
 	XSetWindowAttributes attrs;
@@ -484,7 +517,8 @@ GetTestSurface(struct wl_client *client, struct wl_resource *resource,
 	surface = wl_resource_get_user_data(surface_resource);
 
 	if (surface->role_type != AnythingType
-	    && surface->role_type != TestSurfaceType) {
+	    && surface->role_type != TestSurfaceType)
+	{
 		/* The client is trying to create a test surface for a surface
 	   that has or had some other role.  */
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_ROLE_PRESENT,
@@ -494,7 +528,8 @@ GetTestSurface(struct wl_client *client, struct wl_resource *resource,
 
 	test = XLSafeMalloc(sizeof *test);
 
-	if (!test) {
+	if (!test)
+	{
 		wl_resource_post_no_memory(resource);
 		return;
 	}
@@ -506,7 +541,8 @@ GetTestSurface(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_surface_interface,
 			                     wl_resource_get_version(resource),
 			                     id);
-	if (!test->role.resource) {
+	if (!test->role.resource)
+	{
 		wl_resource_post_no_memory(resource);
 		XLFree(test);
 
@@ -579,16 +615,19 @@ GetTestSurface(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetScaleLock(struct wl_client *client, struct wl_resource *resource,
-             uint32_t id, uint32_t scale) {
+             uint32_t id, uint32_t scale)
+{
 	struct wl_resource *lock_resource;
 
-	if (!scale) {
+	if (!scale)
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_SCALE,
 		                       "scale of 0 specified");
 		return;
 	}
 
-	if (locked_output_scale) {
+	if (locked_output_scale)
+	{
 		/* The scale is already locked, so don't create another
 	   lock.  */
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_SCALE_LOCK_EXISTS,
@@ -601,7 +640,8 @@ GetScaleLock(struct wl_client *client, struct wl_resource *resource,
 	                                   wl_resource_get_version(resource),
 	                                   id);
 
-	if (!lock_resource) {
+	if (!lock_resource)
+	{
 		wl_resource_post_no_memory(resource);
 		return;
 	}
@@ -620,12 +660,14 @@ GetScaleLock(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetTestSeat(struct wl_client *client, struct wl_resource *resource,
-            uint32_t id) {
+            uint32_t id)
+{
 	XLGetTestSeat(client, resource, id);
 }
 
 static void
-GetSerial(struct wl_client *client, struct wl_resource *resource) {
+GetSerial(struct wl_client *client, struct wl_resource *resource)
+{
 	uint32_t serial;
 
 	/* Send the display's next serial to the client.  */
@@ -635,7 +677,8 @@ GetSerial(struct wl_client *client, struct wl_resource *resource) {
 
 static void
 SetBufferLabel(struct wl_client *client, struct wl_resource *resource,
-               struct wl_resource *buffer_resource, const char *label) {
+               struct wl_resource *buffer_resource, const char *label)
+{
 	ExtBuffer *buffer;
 
 	buffer = wl_resource_get_user_data(buffer_resource);
@@ -656,14 +699,16 @@ static const struct test_manager_interface test_manager_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-           uint32_t id) {
+           uint32_t id)
+{
 	struct wl_resource *resource;
 	char *name;
 
 	resource = wl_resource_create(client, &test_manager_interface,
 	                              version, id);
 
-	if (!resource) {
+	if (!resource)
+	{
 		wl_client_post_no_memory(client);
 		return;
 	}
@@ -677,14 +722,16 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 }
 
 void
-XLInitTest(void) {
+XLInitTest(void)
+{
 	test_manager_global
 			= wl_global_create(compositor.wl_display, &test_manager_interface,
 			                   1, NULL, HandleBind);
 }
 
 static Bool
-DispatchMapNotify(XEvent *event) {
+DispatchMapNotify(XEvent *event)
+{
 	TestSurface *test;
 
 	/* Try to look up the surface.  */
@@ -701,7 +748,8 @@ DispatchMapNotify(XEvent *event) {
 }
 
 static Bool
-DispatchExpose(XEvent *event) {
+DispatchExpose(XEvent *event)
+{
 	TestSurface *test;
 
 	/* Try to look up the surface.  */
@@ -717,11 +765,13 @@ DispatchExpose(XEvent *event) {
 }
 
 Bool
-XLHandleOneXEventForTest(XEvent *event) {
+XLHandleOneXEventForTest(XEvent *event)
+{
 	if (!surfaces)
 		return False;
 
-	switch (event->type) {
+	switch (event->type)
+	{
 		case MapNotify:
 			return DispatchMapNotify(event);
 
@@ -733,7 +783,8 @@ XLHandleOneXEventForTest(XEvent *event) {
 }
 
 Surface *
-XLLookUpTestSurface(Window window, Subcompositor **subcompositor) {
+XLLookUpTestSurface(Window window, Subcompositor **subcompositor)
+{
 	TestSurface *test;
 
 	if (!surfaces)

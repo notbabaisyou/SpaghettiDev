@@ -52,7 +52,8 @@ static PollFd poll_fds;
 
 WriteFd *
 XLAddWriteFd(int fd, void *data, void (*poll_callback)(int, void *,
-                                                       WriteFd *)) {
+                                                       WriteFd *))
+{
 	WriteFd *record;
 
 	record = XLMalloc(sizeof *record);
@@ -73,7 +74,8 @@ XLAddWriteFd(int fd, void *data, void (*poll_callback)(int, void *,
 
 ReadFd *
 XLAddReadFd(int fd, void *data, void (*poll_callback)(int, void *,
-                                                      ReadFd *)) {
+                                                      ReadFd *))
+{
 	WriteFd *record;
 
 	record = XLMalloc(sizeof *record);
@@ -93,7 +95,8 @@ XLAddReadFd(int fd, void *data, void (*poll_callback)(int, void *,
 }
 
 void
-XLRemoveWriteFd(WriteFd *fd) {
+XLRemoveWriteFd(WriteFd *fd)
+{
 	/* Mark this record as invalid.  Records cannot safely change while
 	   the event loop is in progress, so we remove all invalid records
 	   immediately before polling.  */
@@ -101,7 +104,8 @@ XLRemoveWriteFd(WriteFd *fd) {
 }
 
 void
-XLRemoveReadFd(ReadFd *fd) {
+XLRemoveReadFd(ReadFd *fd)
+{
 	/* Mark this record as invalid.  Records cannot safely change while
 	   the event loop is in progress, so we remove all invalid records
 	   immediately before polling.  */
@@ -109,7 +113,8 @@ XLRemoveReadFd(ReadFd *fd) {
 }
 
 static void
-RemoveWriteFd(WriteFd *fd) {
+RemoveWriteFd(WriteFd *fd)
+{
 	fd->next->last = fd->last;
 	fd->last->next = fd->next;
 
@@ -118,7 +123,8 @@ RemoveWriteFd(WriteFd *fd) {
 }
 
 static void
-HandleOneXEvent(XEvent *event) {
+HandleOneXEvent(XEvent *event)
+{
 	XLHandleOneXEventForDnd(event);
 
 	/* Filter all non-GenericEvents through the input method
@@ -162,10 +168,12 @@ HandleOneXEvent(XEvent *event) {
 }
 
 static void
-ReadXEvents(void) {
+ReadXEvents(void)
+{
 	XEvent event;
 
-	while (XPending(compositor.display)) {
+	while (XPending(compositor.display))
+	{
 		XNextEvent(compositor.display, &event);
 
 		/* We failed to get event data for a generic event, so there's
@@ -183,7 +191,8 @@ ReadXEvents(void) {
 }
 
 static void
-RunStep(void) {
+RunStep(void)
+{
 	int x_connection, wl_connection, rc, i, j;
 	struct timespec timeout;
 	struct pollfd *fds;
@@ -228,11 +237,13 @@ RunStep(void) {
 	item = poll_fds.next;
 	i = 0;
 
-	while (item != &poll_fds) {
+	while (item != &poll_fds)
+	{
 		last = item;
 		item = item->next;
 
-		if (last->write_fd == -1) {
+		if (last->write_fd == -1)
+		{
 			/* Remove this invalid pollfd.  */
 			RemoveWriteFd(last);
 			continue;
@@ -255,7 +266,8 @@ RunStep(void) {
 
 	/* Handle any events already in the queue, which can happen if
 	   something inside ReadXEvents synced.  */
-	if (XEventsQueued(compositor.display, QueuedAlready)) {
+	if (XEventsQueued(compositor.display, QueuedAlready))
+	{
 		ReadXEvents();
 
 		XFlush(compositor.display);
@@ -268,7 +280,8 @@ RunStep(void) {
 
 	rc = ProcessPoll(fds, 2 + i, &timeout);
 
-	if (rc > 0) {
+	if (rc > 0)
+	{
 		if (fds[0].revents & POLLIN)
 			ReadXEvents();
 
@@ -276,7 +289,8 @@ RunStep(void) {
 			wl_event_loop_dispatch(compositor.wl_event_loop, -1);
 
 		/* Now see how many write fds are set.  */
-		for (j = 0; j < i; ++j) {
+		for (j = 0; j < i; ++j)
+		{
 			if (fds[2 + j].revents & (POLLOUT | POLLIN | POLLHUP)
 			    /* Check that pollfds[j] is still valid, and wasn't
 			   removed while handling X events.  */
@@ -293,7 +307,8 @@ RunStep(void) {
 }
 
 void __attribute__ ((noreturn))
-XLRunCompositor(void) {
+XLRunCompositor(void)
+{
 	/* Set up the sentinel node for file descriptors that are being
 	   polled from.  */
 	poll_fds.next = &poll_fds;

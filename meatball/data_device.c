@@ -28,24 +28,21 @@ typedef struct _DataDeviceReference DataDeviceReference;
 typedef struct _DataOffer DataOffer;
 typedef struct _DataDestroyCallback DataDestroyCallback;
 
-enum
-{
-	IsDragAndDrop = 1,
+enum {
+	IsDragAndDrop      = 1,
 	IsMimeTypeAccepted = (1 << 2),
-	IsActionSent = (1 << 3),
-	IsFinished = (1 << 4),
+	IsActionSent       = (1 << 3),
+	IsFinished         = (1 << 4),
 };
 
-enum
-{
-	ActionsSet = 1,
-	ActionsSent = (1 << 2),
-	TypeAccepted = (1 << 3),
+enum {
+	ActionsSet        = 1,
+	ActionsSent       = (1 << 2),
+	TypeAccepted      = (1 << 3),
 	Version3Supported = (1 << 4),
 };
 
-struct _DataDestroyCallback
-{
+struct _DataDestroyCallback {
 	/* The next and last destroy callbacks in this list.  */
 	DataDestroyCallback *next, *last;
 
@@ -56,8 +53,7 @@ struct _DataDestroyCallback
 	void *data;
 };
 
-struct _DataOffer
-{
+struct _DataOffer {
 	/* The next data offer object in this list.  */
 	DataOffer *next, *last;
 
@@ -78,8 +74,7 @@ struct _DataOffer
 	uint32_t dnd_serial;
 };
 
-struct _DataDeviceReference
-{
+struct _DataDeviceReference {
 	/* The next and last data device references.  */
 	DataDeviceReference *next, *last;
 
@@ -90,8 +85,7 @@ struct _DataDeviceReference
 	struct wl_resource *resource;
 };
 
-struct _DataSource
-{
+struct _DataSource {
 	/* List of const char *, which are the MIME types offered by this
 	   data source.  */
 	XLList *mime_types;
@@ -125,8 +119,7 @@ struct _DataSource
 	DataDestroyCallback destroy_callbacks;
 };
 
-struct _DataDevice
-{
+struct _DataDevice {
 	/* The associated seat.  */
 	Seat *seat;
 
@@ -173,8 +166,8 @@ static uint32_t last_selection_change_serial;
 
 static DataDestroyCallback *
 AddDestroyCallbackAfter(DataDestroyCallback *start,
-						void (*destroy_func)(void *),
-						void *data)
+                        void (*destroy_func)(void *),
+                        void *data)
 {
 	DataDestroyCallback *callback;
 
@@ -237,7 +230,7 @@ FreeDataOffer(DataOffer *offer)
 
 static void
 Accept(struct wl_client *client, struct wl_resource *resource,
-	   uint32_t serial, const char *mime_type)
+       uint32_t serial, const char *mime_type)
 {
 	DataOffer *offer;
 
@@ -247,7 +240,7 @@ Accept(struct wl_client *client, struct wl_resource *resource,
 		return;
 
 	wl_data_source_send_target(offer->source->resource,
-							   mime_type);
+	                           mime_type);
 
 	if (mime_type)
 	{
@@ -263,7 +256,7 @@ Accept(struct wl_client *client, struct wl_resource *resource,
 
 static void
 Receive(struct wl_client *client, struct wl_resource *resource,
-		const char *mime_type, int fd)
+        const char *mime_type, int fd)
 {
 	DataOffer *offer;
 
@@ -272,9 +265,10 @@ Receive(struct wl_client *client, struct wl_resource *resource,
 	if (!offer)
 	{
 #ifdef DEBUG
-		fprintf(stderr, "wl_client@%p is trying to receive from an outdated"
-						" wl_data_offer@%u\n",
-				client, wl_resource_get_id(resource));
+		MBLog(MB_LOG_ERROR,
+			"wl_client@%p is trying to receive from an outdated"
+			" wl_data_offer@%u\n",
+			client, wl_resource_get_id(resource));
 #endif
 		close(fd);
 		return;
@@ -283,13 +277,14 @@ Receive(struct wl_client *client, struct wl_resource *resource,
 	if (offer->state & IsFinished)
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-							   "trying to receive from finished offer");
+		                       "trying to receive from finished offer");
 		return;
 	}
 
 #ifdef DEBUG
-	fprintf(stderr, "wl_client@%p is now receiving from wl_data_offer@%u\n",
-			client, wl_resource_get_id(resource));
+	MBLog(MB_LOG_ERROR,
+		"wl_client@%p is now receiving from wl_data_offer@%u\n",
+		client, wl_resource_get_id(resource));
 #endif
 
 	wl_data_source_send_send(offer->source->resource, mime_type, fd);
@@ -316,7 +311,7 @@ Finish(struct wl_client *client, struct wl_resource *resource)
 	if (!(offer->state & IsDragAndDrop))
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-							   "trying to finish non-drag-and-drop data offer");
+		                       "trying to finish non-drag-and-drop data offer");
 		return;
 	}
 
@@ -327,24 +322,24 @@ Finish(struct wl_client *client, struct wl_resource *resource)
 	if (!(offer->state & IsMimeTypeAccepted))
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-							   "trying to finish drag and drop offer with nothing"
-							   " accepted");
+		                       "trying to finish drag and drop offer with nothing"
+		                       " accepted");
 		return;
 	}
 
 	if (!(offer->state & IsActionSent))
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-							   "trying to finish drag and drop offer with no action"
-							   " sent");
+		                       "trying to finish drag and drop offer with no action"
+		                       " sent");
 		return;
 	}
 
 	if (offer->state & IsFinished)
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-							   "trying to finish drag and drop offer which was"
-							   " already finished");
+		                       "trying to finish drag and drop offer which was"
+		                       " already finished");
 		return;
 	}
 
@@ -353,7 +348,8 @@ Finish(struct wl_client *client, struct wl_resource *resource)
 	if (wl_resource_get_version(offer->source->resource) < 3)
 		return;
 
-	if (offer->source->state & Version3Supported && (!(offer->source->state & ActionsSent) || !(offer->source->state & TypeAccepted)))
+	if (offer->source->state & Version3Supported && (
+		    !(offer->source->state & ActionsSent) || !(offer->source->state & TypeAccepted)))
 	{
 		/* The drag and drop operation is no longer eligible for
 	   successful completion.  Cancel it and return.  */
@@ -436,7 +432,7 @@ UpdateDeviceActions(DataDevice *device, DataSource *source)
 
 static void
 DataOfferSetActions(struct wl_client *client, struct wl_resource *resource,
-					uint32_t dnd_actions, uint32_t preferred_action)
+                    uint32_t dnd_actions, uint32_t preferred_action)
 {
 	DataOffer *offer;
 
@@ -449,7 +445,7 @@ DataOfferSetActions(struct wl_client *client, struct wl_resource *resource,
 	if (!(offer->state & IsDragAndDrop))
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_OFFER,
-							   "trying to finish non-drag-and-drop data offer");
+		                       "trying to finish non-drag-and-drop data offer");
 		return;
 	}
 
@@ -461,19 +457,22 @@ DataOfferSetActions(struct wl_client *client, struct wl_resource *resource,
 		/* The data offer is out of data and effectively inert.  */
 		return;
 
-	if (dnd_actions & ~(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE | WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK))
+	if (dnd_actions & ~(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE |
+	                    WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK))
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_ACTION,
-							   "invalid action or action mask among: %u",
-							   dnd_actions);
+		                       "invalid action or action mask among: %u",
+		                       dnd_actions);
 		return;
 	}
 
-	if (preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE)
+	if (preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK && preferred_action !=
+	    WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY &&
+	    preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE)
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_ACTION,
-							   "invalid action not in enum: %u",
-							   preferred_action);
+		                       "invalid action not in enum: %u",
+		                       preferred_action);
 		return;
 	}
 
@@ -483,12 +482,12 @@ DataOfferSetActions(struct wl_client *client, struct wl_resource *resource,
 }
 
 static const struct wl_data_offer_interface wl_data_offer_impl =
-	{
-		.accept = Accept,
-		.receive = Receive,
-		.destroy = DestroyDataOffer,
-		.finish = Finish,
-		.set_actions = DataOfferSetActions,
+{
+	.accept = Accept,
+	.receive = Receive,
+	.destroy = DestroyDataOffer,
+	.finish = Finish,
+	.set_actions = DataOfferSetActions,
 };
 
 static void
@@ -513,9 +512,9 @@ AddDataOffer(struct wl_client *client, DataSource *source)
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_data_offer_interface,
-								  /* 0 means to allocate a new resource
-									 ID server-side.  */
-								  3, 0);
+	                              /* 0 means to allocate a new resource
+		                             ID server-side.  */
+	                              3, 0);
 
 	if (!resource)
 		return NULL;
@@ -531,7 +530,7 @@ AddDataOffer(struct wl_client *client, DataSource *source)
 	offer->source = source;
 
 	wl_resource_set_implementation(resource, &wl_data_offer_impl,
-								   offer, HandleOfferResourceDestroy);
+	                               offer, HandleOfferResourceDestroy);
 
 	return resource;
 }
@@ -627,7 +626,7 @@ FindAtom(DataSource *source, Atom atom)
 
 static void
 Offer(struct wl_client *client, struct wl_resource *resource,
-	  const char *mime_type)
+      const char *mime_type)
 {
 	Atom atom;
 	DataSource *data_source;
@@ -647,12 +646,12 @@ Offer(struct wl_client *client, struct wl_resource *resource,
 	/* Otherwise, link the atom and the mime type onto the list
 	   simultaneously.  */
 #ifdef DEBUG
-	fprintf(stderr, "Offering: %s (X atom: %lu) from wl_data_source@%u\n",
+	MBLog(MB_LOG_DEBUG, "Offering: %s (X atom: %lu) from wl_data_source@%u\n",
 			mime_type, atom, wl_resource_get_id(resource));
 #endif
 	data_source->atom_types = XIDListPrepend(data_source->atom_types, atom);
 	data_source->mime_types = XLListPrepend(data_source->mime_types,
-											XLStrdup(mime_type));
+	                                        XLStrdup(mime_type));
 	data_source->n_mime_types++;
 
 	/* Send the new MIME type to any attached offers.  */
@@ -668,7 +667,7 @@ Offer(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetActions(struct wl_client *client, struct wl_resource *resource,
-		   uint32_t actions)
+           uint32_t actions)
 {
 	DataSource *source;
 
@@ -677,16 +676,17 @@ SetActions(struct wl_client *client, struct wl_resource *resource,
 	if (source->state & ActionsSet)
 	{
 		wl_resource_post_error(resource, WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
-							   "actions already set on this offer or it has"
-							   " already been used.");
+		                       "actions already set on this offer or it has"
+		                       " already been used.");
 		return;
 	}
 
-	if (actions & ~(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE | WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK))
+	if (actions & ~(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE |
+	                WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK))
 	{
 		wl_resource_post_error(resource, WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
-							   "unknown actions specified (mask value %u)",
-							   actions);
+		                       "unknown actions specified (mask value %u)",
+		                       actions);
 		return;
 	}
 
@@ -701,15 +701,15 @@ DestroySource(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct wl_data_source_interface wl_data_source_impl =
-	{
-		.offer = Offer,
-		.set_actions = SetActions,
-		.destroy = DestroySource,
+{
+	.offer = Offer,
+	.set_actions = SetActions,
+	.destroy = DestroySource,
 };
 
 static void
 CreateDataSource(struct wl_client *client, struct wl_resource *resource,
-				 uint32_t id)
+                 uint32_t id)
 {
 	DataSource *source;
 
@@ -723,8 +723,8 @@ CreateDataSource(struct wl_client *client, struct wl_resource *resource,
 
 	memset(source, 0, sizeof *source);
 	source->resource = wl_resource_create(client, &wl_data_source_interface,
-										  wl_resource_get_version(resource),
-										  id);
+	                                      wl_resource_get_version(resource),
+	                                      id);
 
 	if (!source->resource)
 	{
@@ -739,12 +739,12 @@ CreateDataSource(struct wl_client *client, struct wl_resource *resource,
 	source->destroy_callbacks.last = &source->destroy_callbacks;
 
 	wl_resource_set_implementation(source->resource, &wl_data_source_impl,
-								   source, HandleSourceResourceDestroy);
+	                               source, HandleSourceResourceDestroy);
 }
 
 static void
 UpdateSingleReferenceWithForeignOffer(struct wl_client *client,
-									  DataDeviceReference *reference)
+                                      DataDeviceReference *reference)
 {
 	struct wl_resource *resource;
 	Timestamp time;
@@ -776,7 +776,7 @@ UpdateForSingleReference(DataDeviceReference *device)
 	if (!current_selection_data)
 	{
 		wl_data_device_send_selection(device->resource,
-									  NULL);
+		                              NULL);
 		return;
 	}
 
@@ -925,9 +925,9 @@ AddReferenceTo(DataDevice *device, struct wl_resource *resource)
 
 static void
 StartDrag(struct wl_client *client, struct wl_resource *resource,
-		  struct wl_resource *source_resource,
-		  struct wl_resource *origin_resource,
-		  struct wl_resource *icon_resource, uint32_t serial)
+          struct wl_resource *source_resource,
+          struct wl_resource *origin_resource,
+          struct wl_resource *icon_resource, uint32_t serial)
 {
 	DataDeviceReference *device;
 	Surface *icon, *origin;
@@ -952,8 +952,8 @@ StartDrag(struct wl_client *client, struct wl_resource *resource,
 		/* The specification doesn't say anything about this!  */
 
 		wl_resource_post_error(source_resource,
-							   WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
-							   "trying to drag the selection");
+		                       WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
+		                       "trying to drag the selection");
 		return;
 	}
 
@@ -962,9 +962,9 @@ StartDrag(struct wl_client *client, struct wl_resource *resource,
 		/* The specification doesn't say anything about this!  */
 
 		wl_resource_post_error(source_resource,
-							   WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
-							   "trying to drag a data source that is"
-							   " already being dragged");
+		                       WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
+		                       "trying to drag a data source that is"
+		                       " already being dragged");
 		return;
 	}
 
@@ -972,8 +972,8 @@ StartDrag(struct wl_client *client, struct wl_resource *resource,
 	if (icon && icon->role_type != AnythingType && icon->role_type != DndIconType)
 	{
 		wl_resource_post_error(resource, WL_DATA_DEVICE_ERROR_ROLE,
-							   "the given surface already has/had"
-							   " another role");
+		                       "the given surface already has/had"
+		                       " another role");
 		return;
 	}
 
@@ -981,21 +981,22 @@ StartDrag(struct wl_client *client, struct wl_resource *resource,
 	source->state |= ActionsSet;
 
 	XLSeatBeginDrag(device->device->seat, source, origin,
-					icon, serial);
+	                icon, serial);
 }
 
 static void
 SetSelection(struct wl_client *client, struct wl_resource *resource,
-			 struct wl_resource *source_resource, uint32_t serial)
+             struct wl_resource *source_resource, uint32_t serial)
 {
 	DataSource *source;
 	DataDeviceReference *device;
 
 #ifdef DEBUG
 	if (source_resource)
-		fprintf(stderr, "wl_client@%p is setting the selection to "
-						"wl_data_source@%u, at %u\n",
-				client, wl_resource_get_id(source_resource), serial);
+		MBLog(MB_LOG_DEBUG,
+			"wl_client@%p is setting the selection to "
+			"wl_data_source@%u, at %u\n",
+			client, wl_resource_get_id(source_resource), serial);
 #endif
 
 	/* Note that both serial and last_selection_change_serial are
@@ -1005,9 +1006,10 @@ SetSelection(struct wl_client *client, struct wl_resource *resource,
 	if (serial - last_selection_change_serial > UINT32_MAX / 2)
 	{
 #ifdef DEBUG
-		fprintf(stderr, "wl_client@%p could not set the selection, "
-						"because the selection changed.  (%u < %u)\n",
-				client, serial, last_selection_change_serial);
+		MBLog(MB_LOG_DEBUG,
+			"wl_client@%p could not set the selection, "
+			"because the selection changed.  (%u < %u)\n",
+			client, serial, last_selection_change_serial);
 #endif
 		return;
 	}
@@ -1034,7 +1036,7 @@ SetSelection(struct wl_client *client, struct wl_resource *resource,
 	if (source && source->state & ActionsSet)
 	{
 		wl_resource_post_error(resource, WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
-							   "trying to set dnd source as the selection");
+		                       "trying to set dnd source as the selection");
 		return;
 	}
 
@@ -1067,10 +1069,10 @@ Release(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct wl_data_device_interface wl_data_device_impl =
-	{
-		.start_drag = StartDrag,
-		.set_selection = SetSelection,
-		.release = Release,
+{
+	.start_drag = StartDrag,
+	.set_selection = SetSelection,
+	.release = Release,
 };
 
 static void
@@ -1084,7 +1086,7 @@ HandleDeviceResourceDestroy(struct wl_resource *resource)
 
 static void
 GetDataDevice(struct wl_client *client, struct wl_resource *resource,
-			  uint32_t id, struct wl_resource *seat_resource)
+              uint32_t id, struct wl_resource *seat_resource)
 {
 	struct wl_resource *device_resource;
 	Seat *seat;
@@ -1092,8 +1094,8 @@ GetDataDevice(struct wl_client *client, struct wl_resource *resource,
 	DataDeviceReference *reference;
 
 	device_resource = wl_resource_create(client, &wl_data_device_interface,
-										 wl_resource_get_version(resource),
-										 id);
+	                                     wl_resource_get_version(resource),
+	                                     id);
 
 	if (!device_resource)
 	{
@@ -1106,23 +1108,23 @@ GetDataDevice(struct wl_client *client, struct wl_resource *resource,
 	reference = AddReferenceTo(device, device_resource);
 
 	wl_resource_set_implementation(device_resource, &wl_data_device_impl,
-								   reference, HandleDeviceResourceDestroy);
+	                               reference, HandleDeviceResourceDestroy);
 }
 
 static struct wl_data_device_manager_interface wl_data_device_manager_impl =
-	{
-		.create_data_source = CreateDataSource,
-		.get_data_device = GetDataDevice,
+{
+	.create_data_source = CreateDataSource,
+	.get_data_device = GetDataDevice,
 };
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_data_device_manager_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -1131,15 +1133,15 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(resource,
-								   &wl_data_device_manager_impl,
-								   NULL, NULL);
+	                               &wl_data_device_manager_impl,
+	                               NULL, NULL);
 }
 
 void XLInitDataDevice(void)
 {
 	global_data_device_manager = wl_global_create(compositor.wl_display,
-												  &wl_data_device_manager_interface,
-												  3, NULL, HandleBind);
+	                                              &wl_data_device_manager_interface,
+	                                              3, NULL, HandleBind);
 }
 
 void XLRetainDataDevice(DataDevice *device)
@@ -1264,7 +1266,7 @@ Bool XLDataSourceHasTarget(DataSource *source, const char *mime_type)
 }
 
 void XLDataDeviceMakeOffers(Seat *seat, DndOfferFuncs funcs, Surface *surface,
-							int x, int y)
+                            int x, int y)
 {
 	DataDevice *device;
 	DataDeviceReference *reference;
@@ -1293,17 +1295,17 @@ void XLDataDeviceMakeOffers(Seat *seat, DndOfferFuncs funcs, Surface *surface,
 			{
 				/* Actually send the data offer to the client.  */
 				wl_data_device_send_data_offer(reference->resource,
-											   resource);
+				                               resource);
 
 				/* And data offers.  */
 				funcs.send_offers(resource);
 
 				/* And send the entry event.  */
 				wl_data_device_send_enter(reference->resource,
-										  serial, surface->resource,
-										  wl_fixed_from_double(x),
-										  wl_fixed_from_double(y),
-										  resource);
+				                          serial, surface->resource,
+				                          wl_fixed_from_double(x),
+				                          wl_fixed_from_double(y),
+				                          resource);
 			}
 		}
 
@@ -1312,7 +1314,7 @@ void XLDataDeviceMakeOffers(Seat *seat, DndOfferFuncs funcs, Surface *surface,
 }
 
 void XLDataDeviceSendEnter(Seat *seat, Surface *surface, double x, double y,
-						   DataSource *source)
+                           DataSource *source)
 {
 	DataDevice *device;
 	DataDeviceReference *reference;
@@ -1383,10 +1385,10 @@ void XLDataDeviceSendEnter(Seat *seat, Surface *surface, double x, double y,
 			}
 
 			wl_data_device_send_enter(reference->resource,
-									  serial, surface->resource,
-									  wl_fixed_from_double(x),
-									  wl_fixed_from_double(y),
-									  source ? resource : NULL);
+			                          serial, surface->resource,
+			                          wl_fixed_from_double(x),
+			                          wl_fixed_from_double(y),
+			                          source ? resource : NULL);
 		}
 
 	next:
@@ -1395,7 +1397,7 @@ void XLDataDeviceSendEnter(Seat *seat, Surface *surface, double x, double y,
 }
 
 void XLDataDeviceSendMotion(Seat *seat, Surface *surface,
-							double x, double y, Time time)
+                            double x, double y, Time time)
 {
 	DataDevice *device;
 	DataDeviceReference *reference;
@@ -1414,8 +1416,8 @@ void XLDataDeviceSendMotion(Seat *seat, Surface *surface,
 	   continue.  */
 		if (wl_resource_get_client(reference->resource) == wl_resource_get_client(surface->resource))
 			wl_data_device_send_motion(reference->resource, time,
-									   wl_fixed_from_double(x),
-									   wl_fixed_from_double(y));
+			                           wl_fixed_from_double(x),
+			                           wl_fixed_from_double(y));
 
 		reference = reference->next;
 	}
@@ -1461,7 +1463,7 @@ void XLDataDeviceSendLeave(Seat *seat, Surface *surface, DataSource *source)
 		/* Send the new effective action to the source.  */
 		if (wl_resource_get_version(source->resource) >= 3)
 			wl_data_source_send_action(source->resource,
-									   WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE);
+			                           WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE);
 
 		/* Also tell the source that there is no longer any
 	   target accepted.  */
@@ -1505,17 +1507,17 @@ void XLDataSourceAttachDragDevice(DataSource *source, DataDevice *device)
 
 	if (device)
 		source->drag_device_callback = AddDestroyCallbackAfter(&device->destroy_callbacks,
-															   HandleDragDeviceDestroyed,
-															   source);
+		                                                       HandleDragDeviceDestroyed,
+		                                                       source);
 }
 
 void *
 XLDataSourceAddDestroyCallback(DataSource *source,
-							   void (*destroy_func)(void *),
-							   void *data)
+                               void (*destroy_func)(void *),
+                               void *data)
 {
 	return AddDestroyCallbackAfter(&source->destroy_callbacks,
-								   destroy_func, data);
+	                               destroy_func, data);
 }
 
 void XLDataSourceCancelDestroyCallback(void *key)

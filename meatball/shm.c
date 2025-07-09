@@ -26,13 +26,11 @@
 
 #include "compositor.h"
 
-enum
-{
+enum {
 	PoolCannotSigbus = 1,
 };
 
-typedef struct _Pool
-{
+typedef struct _Pool {
 	/* The file descriptor corresponding to this pool.  */
 	int fd;
 
@@ -52,8 +50,7 @@ typedef struct _Pool
 	struct wl_resource *resource;
 } Pool;
 
-typedef struct _Buffer
-{
+typedef struct _Buffer {
 	/* The ExtBuffer associated with this buffer.  */
 	ExtBuffer buffer;
 
@@ -89,10 +86,10 @@ DereferencePool(Pool *pool)
 
 	/* Cancel the busfault trap.  */
 
-	if (pool->data != (void *)-1
-		/* If reading from the pool cannot possibly cause SIGBUS, then
-	   no bus fault trap was installed.  */
-		&& !(pool->flags & PoolCannotSigbus))
+	if (pool->data != (void *) -1
+	    /* If reading from the pool cannot possibly cause SIGBUS, then
+       no bus fault trap was installed.  */
+	    && !(pool->flags & PoolCannotSigbus))
 		XLRemoveBusfault(pool->data);
 
 	close(pool->fd);
@@ -127,38 +124,38 @@ DereferenceBuffer(Buffer *buffer)
 static void
 ReleaseBufferFunc(ExtBuffer *buffer)
 {
-	if (((Buffer *)buffer)->resource)
-		wl_buffer_send_release(((Buffer *)buffer)->resource);
+	if (((Buffer *) buffer)->resource)
+		wl_buffer_send_release(((Buffer *) buffer)->resource);
 }
 
 static void
 RetainBufferFunc(ExtBuffer *buffer)
 {
-	RetainBuffer((Buffer *)buffer);
+	RetainBuffer((Buffer *) buffer);
 }
 
 static void
 DereferenceBufferFunc(ExtBuffer *buffer)
 {
-	DereferenceBuffer((Buffer *)buffer);
+	DereferenceBuffer((Buffer *) buffer);
 }
 
 static RenderBuffer
 GetBufferFunc(ExtBuffer *buffer)
 {
-	return ((Buffer *)buffer)->render_buffer;
+	return ((Buffer *) buffer)->render_buffer;
 }
 
 static unsigned int
 WidthFunc(ExtBuffer *buffer)
 {
-	return ((Buffer *)buffer)->width;
+	return ((Buffer *) buffer)->width;
 }
 
 static unsigned int
 HeightFunc(ExtBuffer *buffer)
 {
-	return ((Buffer *)buffer)->height;
+	return ((Buffer *) buffer)->height;
 }
 
 static void
@@ -176,7 +173,7 @@ PrintBuffer(Buffer *buffer)
 static void
 PrintBufferFunc(ExtBuffer *buffer)
 {
-	PrintBuffer((Buffer *)buffer);
+	PrintBuffer((Buffer *) buffer);
 }
 
 static void
@@ -214,8 +211,8 @@ IsFormatSupported(uint32_t format)
 
 static void
 CreateBuffer(struct wl_client *client, struct wl_resource *resource,
-			 uint32_t id, int32_t offset, int32_t width, int32_t height,
-			 int32_t stride, uint32_t format)
+             uint32_t id, int32_t offset, int32_t width, int32_t height,
+             int32_t stride, uint32_t format)
 {
 	Pool *pool;
 	Buffer *buffer;
@@ -226,17 +223,17 @@ CreateBuffer(struct wl_client *client, struct wl_resource *resource,
 	if (!IsFormatSupported(format))
 	{
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FORMAT,
-							   "the specified format is not supported");
+		                       "the specified format is not supported");
 		return;
 	}
 
 	pool = wl_resource_get_user_data(resource);
 
 	if (!RenderValidateShmParams(format, width, height,
-								 offset, stride, pool->size))
+	                             offset, stride, pool->size))
 	{
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_STRIDE,
-							   "invalid offset or stride, or pool too small");
+		                       "invalid offset or stride, or pool too small");
 		return;
 	}
 
@@ -251,8 +248,8 @@ CreateBuffer(struct wl_client *client, struct wl_resource *resource,
 	{
 		/* X doesn't support smaller drawables.  */
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_STRIDE,
-							   "invalid size, this server does not support"
-							   " zero-width drawables");
+		                       "invalid size, this server does not support"
+		                       " zero-width drawables");
 		return;
 	}
 
@@ -266,8 +263,8 @@ CreateBuffer(struct wl_client *client, struct wl_resource *resource,
 
 	memset(buffer, 0, sizeof *buffer);
 	buffer->resource = wl_resource_create(client, &wl_buffer_interface,
-										  wl_resource_get_version(resource),
-										  id);
+	                                      wl_resource_get_version(resource),
+	                                      id);
 
 	if (!buffer->resource)
 	{
@@ -299,7 +296,7 @@ CreateBuffer(struct wl_client *client, struct wl_resource *resource,
 		wl_resource_destroy(buffer->resource);
 		XLFree(buffer);
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD,
-							   "unknown error creating buffer");
+		                       "unknown error creating buffer");
 		return;
 	}
 
@@ -321,9 +318,9 @@ CreateBuffer(struct wl_client *client, struct wl_resource *resource,
 	RetainPool(pool);
 
 	wl_resource_set_implementation(buffer->resource,
-								   &wl_shm_buffer_impl,
-								   buffer,
-								   HandleBufferResourceDestroy);
+	                               &wl_shm_buffer_impl,
+	                               buffer,
+	                               HandleBufferResourceDestroy);
 }
 
 static void
@@ -343,7 +340,7 @@ DestroyPool(struct wl_client *client, struct wl_resource *resource)
 
 static void
 ResizePool(struct wl_client *client, struct wl_resource *resource,
-		   int32_t size)
+           int32_t size)
 {
 	Pool *pool;
 	void *data;
@@ -362,7 +359,7 @@ ResizePool(struct wl_client *client, struct wl_resource *resource,
 	if (size < pool->size)
 	{
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD,
-							   "shared memory pools cannot be shrunk");
+		                       "shared memory pools cannot be shrunk");
 		return;
 	}
 
@@ -371,7 +368,7 @@ ResizePool(struct wl_client *client, struct wl_resource *resource,
 	if (data == MAP_FAILED)
 	{
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD,
-							   "mremap: %s", strerror(errno));
+		                       "mremap: %s", strerror(errno));
 		return;
 	}
 
@@ -408,7 +405,7 @@ static const struct wl_shm_pool_interface wl_shm_pool_impl =
 
 static void
 CreatePool(struct wl_client *client, struct wl_resource *resource,
-		   uint32_t id, int32_t fd, int32_t size)
+           uint32_t id, int32_t fd, int32_t size)
 {
 	Pool *pool;
 #ifdef F_GET_SEALS
@@ -419,7 +416,7 @@ CreatePool(struct wl_client *client, struct wl_resource *resource,
 	if (size <= 0)
 	{
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_STRIDE,
-							   "invalid size given to create_pool");
+		                       "invalid size given to create_pool");
 		close(fd);
 		return;
 	}
@@ -436,8 +433,8 @@ CreatePool(struct wl_client *client, struct wl_resource *resource,
 	memset(pool, 0, sizeof *pool);
 
 	pool->resource = wl_resource_create(client, &wl_shm_pool_interface,
-										wl_resource_get_version(resource),
-										id);
+	                                    wl_resource_get_version(resource),
+	                                    id);
 
 	/* There are no references to this pool yet.  */
 	if (!pool->resource)
@@ -451,19 +448,19 @@ CreatePool(struct wl_client *client, struct wl_resource *resource,
 
 	pool->data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
 
-	if (pool->data == (void *)-1)
+	if (pool->data == (void *) -1)
 	{
 		wl_resource_destroy(pool->resource);
 		XLFree(pool);
 		wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD,
-							   "mmap: %s", strerror(errno));
+		                       "mmap: %s", strerror(errno));
 		close(fd);
 
 		return;
 	}
 
 	wl_resource_set_implementation(pool->resource, &wl_shm_pool_impl,
-								   pool, HandlePoolResourceDestroy);
+	                               pool, HandlePoolResourceDestroy);
 
 	pool->size = size;
 
@@ -509,12 +506,12 @@ PostFormats(struct wl_resource *resource)
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_shm_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -523,7 +520,7 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(resource, &wl_shm_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 
 	PostFormats(resource);
 }
@@ -534,34 +531,34 @@ InitRender(void)
 	int major, minor, base;
 
 	if (!XRenderQueryExtension(compositor.display,
-							   &base, &render_first_error))
+	                           &base, &render_first_error))
 	{
-		fprintf(stderr, "XRender is not supported by this X server\n");
+		MBLog(MB_LOG_ERROR, "XRender is not supported by this X server\n");
 		exit(1);
 	}
 
 	if (!XRenderQueryVersion(compositor.display,
-							 &major, &minor) ||
-		(!major && minor < 2))
+	                         &major, &minor) ||
+	    (!major && minor < 2))
 	{
-		fprintf(stderr, "XRender is not supported by this X server\n");
+		MBLog(MB_LOG_ERROR, "XRender is not supported by this X server\n");
 		exit(1);
 	}
 
 	compositor.argb_format = XRenderFindStandardFormat(compositor.display,
-													   PictStandardARGB32);
+	                                                   PictStandardARGB32);
 	compositor.xrgb_format = XRenderFindStandardFormat(compositor.display,
-													   PictStandardRGB24);
+	                                                   PictStandardRGB24);
 
 	if (!compositor.argb_format)
 	{
-		fprintf(stderr, "Failed to find standard format PictStandardARGB32\n");
+		MBLog(MB_LOG_ERROR, "Failed to find standard format PictStandardARGB32\n");
 		exit(1);
 	}
 
 	if (!compositor.xrgb_format)
 	{
-		fprintf(stderr, "Failed to find standard format PictStandardRGB24\n");
+		MBLog(MB_LOG_ERROR, "Failed to find standard format PictStandardRGB24\n");
 		exit(1);
 	}
 }
@@ -571,6 +568,6 @@ void XLInitShm(void)
 	InitRender();
 
 	global_shm = wl_global_create(compositor.wl_display,
-								  &wl_shm_interface, 1,
-								  NULL, HandleBind);
+	                              &wl_shm_interface, 1,
+	                              NULL, HandleBind);
 }

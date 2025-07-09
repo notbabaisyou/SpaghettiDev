@@ -561,11 +561,11 @@ extern int renderer_flags;
 extern void RegisterStaticRenderer(const char *, RenderFuncs *,
                                    BufferFuncs *);
 
-extern void InitRenderers(struct meatball_config*);
+extern void InitRenderers(struct meatball_config *);
 
-extern void* GetRenderer(const char*);
+extern void *GetRenderer(const char *);
 
-extern void SetRenderer(struct meatball_config*);
+extern void SetRenderer(struct meatball_config *);
 
 extern RenderTarget RenderTargetFromWindow(Window, unsigned long);
 
@@ -1035,18 +1035,18 @@ enum _RoleType {
 	((transform) == CounterClockwise90 || (transform) == CounterClockwise270 || (transform) == Flipped90 || (transform) == Flipped270)
 
 enum {
-	PendingNone = 0,
-	PendingOpaqueRegion = 1,
-	PendingInputRegion = (1 << 2),
-	PendingDamage = (1 << 3),
-	PendingSurfaceDamage = (1 << 4),
-	PendingBuffer = (1 << 5),
-	PendingFrameCallbacks = (1 << 6),
-	PendingBufferScale = (1 << 7),
-	PendingAttachments = (1 << 8),
-	PendingViewportSrc = (1 << 9),
-	PendingViewportDest = (1 << 10),
-	PendingBufferTransform = (1 << 11),
+	PendingNone             = 0,
+	PendingOpaqueRegion     = 1,
+	PendingInputRegion      = (1 << 2),
+	PendingDamage           = (1 << 3),
+	PendingSurfaceDamage    = (1 << 4),
+	PendingBuffer           = (1 << 5),
+	PendingFrameCallbacks   = (1 << 6),
+	PendingBufferScale      = (1 << 7),
+	PendingAttachments      = (1 << 8),
+	PendingViewportSrc      = (1 << 9),
+	PendingViewportDest     = (1 << 10),
+	PendingBufferTransform  = (1 << 11),
 	PendingPresentationHint = (1 << 12),
 
 	/* Flags here are stored in `pending' of the current state for
@@ -1744,7 +1744,7 @@ extern void RetimeTimer(Timer *);
  */
 extern struct timespec ProcessTimers(void);
 
-extern struct timespec CurrentTimespec (void);
+extern struct timespec CurrentTimespec(void);
 
 extern struct timespec MakeTimespec(time_t, long int);
 
@@ -2116,7 +2116,7 @@ extern Bool HandleErrorForPictureRenderer(XErrorEvent *);
 
 extern Bool HandleOneXEventForPictureRenderer(XEvent *);
 
-extern void InitPictureRenderer(struct meatball_config*);
+extern void InitPictureRenderer(struct meatball_config *);
 
 #if defined(HAVE_EGL_SUPPORT)
 

@@ -18,8 +18,7 @@
 #ifndef _MB_LOG_H
 #define _MB_LOG_H
 
-enum MBLogType
-{
+enum MBLogType {
 	MB_LOG_NONE,
 	MB_LOG_ERROR,
 	MB_LOG_WARNING,
@@ -27,6 +26,6 @@ enum MBLogType
 	MB_LOG_DEBUG
 };
 
-extern void MBLog(enum MBLogType, const char*, ...);
+extern void MBLog(enum MBLogType, const char *, ...);
 
 #endif // _MB_LOG_H

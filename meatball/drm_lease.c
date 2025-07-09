@@ -61,22 +61,20 @@ typedef struct _DrmLease DrmLease;
 
 typedef struct _ProviderOutputTree ProviderOutputTree;
 
-enum
-{
+enum {
 	/* These flags are only used by outputs.  */
 	InvalidConnectorID = 1,
-	IsDisconnected = (1 << 2),
+	IsDisconnected     = (1 << 2),
 
 	/* These flags are shared by both providers and outputs.  */
-	IsMarked = (1 << 3),
+	IsMarked  = (1 << 3),
 	IsRemoved = (1 << 4),
 
 	/* These flags apply to both outputs and output references.  */
 	IsWithdrawn = (1 << 5),
 };
 
-struct _DrmLeaseConnectorRef
-{
+struct _DrmLeaseConnectorRef {
 	/* The next and last references to this connector.  */
 	DrmLeaseConnectorRef *next, *last;
 
@@ -93,8 +91,7 @@ struct _DrmLeaseConnectorRef
 	int flags;
 };
 
-struct _DrmLeaseConnector
-{
+struct _DrmLeaseConnector {
 	/* The output associated with this connector.  */
 	RROutput output;
 
@@ -117,8 +114,7 @@ struct _DrmLeaseConnector
 	char *name;
 };
 
-struct _DrmLeaseDeviceRef
-{
+struct _DrmLeaseDeviceRef {
 	/* The next and last references to this provider.  */
 	DrmLeaseDeviceRef *next, *last;
 
@@ -132,8 +128,7 @@ struct _DrmLeaseDeviceRef
 	struct wl_resource *resource;
 };
 
-struct _DrmLeaseDevice
-{
+struct _DrmLeaseDevice {
 	/* The struct wl_global associated with this provider.  */
 	struct wl_global *global;
 
@@ -153,8 +148,7 @@ struct _DrmLeaseDevice
 	DrmLeaseConnector outputs;
 };
 
-struct _DrmLeaseConnectorList
-{
+struct _DrmLeaseConnectorList {
 	/* The next and last connectors in this list.  */
 	DrmLeaseConnectorList *next, *last;
 
@@ -162,8 +156,7 @@ struct _DrmLeaseConnectorList
 	DrmLeaseConnector *connector;
 };
 
-struct _DrmLeaseRequest
-{
+struct _DrmLeaseRequest {
 	/* List of requested outputs.  */
 	DrmLeaseConnectorList outputs;
 
@@ -180,8 +173,7 @@ struct _DrmLeaseRequest
 	int noutputs;
 };
 
-struct _DrmLease
-{
+struct _DrmLease {
 	/* The XID of the lease.  */
 	xcb_randr_lease_t lease;
 
@@ -189,8 +181,7 @@ struct _DrmLease
 	struct wl_resource *resource;
 };
 
-struct _ProviderOutputTree
-{
+struct _ProviderOutputTree {
 	/* List of provider IDs.  */
 	xcb_randr_provider_t *providers;
 
@@ -235,7 +226,7 @@ DeleteConnector(DrmLeaseConnector *connector)
 	XLFree(connector->name);
 
 	DebugPrint("destroying connector %p (crtc %lu output %lu)",
-			   connector, connector->crtc, connector->output);
+	           connector, connector->crtc, connector->output);
 
 	/* Unlink the connector.  */
 	connector->next->last = connector->last;
@@ -256,7 +247,7 @@ DeleteDevice(DrmLeaseDevice *device)
 	XLAssert(device->global == NULL);
 
 	DebugPrint("destroying device %p (%lu) w/ fd %d",
-			   device, device->provider, device->fd);
+	           device, device->provider, device->fd);
 
 	/* Close the fd.  */
 	close(device->fd);
@@ -299,9 +290,9 @@ CollectDeadResources(void)
 	while (connector_ref != &all_connector_references)
 	{
 		DebugPrint("marked via connector: connector %p, device %p (%lu)",
-				   connector_ref->connector,
-				   connector_ref->connector->device,
-				   connector_ref->connector->device->provider);
+		           connector_ref->connector,
+		           connector_ref->connector->device,
+		           connector_ref->connector->device->provider);
 
 		/* Mark the connector and device referenced.  */
 		connector_ref->connector->flags |= IsMarked;
@@ -320,8 +311,8 @@ CollectDeadResources(void)
 		while (item != &request->outputs)
 		{
 			DebugPrint("marked via req: connector %p, device %p (%lu)",
-					   item->connector, item->connector->device,
-					   item->connector->device->provider);
+			           item->connector, item->connector->device,
+			           item->connector->device->provider);
 
 			item->connector->flags |= IsMarked;
 			item->connector->device->flags |= IsMarked;
@@ -347,7 +338,7 @@ CollectDeadResources(void)
 		while (connector != &device->outputs)
 		{
 			DebugPrint("judging connector %p of device %p", connector,
-					   connector->device);
+			           connector->device);
 
 			XLAssert(connector->device == device);
 
@@ -362,7 +353,7 @@ CollectDeadResources(void)
 			if (!(last_connector->flags & IsMarked))
 			{
 				DebugPrint("connector %lu %lu is no longer marked",
-						   last_connector->output, last_connector->crtc);
+				           last_connector->output, last_connector->crtc);
 
 				if (last_connector->flags & IsRemoved)
 					/* Delete the connector.  */
@@ -372,7 +363,7 @@ CollectDeadResources(void)
 					DebugPrint("not removing live connector");
 			}
 			else
-				/* Clear the marked flag.  */
+			/* Clear the marked flag.  */
 				last_connector->flags &= ~IsMarked;
 		}
 
@@ -383,7 +374,7 @@ CollectDeadResources(void)
 		if (!(device->flags & IsMarked))
 		{
 			DebugPrint("device %p (%lu) is no longer marked",
-					   device, device->provider);
+			           device, device->provider);
 
 			if (device->flags & IsRemoved)
 				DeleteDevice(device);
@@ -402,8 +393,8 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 }
 
 static struct wp_drm_lease_connector_v1_interface drm_lease_connector_impl =
-	{
-		.destroy = Destroy,
+{
+	.destroy = Destroy,
 };
 
 static void
@@ -423,7 +414,7 @@ HandleConnectorResourceDestroy(struct wl_resource *resource)
 
 static void
 RequestConnector(struct wl_client *client, struct wl_resource *resource,
-				 struct wl_resource *connector_resource)
+                 struct wl_resource *connector_resource)
 {
 	DrmLeaseRequest *request;
 	DrmLeaseConnectorRef *ref;
@@ -437,8 +428,8 @@ RequestConnector(struct wl_client *client, struct wl_resource *resource,
 	if (connector->device != request->device)
 	{
 		wl_resource_post_error(resource,
-							   WP_DRM_LEASE_REQUEST_V1_ERROR_WRONG_DEVICE,
-							   "the specified connector is on a different device");
+		                       WP_DRM_LEASE_REQUEST_V1_ERROR_WRONG_DEVICE,
+		                       "the specified connector is on a different device");
 		return;
 	}
 
@@ -452,7 +443,7 @@ RequestConnector(struct wl_client *client, struct wl_resource *resource,
 		if (connector == list->connector)
 		{
 			wl_resource_post_error(resource, DuplicateConnector,
-								   "the same connector got attached twice");
+			                       "the same connector got attached twice");
 			return;
 		}
 
@@ -480,8 +471,8 @@ DestroyLease(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct wp_drm_lease_v1_interface drm_lease_impl =
-	{
-		.destroy = DestroyLease,
+{
+	.destroy = DestroyLease,
 };
 
 static void
@@ -497,15 +488,15 @@ HandleLeaseResourceDestroy(struct wl_resource *resource)
 	if (lease->lease)
 	{
 		cookie = xcb_randr_free_lease_checked(compositor.conn,
-											  lease->lease, 1);
+		                                      lease->lease, 1);
 		error = xcb_request_check(compositor.conn, cookie);
 
 		if (error)
 		{
 			DebugPrint("rid: %" PRIu32 ", minor: %" PRIu16 ", major: %" PRIu8 ", "
-					   "error: %" PRIu8,
-					   error->resource_id, error->minor_code,
-					   error->major_code, error->error_code);
+			           "error: %" PRIu8,
+			           error->resource_id, error->minor_code,
+			           error->major_code, error->error_code);
 			free(error);
 		}
 	}
@@ -535,8 +526,8 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 	if (request->outputs.next == &request->outputs)
 	{
 		wl_resource_post_error(resource,
-							   WP_DRM_LEASE_REQUEST_V1_ERROR_EMPTY_LEASE,
-							   "trying to lease without specifying connectors");
+		                       WP_DRM_LEASE_REQUEST_V1_ERROR_EMPTY_LEASE,
+		                       "trying to lease without specifying connectors");
 		return;
 	}
 
@@ -552,8 +543,8 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 	/* Create the lease resource.  */
 	memset(lease, 0, sizeof *lease);
 	lease->resource = wl_resource_create(client, &wp_drm_lease_v1_interface,
-										 wl_resource_get_version(resource),
-										 id);
+	                                     wl_resource_get_version(resource),
+	                                     id);
 
 	if (!lease->resource)
 	{
@@ -578,7 +569,7 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 			/* The connector was removed.  This means it can no longer
 			   be leased.  */
 			wl_resource_set_implementation(lease->resource, &drm_lease_impl,
-										   lease, HandleLeaseResourceDestroy);
+			                               lease, HandleLeaseResourceDestroy);
 
 			/* Send failure and return.  */
 			wp_drm_lease_v1_send_finished(lease->resource);
@@ -589,7 +580,7 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 		outputs[i - 1] = item->connector->output;
 
 		DebugPrint("adding output: %u crtc: %u",
-				   outputs[i - 1], crtcs[i - 1]);
+		           outputs[i - 1], crtcs[i - 1]);
 
 		item = item->next;
 	}
@@ -599,14 +590,14 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 
 	/* Now, try to create the lease.  */
 	cookie = xcb_randr_create_lease(compositor.conn,
-									DefaultRootWindow(compositor.display),
-									lease_id, request->noutputs,
-									request->noutputs, crtcs, outputs);
+	                                DefaultRootWindow(compositor.display),
+	                                lease_id, request->noutputs,
+	                                request->noutputs, crtcs, outputs);
 	reply = xcb_randr_create_lease_reply(compositor.conn, cookie, &error);
 
 	/* Set the resource implementation now.  */
 	wl_resource_set_implementation(lease->resource, &drm_lease_impl,
-								   lease, HandleLeaseResourceDestroy);
+	                               lease, HandleLeaseResourceDestroy);
 
 	if (!reply)
 	{
@@ -614,9 +605,9 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 
 		if (error)
 			DebugPrint("rid: %" PRIu32 ", minor: %" PRIu16 ", major: %" PRIu8 ", "
-					   "error: %" PRIu8,
-					   error->resource_id, error->minor_code,
-					   error->major_code, error->error_code);
+		           "error: %" PRIu8,
+		           error->resource_id, error->minor_code,
+		           error->major_code, error->error_code);
 
 		/* Send failure.  */
 		wp_drm_lease_v1_send_finished(lease->resource);
@@ -629,7 +620,7 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 		fds = xcb_randr_create_lease_reply_fds(compositor.conn, reply);
 
 		if (!fds)
-			/* Obtaining the reply fds failed.  */
+		/* Obtaining the reply fds failed.  */
 			wp_drm_lease_v1_send_finished(lease->resource);
 		else
 		{
@@ -647,9 +638,9 @@ Submit(struct wl_client *client, struct wl_resource *resource, uint32_t id)
 }
 
 static struct wp_drm_lease_request_v1_interface drm_lease_request_impl =
-	{
-		.request_connector = RequestConnector,
-		.submit = Submit,
+{
+	.request_connector = RequestConnector,
+	.submit = Submit,
 };
 
 static void
@@ -680,7 +671,7 @@ HandleRequestResourceDestroy(struct wl_resource *resource)
 
 static void
 CreateLeaseRequest(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t id)
+                   uint32_t id)
 {
 	DrmLeaseRequest *request;
 	DrmLeaseDeviceRef *ref;
@@ -696,7 +687,7 @@ CreateLeaseRequest(struct wl_client *client, struct wl_resource *resource,
 
 	memset(request, 0, sizeof *request);
 	request->resource = wl_resource_create(client, &wp_drm_lease_request_v1_interface,
-										   wl_resource_get_version(resource), id);
+	                                       wl_resource_get_version(resource), id);
 
 	if (!request->resource)
 	{
@@ -722,7 +713,7 @@ CreateLeaseRequest(struct wl_client *client, struct wl_resource *resource,
 
 	/* Set the implementation.  */
 	wl_resource_set_implementation(request->resource, &drm_lease_request_impl,
-								   request, HandleRequestResourceDestroy);
+	                               request, HandleRequestResourceDestroy);
 }
 
 static void
@@ -735,9 +726,9 @@ Release(struct wl_client *client, struct wl_resource *resource)
 }
 
 static const struct wp_drm_lease_device_v1_interface drm_lease_device_impl =
-	{
-		.release = Release,
-		.create_lease_request = CreateLeaseRequest,
+{
+	.release = Release,
+	.create_lease_request = CreateLeaseRequest,
 };
 
 static void
@@ -757,7 +748,7 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 static DrmLeaseConnectorRef *
 AddConnectorRef(DrmLeaseConnector *connector,
-				DrmLeaseDeviceRef *ref)
+                DrmLeaseDeviceRef *ref)
 {
 	DrmLeaseConnectorRef *connector_ref;
 	struct wl_client *client;
@@ -765,9 +756,9 @@ AddConnectorRef(DrmLeaseConnector *connector,
 	client = wl_resource_get_client(ref->resource);
 	connector_ref = XLCalloc(1, sizeof *connector_ref);
 	connector_ref->resource = wl_resource_create(client,
-												 &wp_drm_lease_connector_v1_interface,
-												 wl_resource_get_version(ref->resource),
-												 0);
+	                                             &wp_drm_lease_connector_v1_interface,
+	                                             wl_resource_get_version(ref->resource),
+	                                             0);
 
 	if (!connector_ref->resource)
 	{
@@ -785,9 +776,9 @@ AddConnectorRef(DrmLeaseConnector *connector,
 	connector->references.next->last = connector_ref;
 	connector->references.next = connector_ref;
 	wl_resource_set_implementation(connector_ref->resource,
-								   &drm_lease_connector_impl,
-								   connector_ref,
-								   HandleConnectorResourceDestroy);
+	                               &drm_lease_connector_impl,
+	                               connector_ref,
+	                               HandleConnectorResourceDestroy);
 
 	return connector_ref;
 }
@@ -802,18 +793,19 @@ SendOutputs(DrmLeaseDevice *device, DrmLeaseDeviceRef *ref)
 	connector = device->outputs.next;
 	while (connector != &device->outputs)
 	{
-		if (!(connector->flags & IsDisconnected) && !(connector->flags & InvalidConnectorID) && !(connector->flags & IsRemoved))
+		if (!(connector->flags & IsDisconnected) && !(connector->flags & InvalidConnectorID) && !(
+			    connector->flags & IsRemoved))
 		{
 			connector_ref = AddConnectorRef(connector, ref);
 			wp_drm_lease_device_v1_send_connector(ref->resource,
-												  connector_ref->resource);
+			                                      connector_ref->resource);
 
 			DebugPrint("sending connector %lu:%lu to %p",
-					   connector->output, connector->crtc, ref);
+			           connector->output, connector->crtc, ref);
 
 			/* Send the connector id.  */
 			wp_drm_lease_connector_v1_send_connector_id(connector_ref->resource,
-														connector->connector_id);
+			                                            connector->connector_id);
 
 			/* Send the unique connector name.  */
 			sprintf(buf, "%d", connector->connector_id);
@@ -821,7 +813,7 @@ SendOutputs(DrmLeaseDevice *device, DrmLeaseDeviceRef *ref)
 
 			/* Send the connector description.  */
 			wp_drm_lease_connector_v1_send_description(connector_ref->resource,
-													   connector->name);
+			                                           connector->name);
 
 			/* Send done.  */
 			wp_drm_lease_connector_v1_send_done(connector_ref->resource);
@@ -833,7 +825,7 @@ SendOutputs(DrmLeaseDevice *device, DrmLeaseDeviceRef *ref)
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	DrmLeaseDeviceRef *ref;
 	DrmLeaseDevice *device;
@@ -849,8 +841,8 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 
 	memset(ref, 0, sizeof *ref);
 	ref->resource = wl_resource_create(client,
-									   &wp_drm_lease_device_v1_interface,
-									   version, id);
+	                                   &wp_drm_lease_device_v1_interface,
+	                                   version, id);
 
 	if (!ref->resource)
 	{
@@ -870,7 +862,7 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	all_device_references.gcnext = ref;
 
 	wl_resource_set_implementation(ref->resource, &drm_lease_device_impl,
-								   ref, HandleResourceDestroy);
+	                               ref, HandleResourceDestroy);
 
 	DebugPrint("sending fd %d to %p", device->fd, ref);
 
@@ -903,8 +895,8 @@ AddProvider(RRProvider provider)
 	/* Add the given provider.  Obtain the file descriptor it is
 	   associated with.  */
 	cookie = xcb_dri3_open(compositor.conn,
-						   DefaultRootWindow(compositor.display),
-						   provider);
+	                       DefaultRootWindow(compositor.display),
+	                       provider);
 	reply = xcb_dri3_open_reply(compositor.conn, cookie, &error);
 
 	if (!reply)
@@ -959,8 +951,8 @@ AddProvider(RRProvider provider)
 
 	/* Create the global.  */
 	device->global = wl_global_create(compositor.wl_display,
-									  &wp_drm_lease_device_v1_interface,
-									  1, device, HandleBind);
+	                                  &wp_drm_lease_device_v1_interface,
+	                                  1, device, HandleBind);
 
 	/* Chain the provider onto the list of all devices.  */
 	device->next = all_devices.next;
@@ -984,7 +976,7 @@ error:
 
 static DrmLeaseConnector *
 AddOutput(DrmLeaseDevice *device, RROutput output, RRCrtc crtc,
-		  XRROutputInfo *info)
+          XRROutputInfo *info)
 {
 	DrmLeaseConnector *connector;
 	int rc, actual_format;
@@ -1002,10 +994,10 @@ AddOutput(DrmLeaseDevice *device, RROutput output, RRCrtc crtc,
 
 	CatchXErrors();
 	rc = XRRGetOutputProperty(compositor.display, output,
-							  CONNECTOR_ID, 0, 1, False,
-							  False, XA_INTEGER, &actual_type,
-							  &actual_format, &nitems, &bytes_after,
-							  &data);
+	                          CONNECTOR_ID, 0, 1, False,
+	                          False, XA_INTEGER, &actual_type,
+	                          &actual_format, &nitems, &bytes_after,
+	                          &data);
 	UncatchXErrors(NULL);
 
 	if (rc != Success || !data || actual_format != 32 || nitems < 1 || actual_type != XA_INTEGER)
@@ -1020,7 +1012,7 @@ AddOutput(DrmLeaseDevice *device, RROutput output, RRCrtc crtc,
 	else
 	{
 		/* Set the connector ID.  */
-		connector->connector_id = *(unsigned long *)data;
+		connector->connector_id = *(unsigned long *) data;
 		DebugPrint("connector ID is %d", connector->connector_id);
 	}
 
@@ -1055,15 +1047,15 @@ InitializeProviderOutputs(void)
 
 	root = DefaultRootWindow(compositor.display);
 	screen_resources = XRRGetScreenResources(compositor.display,
-											 root);
+	                                         root);
 
 	device = all_devices.next;
 	while (device != &all_devices)
 	{
 		CatchXErrors();
 		info = XRRGetProviderInfo(compositor.display,
-								  screen_resources,
-								  device->provider);
+		                          screen_resources,
+		                          device->provider);
 		UncatchXErrors(NULL);
 
 		DebugPrint("provider info: %p", info);
@@ -1072,9 +1064,9 @@ InitializeProviderOutputs(void)
 			goto next;
 
 		DebugPrint("obtained provider info %lu; cap: %u"
-				   " ncrtcs: %d noutputs %d",
-				   device->provider, info->capabilities,
-				   info->ncrtcs, info->noutputs);
+		           " ncrtcs: %d noutputs %d",
+		           device->provider, info->capabilities,
+		           info->ncrtcs, info->noutputs);
 
 		/* Now loop through each output.  */
 		for (i = 0; i < info->noutputs; ++i)
@@ -1082,20 +1074,20 @@ InitializeProviderOutputs(void)
 			/* Try to obtain the output info.  */
 			CatchXErrors();
 			output = XRRGetOutputInfo(compositor.display,
-									  screen_resources,
-									  info->outputs[i]);
+			                          screen_resources,
+			                          info->outputs[i]);
 			UncatchXErrors(NULL);
 
 			DebugPrint("obtained output %i %lu %p", i,
-					   info->outputs[i], output);
+			           info->outputs[i], output);
 
 			if (!output)
 				continue;
 
 			DebugPrint("output %s crtc is %lu", output->name,
-					   output->crtc);
+			           output->crtc);
 			AddOutput(device, info->outputs[i], output->crtc,
-					  output);
+			          output);
 			XRRFreeOutputInfo(output);
 		}
 
@@ -1151,7 +1143,7 @@ BuildProviderTree(void)
 	/* Now, query for all providers.  */
 	cookie = xcb_randr_get_providers(compositor.conn, root);
 	reply = xcb_randr_get_providers_reply(compositor.conn, cookie,
-										  NULL);
+	                                      NULL);
 
 	if (!reply)
 		abort();
@@ -1160,7 +1152,7 @@ BuildProviderTree(void)
 	tree->nproviders = xcb_randr_get_providers_providers_length(reply);
 	tree->providers = XLCalloc(tree->nproviders, sizeof *tree->providers);
 	memcpy(tree->providers, xcb_randr_get_providers_providers(reply),
-		   sizeof *tree->providers * tree->nproviders);
+	       sizeof *tree->providers * tree->nproviders);
 
 	/* Record the timestamp.  */
 	reply_timestamp = reply->timestamp;
@@ -1181,15 +1173,15 @@ BuildProviderTree(void)
 
 	for (i = 0; i < tree->nproviders; i++)
 		cookies[i] = xcb_randr_get_provider_info(compositor.conn,
-												 tree->providers[i],
-												 reply_timestamp);
+		                                         tree->providers[i],
+		                                         reply_timestamp);
 	noutputs = 0;
 
 	for (i = 0; i < tree->nproviders; i++)
 	{
 		error = NULL;
 		replies[i] = xcb_randr_get_provider_info_reply(compositor.conn,
-													   cookies[i], &error);
+		                                               cookies[i], &error);
 		if (error)
 			free(error);
 
@@ -1205,7 +1197,7 @@ BuildProviderTree(void)
 	tree->outputs = XLCalloc(noutputs, sizeof *tree->outputs);
 	tree->output_info = XLCalloc(noutputs, sizeof *tree->output_info);
 	tree->nconnectors = XLCalloc(tree->nproviders,
-								 sizeof *tree->nconnectors);
+	                             sizeof *tree->nconnectors);
 	output_ptr = tree->outputs;
 	output_info_ptr = tree->output_info;
 
@@ -1224,15 +1216,15 @@ BuildProviderTree(void)
 
 		for (k = 0; k < num_outputs; ++k)
 			output_cookies[k] = xcb_randr_get_output_info(compositor.conn,
-														  outputs[k],
-														  reply_timestamp);
+			                                              outputs[k],
+			                                              reply_timestamp);
 
 		for (k = 0; k < num_outputs; ++k)
 		{
 			error = NULL;
 			output_replies[k] = xcb_randr_get_output_info_reply(compositor.conn,
-																output_cookies[k],
-																&error);
+			                                                    output_cookies[k],
+			                                                    &error);
 
 			if (error)
 				free(error);
@@ -1242,7 +1234,7 @@ BuildProviderTree(void)
 
 			tree->nconnectors[j] += 1;
 			DebugPrint("nconnectors[%d] became: %d",
-					   j, tree->nconnectors[j]);
+			           j, tree->nconnectors[j]);
 
 			/* Record the output and output info.  */
 			XLAssert(output_ptr < tree->outputs + noutputs);
@@ -1367,11 +1359,11 @@ SendConnectorToClients(DrmLeaseConnector *connector)
 		ref = AddConnectorRef(connector, device_ref);
 
 		wp_drm_lease_device_v1_send_connector(device_ref->resource,
-											  ref->resource);
+		                                      ref->resource);
 
 		/* Send the connector id.  */
 		wp_drm_lease_connector_v1_send_connector_id(ref->resource,
-													connector->connector_id);
+		                                            connector->connector_id);
 
 		/* Send the unique connector name.  */
 		sprintf(buf, "%d", connector->connector_id);
@@ -1379,7 +1371,7 @@ SendConnectorToClients(DrmLeaseConnector *connector)
 
 		/* Send the connector description.  */
 		wp_drm_lease_connector_v1_send_description(ref->resource,
-												   connector->name);
+		                                           connector->name);
 
 		/* Send done.  */
 		wp_drm_lease_connector_v1_send_done(ref->resource);
@@ -1407,7 +1399,7 @@ FindOutput(DrmLeaseDevice *device, RROutput id)
 
 static void
 HandleSingleProvider(ProviderOutputTree *tree, int index,
-					 int connector_offset)
+                     int connector_offset)
 {
 	RRProvider provider;
 	xcb_randr_output_t *outputs;
@@ -1440,8 +1432,8 @@ HandleSingleProvider(ProviderOutputTree *tree, int index,
 			outputinfo.connection = (*info)->connection;
 			outputinfo.name = XLMalloc(name_length + 1);
 			memcpy(outputinfo.name,
-				   xcb_randr_get_output_info_name(*info),
-				   name_length);
+			       xcb_randr_get_output_info_name(*info),
+			       name_length);
 			outputinfo.name[name_length] = '\0';
 
 			DebugPrint("adding output named %s", outputinfo.name);
@@ -1472,7 +1464,7 @@ HandleSingleProvider(ProviderOutputTree *tree, int index,
 			for (i = 0; i < tree->nconnectors[index]; ++i)
 			{
 				DebugPrint("consideration: %p %" PRIu32 " %lu", connector,
-						   outputs[i], connector->output);
+				           outputs[i], connector->output);
 
 				if (outputs[i] == connector->output)
 					goto next;
@@ -1500,14 +1492,14 @@ HandleSingleProvider(ProviderOutputTree *tree, int index,
 				outputinfo.connection = info[i]->connection;
 				outputinfo.name = XLMalloc(name_length + 1);
 				memcpy(outputinfo.name,
-					   xcb_randr_get_output_info_name(info[i]),
-					   name_length);
+				       xcb_randr_get_output_info_name(info[i]),
+				       name_length);
 				outputinfo.name[name_length] = '\0';
 
 				/* It seems a little wrong to use a fake output info
 			   structure.  */
 				connector = AddOutput(device, outputs[i], info[i]->crtc,
-									  &outputinfo);
+				                      &outputinfo);
 				SendConnectorToClients(connector);
 				DebugPrint("added output named %s", outputinfo.name);
 
@@ -1564,12 +1556,12 @@ HandleOutputOrResourceChange(Time timestamp)
 	DrmLeaseDevice *device;
 
 	DebugPrint("timestamp: %lu, last-change-time: %lu", timestamp,
-			   last_change_time);
+	           last_change_time);
 
 	if (timestamp != CurrentTime && (timestamp - last_change_time) <= 0
-		/* If timestamp is 500 ms later, assume that the time
-	   overflowed.  */
-		&& (timestamp - last_change_time) > -500)
+	    /* If timestamp is 500 ms later, assume that the time
+       overflowed.  */
+	    && (timestamp - last_change_time) > -500)
 	{
 		DebugPrint("rejecting outdated event");
 		return;
@@ -1580,7 +1572,7 @@ HandleOutputOrResourceChange(Time timestamp)
 	tree = BuildProviderTree();
 
 	DebugPrint("provider tree obtained with %d providers",
-			   tree->nproviders);
+	           tree->nproviders);
 
 	/* Afterwards, mark every provider that is no longer present as
 	   removed.  */
@@ -1597,7 +1589,7 @@ HandleOutputOrResourceChange(Time timestamp)
 		}
 
 		DebugPrint("device %p was not found in tree",
-				   device);
+		           device);
 
 		/* Remove the device.  */
 		XLRemoveDevice(device);
@@ -1644,7 +1636,7 @@ void XLInitDrmLease(void)
 
 	cookie = xcb_randr_query_version(compositor.conn, 1, 6);
 	reply = xcb_randr_query_version_reply(compositor.conn,
-										  cookie, NULL);
+	                                      cookie, NULL);
 
 	if (!reply)
 		return;

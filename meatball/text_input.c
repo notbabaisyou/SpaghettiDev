@@ -100,8 +100,7 @@ typedef struct _KeycodeMap KeycodeMap;
 
 typedef enum _XimStyleKind XimStyleKind;
 
-enum _XimStyleKind
-{
+enum _XimStyleKind {
 	XimStyleNone,
 	XimOverTheSpot,
 	XimOffTheSpot,
@@ -109,15 +108,13 @@ enum _XimStyleKind
 	XimOnTheSpot,
 };
 
-enum
-{
-	PendingEnabled = 1,
+enum {
+	PendingEnabled         = 1,
 	PendingCursorRectangle = (1 << 1),
 	PendingSurroundingText = (1 << 2),
 };
 
-struct _KeycodeMap
-{
+struct _KeycodeMap {
 	/* Packed map between keycodes specified in KeyPress events and
 	   keycodes that were actually sent to applications.  */
 	KeyCode *keycodes;
@@ -130,8 +127,7 @@ struct _KeycodeMap
 	int key_count;
 };
 
-struct _PreeditBuffer
-{
+struct _PreeditBuffer {
 	/* Buffer data.  */
 	char *buffer;
 
@@ -145,8 +141,7 @@ struct _PreeditBuffer
 	int total_characters;
 };
 
-struct _TextPosition
-{
+struct _TextPosition {
 	/* Byte position.  */
 	ptrdiff_t bytepos;
 
@@ -154,8 +149,7 @@ struct _TextPosition
 	int charpos;
 };
 
-struct _TextInputState
-{
+struct _TextInputState {
 	/* What is defined; alternatively, what is pending.  */
 	int pending;
 
@@ -174,8 +168,7 @@ struct _TextInputState
 	TextPosition cursor;
 };
 
-struct _TextInput
-{
+struct _TextInput {
 	/* The TextInputClientInfo associated with this text input.  */
 	TextInputClientInfo *client_info;
 
@@ -213,8 +206,7 @@ struct _TextInput
 
 /* Structure describing a list of TextInput resources associated with
    a given client.  */
-struct _TextInputClientInfo
-{
+struct _TextInputClientInfo {
 	/* The next and last objects in this list.  */
 	TextInputClientInfo *next, *last;
 
@@ -245,7 +237,7 @@ static XFontSet im_fontset;
 
 #if defined DEBUG
 #define DebugPrint(format, args...) \
-	fprintf(stderr, "%s: " format "\n", __FUNCTION__, ##args)
+	MBLog(MB_LOG_DEBUG, "%s: " format "\n", __FUNCTION__, ##args)
 #else
 #define DebugPrint(fmt, ...) ((void)0)
 #endif
@@ -292,9 +284,9 @@ InsertKeycode(KeycodeMap *map, KeyCode keycode, KeyCode keycode_used)
 	/* Otherwise, add it to the end.  */
 	map->key_count++;
 	map->keycodes = XLRealloc(map->keycodes,
-							  map->key_count * sizeof *map->keycodes);
+	                          map->key_count * sizeof *map->keycodes);
 	map->keysyms = XLRealloc(map->keysyms,
-							 map->key_count * sizeof *map->keysyms);
+	                         map->key_count * sizeof *map->keysyms);
 	map->keycodes[map->key_count - 1] = keycode;
 	map->keysyms[map->key_count - 1] = keycode_used;
 }
@@ -312,15 +304,15 @@ RemoveKeysym(KeycodeMap *map, KeyCode keycode)
 		{
 			/* Remove the keycode from the list and shrink it.  */
 			memcpy(&map->keycodes[i], &map->keycodes[i + 1],
-				   (map->key_count - (i + 1)) * sizeof *map->keycodes);
+			       (map->key_count - (i + 1)) * sizeof *map->keycodes);
 			memcpy(&map->keysyms[i], &map->keysyms[i + 1],
-				   (map->key_count - (i + 1)) * sizeof *map->keysyms);
+			       (map->key_count - (i + 1)) * sizeof *map->keysyms);
 
 			map->key_count -= 1;
 			map->keycodes = XLRealloc(map->keycodes,
-									  map->key_count * sizeof *map->keycodes);
+			                          map->key_count * sizeof *map->keycodes);
 			map->keysyms = XLRealloc(map->keysyms,
-									 map->key_count * sizeof *map->keysyms);
+			                         map->key_count * sizeof *map->keysyms);
 
 			return;
 		}
@@ -350,9 +342,9 @@ CurrentCursorX(TextInput *input)
 
 	/* Scale these coordinates into window coordinates.  */
 	TruncateSurfaceToWindow(input->client_info->focus_surface,
-							input->current_state.cursor_x,
-							input->current_state.cursor_y,
-							&x, &y);
+	                        input->current_state.cursor_x,
+	                        input->current_state.cursor_y,
+	                        &x, &y);
 
 	return x;
 }
@@ -366,9 +358,9 @@ CurrentCursorY(TextInput *input)
 
 	/* Scale these coordinates into window coordinates.  */
 	TruncateSurfaceToWindow(input->client_info->focus_surface,
-							input->current_state.cursor_x,
-							input->current_state.cursor_y,
-							&x, &y);
+	                        input->current_state.cursor_x,
+	                        input->current_state.cursor_y,
+	                        &x, &y);
 
 	return y;
 }
@@ -382,9 +374,9 @@ CurrentCursorWidth(TextInput *input)
 
 	/* Scale these coordinates into window coordinates.  */
 	TruncateScaleToWindow(input->client_info->focus_surface,
-						  input->current_state.cursor_width,
-						  input->current_state.cursor_height,
-						  &width, &height);
+	                      input->current_state.cursor_width,
+	                      input->current_state.cursor_height,
+	                      &width, &height);
 
 	return width;
 }
@@ -398,9 +390,9 @@ CurrentCursorHeight(TextInput *input)
 
 	/* Scale these coordinates into window coordinates.  */
 	TruncateScaleToWindow(input->client_info->focus_surface,
-						  input->current_state.cursor_width,
-						  input->current_state.cursor_height,
-						  &width, &height);
+	                      input->current_state.cursor_width,
+	                      input->current_state.cursor_height,
+	                      &width, &height);
 
 	return height;
 }
@@ -412,16 +404,20 @@ CountOctets(char byte)
 {
 	/* Given the start of a UTF-8 sequence, return how many following
 	   bytes are in the current sequence.  */
-	return (!(byte & 0x80)	 ? 1
-			: !(byte & 0x20) ? 2
-			: !(byte & 0x10) ? 3
-			: !(byte & 0x08) ? 4
-							 : 5);
+	return (!(byte & 0x80)
+		        ? 1
+		        : !(byte & 0x20)
+			          ? 2
+			          : !(byte & 0x10)
+				            ? 3
+				            : !(byte & 0x08)
+					              ? 4
+					              : 5);
 }
 
 static TextPosition
 TextPositionFromBytePosition(const char *string, size_t length,
-							 ptrdiff_t byte_position)
+                             ptrdiff_t byte_position)
 {
 	const char *start;
 	TextPosition position;
@@ -460,7 +456,7 @@ invalid:
 
 static TextPosition
 TextPositionFromCharPosition(const char *string, size_t length,
-							 int char_position)
+                             int char_position)
 {
 	const char *start;
 	TextPosition position;
@@ -539,7 +535,7 @@ Disable(struct wl_client *client, struct wl_resource *resource)
 
 static void
 SetSurroundingText(struct wl_client *client, struct wl_resource *resource,
-				   const char *text, int cursor, int anchor)
+                   const char *text, int cursor, int anchor)
 {
 	TextInput *input;
 
@@ -552,37 +548,38 @@ SetSurroundingText(struct wl_client *client, struct wl_resource *resource,
 	/* Set the surrounding text and cursor position.  */
 	input->pending_state.surrounding_text = XLStrdup(text);
 	input->pending_state.cursor = TextPositionFromBytePosition(text, strlen(text),
-															   cursor);
+	                                                           cursor);
 	input->pending_state.pending |= PendingSurroundingText;
 }
 
 static void
 SetTextChangeCause(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t cause)
+                   uint32_t cause)
 {
 	/* Not supported.  */
 }
 
 static void
 SetContentType(struct wl_client *client, struct wl_resource *resource,
-			   uint32_t hint, uint32_t purpose)
+               uint32_t hint, uint32_t purpose)
 {
 	/* Not supported.  */
 }
 
 static void
 SetCursorRectangle(struct wl_client *client, struct wl_resource *resource,
-				   int32_t x, int32_t y, int32_t width, int32_t height)
+                   int32_t x, int32_t y, int32_t width, int32_t height)
 {
 	TextInput *input;
 
 	input = wl_resource_get_user_data(resource);
 
 	if ((input->current_state.pending & PendingCursorRectangle
-		 /* PendingEnabled will clear the current state's cursor
-		rectangle.  */
-		 && !(input->pending_state.pending & PendingEnabled)) &&
-		x == input->current_state.cursor_x && y == input->current_state.cursor_y && width == input->current_state.cursor_width && height == input->current_state.cursor_height)
+	     /* PendingEnabled will clear the current state's cursor
+	    rectangle.  */
+	     && !(input->pending_state.pending & PendingEnabled)) &&
+	    x == input->current_state.cursor_x && y == input->current_state.cursor_y && width == input->current_state.
+	    cursor_width && height == input->current_state.cursor_height)
 		/* Nothing changed, return.  */
 		return;
 
@@ -612,7 +609,7 @@ FindEnabledTextInput(TextInputClientInfo *info)
 
 static void
 FitRect(XRectangle *input, int view_width, int view_height,
-		int caret_x, int caret_y, int caret_width, int caret_height)
+        int caret_x, int caret_y, int caret_width, int caret_height)
 {
 	XRectangle r1, r2, copy;
 
@@ -766,7 +763,7 @@ DoGeometryAllocation(TextInput *input)
 		if (!rc)
 		{
 			DebugPrint("IM suggested the given size: %d %d",
-					   needed->width, needed->height);
+			           needed->width, needed->height);
 
 			/* Place the rectangle below and to the right of the
 			   caret.  */
@@ -777,13 +774,13 @@ DoGeometryAllocation(TextInput *input)
 				needed->y = (CurrentCursorY(input) + CurrentCursorHeight(input));
 
 				FitRect(needed, ViewWidth(view), ViewHeight(view),
-						CurrentCursorX(input), CurrentCursorY(input),
-						CurrentCursorWidth(input),
-						CurrentCursorHeight(input));
+				        CurrentCursorX(input), CurrentCursorY(input),
+				        CurrentCursorWidth(input),
+				        CurrentCursorHeight(input));
 
 				DebugPrint("filled rectangle: %d %d %d %d",
-						   needed->x, needed->y, needed->width,
-						   needed->height);
+				           needed->x, needed->y, needed->width,
+				           needed->height);
 			}
 			else
 			{
@@ -793,8 +790,8 @@ DoGeometryAllocation(TextInput *input)
 				needed->y = ViewHeight(view) - needed->height;
 
 				DebugPrint("placed rectangle: %d %d %d %d",
-						   needed->x, needed->y, needed->width,
-						   needed->height);
+				           needed->x, needed->y, needed->width,
+				           needed->height);
 			}
 
 			/* Set the geometry.  */
@@ -826,15 +823,15 @@ DoGeometryAllocation(TextInput *input)
 		if (!rc)
 		{
 			DebugPrint("IM suggested the given size: %d %d",
-					   needed->width, needed->height);
+			           needed->width, needed->height);
 
 			/* Place the rectangle at the bottom of the window.  */
 			needed->x = ViewWidth(view) - needed->width;
 			needed->y = ViewHeight(view) - needed->height;
 
 			DebugPrint("placed rectangle at bottom right: %d %d %d %d",
-					   needed->x, needed->y, needed->width,
-					   needed->height);
+			           needed->x, needed->y, needed->width,
+			           needed->height);
 
 			/* Set the geometry.  */
 			attr = XVaCreateNestedList(0, XNArea, needed, NULL);
@@ -890,13 +887,13 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 
 		if (input->current_state.surrounding_text)
 			DebugPrint("surrounding text early change: %s[%d]",
-					   input->current_state.surrounding_text,
-					   input->current_state.cursor.charpos);
+		           input->current_state.surrounding_text,
+		           input->current_state.cursor.charpos);
 
 		if (input->current_state.enabled)
 		{
 			DebugPrint("text input %p enabled, state: %2b", input,
-					   (unsigned int)input->current_state.pending);
+			           (unsigned int)input->current_state.pending);
 
 			/* Maybe create or reset and then focus the IC.  */
 			if (!input->xic)
@@ -924,10 +921,10 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 		if (input->pending_state.pending & PendingCursorRectangle)
 		{
 			DebugPrint("cursor rectangle changed to: %d %d %d %d",
-					   input->pending_state.cursor_x,
-					   input->pending_state.cursor_y,
-					   input->pending_state.cursor_width,
-					   input->pending_state.cursor_height);
+			           input->pending_state.cursor_x,
+			           input->pending_state.cursor_y,
+			           input->pending_state.cursor_width,
+			           input->pending_state.cursor_height);
 
 			input->current_state.cursor_x = input->pending_state.cursor_x;
 			input->current_state.cursor_y = input->pending_state.cursor_y;
@@ -944,8 +941,8 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 		if (input->pending_state.pending & PendingSurroundingText)
 		{
 			DebugPrint("surrounding text changed to: %s[%d]",
-					   input->pending_state.surrounding_text,
-					   input->pending_state.cursor.charpos);
+			           input->pending_state.surrounding_text,
+			           input->pending_state.cursor.charpos);
 
 			if (input->current_state.surrounding_text)
 				XLFree(input->current_state.surrounding_text);
@@ -981,6 +978,7 @@ static const struct zwp_text_input_v3_interface input_impl =
 
 /* Forward declarations.  */
 static void FreePreeditBuffer(PreeditBuffer *);
+
 static void UpdatePreedit(TextInput *);
 
 static void
@@ -1120,7 +1118,7 @@ NoticeEnter(TextInputClientInfo *info, Surface *surface)
 	TextInput *input;
 
 	DebugPrint("client info: %p, surface: %p",
-			   info, surface);
+	           info, surface);
 
 	if (info->focus_surface == surface)
 		/* The focus surface did not change.  */
@@ -1136,7 +1134,7 @@ NoticeEnter(TextInputClientInfo *info, Surface *surface)
 
 			XLAssert(info->focus_surface->resource != NULL);
 			zwp_text_input_v3_send_leave(input->resource,
-										 info->focus_surface->resource);
+			                             info->focus_surface->resource);
 
 			InputDoLeave(input, info->focus_surface);
 		}
@@ -1145,7 +1143,7 @@ NoticeEnter(TextInputClientInfo *info, Surface *surface)
 
 		/* Send the enter event to each text input.  */
 		zwp_text_input_v3_send_enter(input->resource,
-									 surface->resource);
+		                             surface->resource);
 		InputDoEnter(input, surface);
 
 		input = input->next;
@@ -1180,7 +1178,7 @@ NoticeLeave(TextInputClientInfo *info)
 		if (info->focus_surface->resource)
 			/* Send the enter event to each text input.  */
 			zwp_text_input_v3_send_leave(input->resource,
-										 info->focus_surface->resource);
+			                             info->focus_surface->resource);
 		InputDoLeave(input, info->focus_surface);
 
 		input = input->next;
@@ -1238,7 +1236,7 @@ static void FocusInCallback(Seat *, Surface *);
 
 static void
 GetTextInput(struct wl_client *client, struct wl_resource *resource,
-			 uint32_t id, struct wl_resource *seat_resource)
+             uint32_t id, struct wl_resource *seat_resource)
 {
 	Seat *seat;
 	struct wl_resource *dummy;
@@ -1253,7 +1251,7 @@ GetTextInput(struct wl_client *client, struct wl_resource *resource,
 	if (XLSeatIsInert(seat))
 	{
 		dummy = wl_resource_create(client, &zwp_text_input_v3_interface,
-								   wl_resource_get_version(resource), id);
+		                           wl_resource_get_version(resource), id);
 
 		if (!dummy)
 			wl_resource_post_no_memory(resource);
@@ -1274,7 +1272,7 @@ GetTextInput(struct wl_client *client, struct wl_resource *resource,
 
 	memset(input, 0, sizeof *input);
 	input->resource = wl_resource_create(client, &zwp_text_input_v3_interface,
-										 wl_resource_get_version(resource), id);
+	                                     wl_resource_get_version(resource), id);
 
 	if (!input->resource)
 	{
@@ -1289,7 +1287,7 @@ GetTextInput(struct wl_client *client, struct wl_resource *resource,
 	/* Set the implementation.  N.B. that HandleResourceDestroy will
 	   free the client info structure once all references are gone.  */
 	wl_resource_set_implementation(input->resource, &input_impl,
-								   input, HandleResourceDestroy);
+	                               input, HandleResourceDestroy);
 
 	/* Initialize and link the text input.  */
 	input->client_info = info;
@@ -1307,7 +1305,7 @@ GetTextInput(struct wl_client *client, struct wl_resource *resource,
 		/* The info already existed and already has a focus surface
 	   set.  */
 		zwp_text_input_v3_send_enter(input->resource,
-									 info->focus_surface->resource);
+		                             info->focus_surface->resource);
 		InputDoEnter(input, info->focus_surface);
 	}
 	else if (XLSeatIsClientFocused(seat, client))
@@ -1328,13 +1326,13 @@ static const struct zwp_text_input_manager_v3_interface manager_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &zwp_text_input_manager_v3_interface,
-								  version, id);
+	                              &zwp_text_input_manager_v3_interface,
+	                              version, id);
 
 	if (!resource)
 	{
@@ -1343,7 +1341,7 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &manager_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 static PreeditBuffer *
@@ -1367,7 +1365,7 @@ FreePreeditBuffer(PreeditBuffer *buffer)
 
 static Bool
 PreeditDeleteChars(PreeditBuffer *buffer, int start_char,
-				   int length)
+                   int length)
 {
 	wchar_t wc;
 	char *oldlocale, *start, *end;
@@ -1393,7 +1391,7 @@ PreeditDeleteChars(PreeditBuffer *buffer, int start_char,
 		if (start >= buffer->buffer + buffer->size)
 		{
 			DebugPrint("start %p out of bounds %p",
-					   start, buffer->buffer + buffer->size);
+			           start, buffer->buffer + buffer->size);
 
 			/* start is out of bounds.  */
 			goto failure;
@@ -1425,7 +1423,7 @@ PreeditDeleteChars(PreeditBuffer *buffer, int start_char,
 		if (end >= buffer->buffer + buffer->size)
 		{
 			DebugPrint("end %p out of bounds %p",
-					   end, buffer->buffer + buffer->size);
+			           end, buffer->buffer + buffer->size);
 
 			/* end is out of bounds.  */
 			goto failure;
@@ -1457,7 +1455,7 @@ PreeditDeleteChars(PreeditBuffer *buffer, int start_char,
 	XLAssert(buffer->size >= 0);
 
 	buffer->buffer = XLRealloc(buffer->buffer,
-							   buffer->size);
+	                           buffer->size);
 
 	/* Restore the locale and return success.  */
 	setlocale(LC_CTYPE, oldlocale);
@@ -1478,8 +1476,8 @@ failure:
 
 static Bool
 PreeditInsertChars(PreeditBuffer *buffer, int start_char,
-				   const char *string, size_t length,
-				   int char_length)
+                   const char *string, size_t length,
+                   int char_length)
 {
 	wchar_t wc;
 	char *oldlocale, *start;
@@ -1498,7 +1496,7 @@ PreeditInsertChars(PreeditBuffer *buffer, int start_char,
 
 	/* Resize the buffer accordingly.  */
 	buffer->buffer = XLRealloc(buffer->buffer,
-							   buffer->size + length);
+	                           buffer->size + length);
 
 	start = buffer->buffer;
 	chars = 0;
@@ -1524,7 +1522,7 @@ PreeditInsertChars(PreeditBuffer *buffer, int start_char,
 
 	/* Move everything past start length away.  */
 	memmove(start + length, start,
-			buffer->buffer + buffer->size - start);
+	        buffer->buffer + buffer->size - start);
 	buffer->size += length;
 	buffer->total_characters += char_length;
 
@@ -1549,6 +1547,7 @@ failure:
 
 /* Forward declarations.  */
 static char *ConvertString(char *, size_t, size_t *);
+
 static void PreeditString(TextInput *, const char *, size_t, ptrdiff_t);
 
 static void
@@ -1562,8 +1561,8 @@ UpdatePreedit(TextInput *input)
 	{
 		/* Convert the preedit text.  */
 		buffer = ConvertString(input->buffer->buffer,
-							   input->buffer->size,
-							   &new_text_size);
+		                       input->buffer->size,
+		                       &new_text_size);
 		DebugPrint("updated buffer %p", buffer);
 
 		if (!buffer)
@@ -1573,18 +1572,18 @@ UpdatePreedit(TextInput *input)
 
 		if (input->caret_style != XIMIsInvisible)
 			caret = TextPositionFromCharPosition(buffer, new_text_size,
-												 input->caret);
+			                                     input->caret);
 		else
 			/* The caret is hidden, so don't send any caret position.  */
 			caret.bytepos = -1, caret.charpos = -1;
 
 		DebugPrint("caret position is: char %d, byte: %td",
-				   caret.charpos, caret.bytepos);
+		           caret.charpos, caret.bytepos);
 
 		PreeditString(input, buffer, new_text_size,
-					  /* caret.bytepos will be -1 if obtaining the
-					 position failed or the caret is hidden.  */
-					  caret.bytepos);
+		              /* caret.bytepos will be -1 if obtaining the
+		             position failed or the caret is hidden.  */
+		              caret.bytepos);
 		XLFree(buffer);
 	}
 	else
@@ -1594,7 +1593,7 @@ UpdatePreedit(TextInput *input)
 
 		/* Clear the preedit string.  */
 		zwp_text_input_v3_send_preedit_string(input->resource, NULL,
-											  -1, -1);
+		                                      -1, -1);
 		zwp_text_input_v3_send_done(input->resource, input->serial);
 	}
 }
@@ -1607,7 +1606,7 @@ PreeditStartCallback(XIC ic, XPointer client_data, XPointer call_data)
 
 	XLAssert(current_xim != NULL);
 
-	input = (TextInput *)client_data;
+	input = (TextInput *) client_data;
 	locale = XLocaleOfIM(current_xim);
 
 	DebugPrint("text input: %p; locale: %s", input, locale);
@@ -1631,7 +1630,7 @@ PreeditDoneCallback(XIC ic, XPointer client_data, XPointer call_data)
 {
 	TextInput *input;
 
-	input = (TextInput *)client_data;
+	input = (TextInput *) client_data;
 	DebugPrint("text input: %p", input);
 
 	if (input->buffer)
@@ -1644,7 +1643,7 @@ PreeditDoneCallback(XIC ic, XPointer client_data, XPointer call_data)
 
 static char *
 ConvertWcharString(PreeditBuffer *buffer, const wchar_t *input,
-				   size_t input_size, size_t *string_size)
+                   size_t input_size, size_t *string_size)
 {
 	char *output, *oldlocale;
 	int rc;
@@ -1693,25 +1692,25 @@ ConvertWcharString(PreeditBuffer *buffer, const wchar_t *input,
 
 static void
 PreeditDrawCallback(XIC ic, XPointer client_data,
-					XIMPreeditDrawCallbackStruct *call_data)
+                    XIMPreeditDrawCallbackStruct *call_data)
 {
 	TextInput *input;
 	size_t string_size;
 	char *multi_byte_string;
 
-	input = (TextInput *)client_data;
+	input = (TextInput *) client_data;
 	DebugPrint("text input: %p", input);
 
 	if (!input->buffer)
 		return;
 
 	DebugPrint("chg_first: %d, chg_length: %d",
-			   call_data->chg_first,
-			   call_data->chg_length);
+	           call_data->chg_first,
+	           call_data->chg_length);
 
 	/* Delete text between chg_first and chg_first + chg_length.  */
 	if (call_data->chg_length && !PreeditDeleteChars(input->buffer, call_data->chg_first,
-													 call_data->chg_length))
+	                                                 call_data->chg_length))
 	{
 		DebugPrint("text deletion failed");
 		return;
@@ -1724,9 +1723,9 @@ PreeditDrawCallback(XIC ic, XPointer client_data,
 			DebugPrint("converting wide character string");
 
 			multi_byte_string = ConvertWcharString(input->buffer,
-												   call_data->text->string.wide_char,
-												   call_data->text->length,
-												   &string_size);
+			                                       call_data->text->string.wide_char,
+			                                       call_data->text->length,
+			                                       &string_size);
 		}
 		else
 		{
@@ -1736,12 +1735,12 @@ PreeditDrawCallback(XIC ic, XPointer client_data,
 		}
 
 		DebugPrint("inserting text of size %d, %zu",
-				   call_data->text->length, string_size);
+		           call_data->text->length, string_size);
 
 		/* Now, insert whatever text was specified at chg_first.  */
 		if (!PreeditInsertChars(input->buffer, call_data->chg_first,
-								multi_byte_string, string_size,
-								call_data->text->length))
+		                        multi_byte_string, string_size,
+		                        call_data->text->length))
 			DebugPrint("insertion failed");
 
 		if (call_data->text->encoding_is_wchar)
@@ -1753,8 +1752,8 @@ PreeditDrawCallback(XIC ic, XPointer client_data,
 	input->caret = call_data->caret;
 
 	DebugPrint("buffer text is now: %.*s, with the caret at %d",
-			   (int)input->buffer->size, input->buffer->buffer,
-			   input->caret);
+	           (int)input->buffer->size, input->buffer->buffer,
+	           input->caret);
 
 	/* Send change to the client.  */
 	UpdatePreedit(input);
@@ -1762,37 +1761,37 @@ PreeditDrawCallback(XIC ic, XPointer client_data,
 
 static void
 PreeditCaretCallback(XIC ic, XPointer client_data,
-					 XIMPreeditCaretCallbackStruct *call_data)
+                     XIMPreeditCaretCallbackStruct *call_data)
 {
 	TextInput *input;
 
-	input = (TextInput *)client_data;
+	input = (TextInput *) client_data;
 
 	if (!input->buffer)
 		return;
 
 	DebugPrint("text input: %p; direction: %u", input,
-			   call_data->direction);
+	           call_data->direction);
 
 	switch (call_data->direction)
 	{
-	case XIMAbsolutePosition:
-		input->caret = call_data->position;
-		break;
+		case XIMAbsolutePosition:
+			input->caret = call_data->position;
+			break;
 
-	case XIMForwardChar:
-		input->caret = MIN(input->caret + 1,
-						   input->buffer->total_characters);
-		break;
+		case XIMForwardChar:
+			input->caret = MIN(input->caret + 1,
+			                   input->buffer->total_characters);
+			break;
 
-	case XIMBackwardChar:
-		input->caret = MAX(input->caret - 1, 0);
-		break;
+		case XIMBackwardChar:
+			input->caret = MAX(input->caret - 1, 0);
+			break;
 
 		/* The rest cannot be implemented under Wayland as the text
 	   input protocol is too limited.  */
-	default:
-		DebugPrint("unsupported movement direction");
+		default:
+			DebugPrint("unsupported movement direction");
 	}
 
 	/* Return the caret position.  */
@@ -1807,7 +1806,7 @@ PreeditCaretCallback(XIC ic, XPointer client_data,
 
 static TextPosition
 ScanForwardWord(const char *string, size_t string_size,
-				TextPosition caret, int factor)
+                TextPosition caret, int factor)
 {
 	const char *start;
 	Bool punct_found;
@@ -1817,8 +1816,8 @@ ScanForwardWord(const char *string, size_t string_size,
 
 	/* Skip initial whitespace.  */
 	while (start < string + string_size
-		   /* Make sure the character has 0 trailing bytes.  */
-		   && *start < 127 && *start >= 0 && (isspace(*start) || ispunct(*start)))
+	       /* Make sure the character has 0 trailing bytes.  */
+	       && *start < 127 && *start >= 0 && (isspace(*start) || ispunct(*start)))
 	{
 		start++;
 		caret.charpos++;
@@ -1866,7 +1865,7 @@ ScanForwardWord(const char *string, size_t string_size,
 			/* Punctuation was seen and factor is now 0.  Return the
 			   caret before the punctuation.  */
 			DebugPrint("returning caret_before: char: %d byte: %td",
-					   caret_before.charpos, caret_before.bytepos);
+			           caret_before.charpos, caret_before.bytepos);
 			return caret_before;
 		}
 
@@ -1875,7 +1874,7 @@ ScanForwardWord(const char *string, size_t string_size,
 		if (start == string + string_size - 1)
 		{
 			DebugPrint("returning caret_before at end of string: char: %d byte: %td",
-					   caret_before.charpos, caret_before.bytepos);
+			           caret_before.charpos, caret_before.bytepos);
 
 			return caret_before;
 		}
@@ -1887,12 +1886,12 @@ ScanForwardWord(const char *string, size_t string_size,
 static Bool
 IsLeading(char c)
 {
-	return (((unsigned char)c) & 0b11000000 || !(c >> 7));
+	return (((unsigned char) c) & 0b11000000 || !(c >> 7));
 }
 
 static TextPosition
 ScanBackwardWord(const char *string, size_t string_size,
-				 TextPosition caret, int factor)
+                 TextPosition caret, int factor)
 {
 	TextPosition original, caret_before;
 	const char *start;
@@ -1913,8 +1912,8 @@ ScanBackwardWord(const char *string, size_t string_size,
 	/* First, skip all whitespace.  */
 	start = string + caret.bytepos;
 	while (start >= string
-		   /* Make sure the character has 0 trailing bytes.  */
-		   && *start < 127 && *start >= 0 && (isspace(*start) || ispunct(*start)))
+	       /* Make sure the character has 0 trailing bytes.  */
+	       && *start < 127 && *start >= 0 && (isspace(*start) || ispunct(*start)))
 	{
 		start--;
 		caret.charpos--;
@@ -1950,8 +1949,8 @@ ScanBackwardWord(const char *string, size_t string_size,
 		caret.charpos--;
 
 		DebugPrint("caret_before: char: %d byte: %td, new char: %c",
-				   caret_before.charpos, caret_before.bytepos,
-				   *start);
+		           caret_before.charpos, caret_before.bytepos,
+		           *start);
 
 		/* We are now at the start of the last character.  If it is
 	   whitespace, eat the whitespace and decrease factor.  */
@@ -1983,7 +1982,7 @@ ScanBackwardWord(const char *string, size_t string_size,
 			/* Punctuation was seen and the factor is now 0.  Return the
 			   caret before the punctuation.  */
 			DebugPrint("returning caret_before: char: %d byte: %td",
-					   caret_before.charpos, caret_before.bytepos);
+			           caret_before.charpos, caret_before.bytepos);
 			return caret_before;
 		}
 	}
@@ -1993,102 +1992,102 @@ ScanBackwardWord(const char *string, size_t string_size,
 
 static void
 FindTextSections(const char *string, size_t string_size,
-				 TextPosition caret, XIMCaretDirection direction,
-				 int factor, TextPosition *start_return,
-				 TextPosition *end_return)
+                 TextPosition caret, XIMCaretDirection direction,
+                 int factor, TextPosition *start_return,
+                 TextPosition *end_return)
 {
 	TextPosition end;
 	const char *found;
 
 	switch (direction)
 	{
-	case XIMForwardChar:
-		/* Move forward by factor.  */
-		end = TextPositionFromCharPosition(string, string_size,
-										   caret.charpos + factor);
-		break;
+		case XIMForwardChar:
+			/* Move forward by factor.  */
+			end = TextPositionFromCharPosition(string, string_size,
+			                                   caret.charpos + factor);
+			break;
 
-	case XIMBackwardChar:
-		/* Move backwards by factor.  */
-		end = TextPositionFromCharPosition(string, string_size,
-										   MAX(0, caret.charpos - factor));
-		break;
+		case XIMBackwardChar:
+			/* Move backwards by factor.  */
+			end = TextPositionFromCharPosition(string, string_size,
+			                                   MAX(0, caret.charpos - factor));
+			break;
 
-	case XIMForwardWord:
-		/* Move forwards by factor words.  */
-		end = ScanForwardWord(string, string_size, caret, factor);
-		break;
+		case XIMForwardWord:
+			/* Move forwards by factor words.  */
+			end = ScanForwardWord(string, string_size, caret, factor);
+			break;
 
-	case XIMBackwardWord:
-		/* Move backwards by factor words.  */
-		end = ScanBackwardWord(string, string_size, caret, factor);
-		break;
+		case XIMBackwardWord:
+			/* Move backwards by factor words.  */
+			end = ScanBackwardWord(string, string_size, caret, factor);
+			break;
 
-	case XIMLineStart:
-		/* Scan backwards for factor newline characters.  */
+		case XIMLineStart:
+			/* Scan backwards for factor newline characters.  */
 
-		found = string + caret.bytepos;
-		DebugPrint("start: found %p, found-string %td",
-				   found, found - string);
+			found = string + caret.bytepos;
+			DebugPrint("start: found %p, found-string %td",
+			           found, found - string);
 
-		while (factor)
-		{
-			found = memrchr(string, '\n', found - string);
-			DebugPrint("LineStart processing found %p %td", found,
-					   found ? found - string : 0);
-
-			if (!found)
+			while (factor)
 			{
-				/* Use the beginning of the string. */
-				found = string - 1;
+				found = memrchr(string, '\n', found - string);
+				DebugPrint("LineStart processing found %p %td", found,
+				           found ? found - string : 0);
 
-				/* Exit the loop too.  */
-				goto end_line_start;
+				if (!found)
+				{
+					/* Use the beginning of the string. */
+					found = string - 1;
+
+					/* Exit the loop too.  */
+					goto end_line_start;
+				}
+
+				factor--;
 			}
 
-			factor--;
-		}
+		end_line_start:
+			DebugPrint("found %p string %p found+1-string %td",
+			           found, string, found + 1 - string);
+			end = TextPositionFromBytePosition(string, string_size,
+			                                   found + 1 - string);
+			break;
 
-	end_line_start:
-		DebugPrint("found %p string %p found+1-string %td",
-				   found, string, found + 1 - string);
-		end = TextPositionFromBytePosition(string, string_size,
-										   found + 1 - string);
-		break;
+		case XIMLineEnd:
+			/* Scan forwards for factor newline characters.  */
+			found = string + caret.bytepos;
 
-	case XIMLineEnd:
-		/* Scan forwards for factor newline characters.  */
-		found = string + caret.bytepos;
-
-		while (factor)
-		{
-			found = memchr(found + 1, '\n',
-						   (string + string_size - 1) - found + 1);
-
-			if (!found)
+			while (factor)
 			{
-				/* Use the end of the string.  */
-				found = string + string_size - 1;
-				goto end_line_end;
+				found = memchr(found + 1, '\n',
+				               (string + string_size - 1) - found + 1);
+
+				if (!found)
+				{
+					/* Use the end of the string.  */
+					found = string + string_size - 1;
+					goto end_line_end;
+				}
+
+				factor--;
 			}
 
-			factor--;
-		}
+		end_line_end:
+			end = TextPositionFromBytePosition(string, string_size,
+			                                   found - 1 - string);
+			break;
 
-	end_line_end:
-		end = TextPositionFromBytePosition(string, string_size,
-										   found - 1 - string);
-		break;
-
-	default:
-		DebugPrint("unsuported string conversion direction: %u",
-				   direction);
-		end.bytepos = 0;
-		end.charpos = 0;
+		default:
+			DebugPrint("unsuported string conversion direction: %u",
+			           direction);
+			end.bytepos = 0;
+			end.charpos = 0;
 	}
 
 	DebugPrint("end: char: %d byte: %td", end.charpos,
-			   end.bytepos);
+	           end.bytepos);
 
 	if (caret.charpos > end.charpos)
 		*start_return = end, *end_return = caret;
@@ -2098,7 +2097,7 @@ FindTextSections(const char *string, size_t string_size,
 
 static Bool
 MoveCaret(TextPosition *caret, const char *buffer, size_t buffer_size,
-		  int by)
+          int by)
 {
 	const char *end, *start;
 	int octets;
@@ -2182,7 +2181,7 @@ EncodeIMString(const char *input, size_t input_size, int *chars)
 	cd = iconv_open(nl_langinfo(CODESET), "UTF-8");
 
 	/* If creating the cd failed, bail out.  */
-	if (cd == (iconv_t)-1)
+	if (cd == (iconv_t) -1)
 	{
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -2204,15 +2203,15 @@ EncodeIMString(const char *input, size_t input_size, int *chars)
 	outptr = outbuf;
 	outsize = BUFSIZ;
 	outbytesleft = outsize;
-	inbuf = (char *)input;
+	inbuf = (char *) input;
 
 	while (input_size > 0)
 	{
 		rc = iconv(cd, &inbuf, &input_size, &outptr,
-				   &outbytesleft);
+		           &outbytesleft);
 		DebugPrint("iconv gave: %zu", rc);
 
-		if (rc == (size_t)-1)
+		if (rc == (size_t) -1)
 		{
 			/* See what went wrong.  */
 			if (errno == E2BIG)
@@ -2229,7 +2228,7 @@ EncodeIMString(const char *input, size_t input_size, int *chars)
 				outbytesleft += BUFSIZ;
 
 				DebugPrint("expanding outsize to %zu, outbytesleft now %zu",
-						   outsize, outbytesleft);
+				           outsize, outbytesleft);
 			}
 			else
 			{
@@ -2252,7 +2251,7 @@ EncodeIMString(const char *input, size_t input_size, int *chars)
 
 	/* The conversion finished.  */
 	DebugPrint("conversion finished, size_out %zu",
-			   outsize - outbytesleft);
+	           outsize - outbytesleft);
 
 	/* Now, count the number of multibyte characters.  */
 	nchars = 0;
@@ -2299,7 +2298,7 @@ EncodeIMString(const char *input, size_t input_size, int *chars)
 
 static void
 StringConversionCallback(XIC ic, XPointer client_data,
-						 XIMStringConversionCallbackStruct *call_data)
+                         XIMStringConversionCallbackStruct *call_data)
 {
 	TextInput *input;
 	TextPosition start, end, caret;
@@ -2309,7 +2308,7 @@ StringConversionCallback(XIC ic, XPointer client_data,
 	int num_characters;
 	int bytes_before, bytes_after;
 
-	input = (TextInput *)client_data;
+	input = (TextInput *) client_data;
 
 	/* Clear some members of the returned text structure.  */
 	call_data->text->feedback = NULL;
@@ -2319,21 +2318,21 @@ StringConversionCallback(XIC ic, XPointer client_data,
 		return;
 
 	DebugPrint("string conversion; position: %d, factor: %d"
-			   " operation: %u",
-			   (short)call_data->position,
-			   call_data->factor, call_data->operation);
+	           " operation: %u",
+	           (short)call_data->position,
+	           call_data->factor, call_data->operation);
 
 	/* Obtain the actual caret position.  */
 	caret = input->current_state.cursor;
 	DebugPrint("current caret position: char: %d, byte: %td",
-			   caret.charpos, caret.bytepos);
+	           caret.charpos, caret.bytepos);
 
 	if (caret.charpos < 0 || caret.bytepos < 0)
 		goto failure;
 
 	/* This is unsigned short in Xlib.h but the spec says it should be
 	   signed.  */
-	position = (short)call_data->position;
+	position = (short) call_data->position;
 
 	/* Move the caret by position.  */
 	length = strlen(input->current_state.surrounding_text);
@@ -2343,7 +2342,7 @@ StringConversionCallback(XIC ic, XPointer client_data,
 		goto failure;
 
 	if (!MoveCaret(&caret, input->current_state.surrounding_text,
-				   length, position))
+	               length, position))
 	{
 		DebugPrint("failed to move caret position");
 		goto failure;
@@ -2353,16 +2352,16 @@ StringConversionCallback(XIC ic, XPointer client_data,
 		goto failure;
 
 	DebugPrint("new caret position: char %d, byte: %td",
-			   caret.charpos, caret.bytepos);
+	           caret.charpos, caret.bytepos);
 
 	/* Now, obtain the start and end of the text to return.  */
 	FindTextSections(input->current_state.surrounding_text,
-					 length, caret, call_data->direction,
-					 call_data->factor, &start, &end);
+	                 length, caret, call_data->direction,
+	                 call_data->factor, &start, &end);
 
 	DebugPrint("start: %d, %td, end: %d, %td",
-			   start.charpos, start.bytepos, end.charpos,
-			   end.bytepos);
+	           start.charpos, start.bytepos, end.charpos,
+	           end.bytepos);
 
 	/* If either of those positions are invalid, signal failure.  */
 	if (start.charpos < 0 || start.bytepos < 0 || end.charpos < 0 || end.bytepos < 0)
@@ -2373,8 +2372,8 @@ StringConversionCallback(XIC ic, XPointer client_data,
 
 	/* Extract and encode the contents of the string.  */
 	buffer = EncodeIMString((input->current_state.surrounding_text + start.bytepos),
-							end.bytepos - start.bytepos + 1,
-							&num_characters);
+	                        end.bytepos - start.bytepos + 1,
+	                        &num_characters);
 
 	/* Return those characters.  */
 
@@ -2412,8 +2411,8 @@ StringConversionCallback(XIC ic, XPointer client_data,
 		DebugPrint("deleting: %d %d", bytes_before, bytes_after);
 
 		zwp_text_input_v3_send_delete_surrounding_text(input->resource,
-													   bytes_before,
-													   bytes_after);
+		                                               bytes_before,
+		                                               bytes_after);
 		zwp_text_input_v3_send_done(input->resource, input->serial);
 	}
 
@@ -2457,7 +2456,7 @@ CreateIC(TextInput *input)
 	XLAssert(!input->xic);
 
 	DebugPrint("creating XIC for text input %p and window 0x%lx", input,
-			   window);
+	           window);
 
 	status_attr = NULL;
 	preedit_attr = NULL;
@@ -2480,7 +2479,7 @@ CreateIC(TextInput *input)
 
 		DebugPrint("using spot: %d, %d", spot.x, spot.y);
 		preedit_attr = XVaCreateNestedList(0, XNSpotLocation, &spot,
-										   XNFontSet, im_fontset, NULL);
+		                                   XNFontSet, im_fontset, NULL);
 	}
 	else if (xim_style & XIMPreeditArea)
 	{
@@ -2494,34 +2493,34 @@ CreateIC(TextInput *input)
 		rect.width = 1;
 
 		preedit_attr = XVaCreateNestedList(0, XNArea, &rect, XNFontSet,
-										   im_fontset, NULL);
+		                                   im_fontset, NULL);
 	}
 	else if (xim_style & XIMPreeditCallbacks)
 	{
 		DebugPrint("IM wants preedit callbacks");
 
-		preedit_start_callback.client_data = (XPointer)input;
-		preedit_done_callback.client_data = (XPointer)input;
-		preedit_draw_callback.client_data = (XPointer)input;
-		preedit_caret_callback.client_data = (XPointer)input;
+		preedit_start_callback.client_data = (XPointer) input;
+		preedit_done_callback.client_data = (XPointer) input;
+		preedit_draw_callback.client_data = (XPointer) input;
+		preedit_caret_callback.client_data = (XPointer) input;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
-		preedit_start_callback.callback = (XIMProc)PreeditStartCallback;
-		preedit_done_callback.callback = (XIMProc)PreeditDoneCallback;
-		preedit_draw_callback.callback = (XIMProc)PreeditDrawCallback;
-		preedit_caret_callback.callback = (XIMProc)PreeditCaretCallback;
+		preedit_start_callback.callback = (XIMProc) PreeditStartCallback;
+		preedit_done_callback.callback = (XIMProc) PreeditDoneCallback;
+		preedit_draw_callback.callback = (XIMProc) PreeditDrawCallback;
+		preedit_caret_callback.callback = (XIMProc) PreeditCaretCallback;
 #pragma GCC diagnostic pop
 
 		preedit_attr = XVaCreateNestedList(0, XNPreeditStartCallback,
-										   &preedit_start_callback,
-										   XNPreeditDoneCallback,
-										   &preedit_done_callback,
-										   XNPreeditDrawCallback,
-										   &preedit_draw_callback,
-										   XNPreeditCaretCallback,
-										   &preedit_caret_callback,
-										   NULL);
+		                                   &preedit_start_callback,
+		                                   XNPreeditDoneCallback,
+		                                   &preedit_done_callback,
+		                                   XNPreeditDrawCallback,
+		                                   &preedit_draw_callback,
+		                                   XNPreeditCaretCallback,
+		                                   &preedit_caret_callback,
+		                                   NULL);
 	}
 
 	if (xim_style & XIMStatusArea)
@@ -2536,46 +2535,46 @@ CreateIC(TextInput *input)
 		rect.width = 1;
 
 		status_attr = XVaCreateNestedList(0, XNArea, &rect, XNFontSet,
-										  im_fontset, NULL);
+		                                  im_fontset, NULL);
 	}
 
 	DebugPrint("preedit attr: %p, status attr: %p",
-			   preedit_attr, status_attr);
+	           preedit_attr, status_attr);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
-	string_conversion_callback.client_data = (XPointer)input;
-	string_conversion_callback.callback = (XIMProc)StringConversionCallback;
+	string_conversion_callback.client_data = (XPointer) input;
+	string_conversion_callback.callback = (XIMProc) StringConversionCallback;
 #pragma GCC diagnostic pop
 
 	if (preedit_attr && status_attr)
 		input->xic = XCreateIC(current_xim, XNInputStyle, xim_style,
-							   XNClientWindow, window, XNFocusWindow,
-							   window, XNStatusAttributes, status_attr,
-							   XNPreeditAttributes, preedit_attr,
-							   XNStringConversionCallback,
-							   &string_conversion_callback,
-							   NULL);
+		                       XNClientWindow, window, XNFocusWindow,
+		                       window, XNStatusAttributes, status_attr,
+		                       XNPreeditAttributes, preedit_attr,
+		                       XNStringConversionCallback,
+		                       &string_conversion_callback,
+		                       NULL);
 	else if (preedit_attr)
 		input->xic = XCreateIC(current_xim, XNInputStyle, xim_style,
-							   XNClientWindow, window, XNFocusWindow,
-							   window, XNPreeditAttributes, preedit_attr,
-							   XNStringConversionCallback,
-							   &string_conversion_callback,
-							   NULL);
+		                       XNClientWindow, window, XNFocusWindow,
+		                       window, XNPreeditAttributes, preedit_attr,
+		                       XNStringConversionCallback,
+		                       &string_conversion_callback,
+		                       NULL);
 	else if (status_attr)
 		input->xic = XCreateIC(current_xim, XNInputStyle, xim_style,
-							   XNClientWindow, window, XNFocusWindow,
-							   window, XNStatusAttributes, status_attr,
-							   XNStringConversionCallback,
-							   &string_conversion_callback,
-							   NULL);
+		                       XNClientWindow, window, XNFocusWindow,
+		                       window, XNStatusAttributes, status_attr,
+		                       XNStringConversionCallback,
+		                       &string_conversion_callback,
+		                       NULL);
 	else
 		input->xic = XCreateIC(current_xim, XNInputStyle, xim_style,
-							   XNClientWindow, window, XNFocusWindow,
-							   window, XNStringConversionCallback,
-							   &string_conversion_callback,
-							   NULL);
+		                       XNClientWindow, window, XNFocusWindow,
+		                       window, XNStringConversionCallback,
+		                       &string_conversion_callback,
+		                       NULL);
 
 	/* Select for additional events should the IC have been successfully
 	   created.  Note that we do not deselect for the extra event mask
@@ -2587,14 +2586,14 @@ CreateIC(TextInput *input)
 		additional_events = NoEventMask;
 
 		if (!XGetICValues(input->xic, XNFilterEvents,
-						  &additional_events, NULL) &&
-			additional_events)
+		                  &additional_events, NULL) &&
+		    additional_events)
 		{
 			DebugPrint("selecting for additional event mask: %lx",
-					   additional_events);
+			           additional_events);
 
 			XLSurfaceSelectExtraEvents(input->client_info->focus_surface,
-									   additional_events);
+			                           additional_events);
 		}
 	}
 
@@ -2626,9 +2625,9 @@ IMDestroyCallback(XIM im, XPointer client_data, XPointer call_data)
 	current_xim = NULL;
 
 	/* Close the cd.  */
-	if (current_cd != (iconv_t)-1)
+	if (current_cd != (iconv_t) -1)
 		iconv_close(current_cd);
-	current_cd = (iconv_t)-1;
+	current_cd = (iconv_t) -1;
 
 	/* Clear the XIC field of each input.  */
 
@@ -2660,7 +2659,7 @@ IMDestroyCallback(XIM im, XPointer client_data, XPointer call_data)
 
 static XIMStyle
 CheckStyle(XIMStyles *styles, XIMStyle preedit_style,
-		   XIMStyle status_style)
+           XIMStyle status_style)
 {
 	int i;
 
@@ -2710,41 +2709,41 @@ CheckStyles(XIM xim)
 
 		switch (xim_style_order[i])
 		{
-		case XimOverTheSpot:
-			DebugPrint("checking for over-the-spot");
-			style = CheckStyle(styles, XIMPreeditPosition,
-							   XIMStatusArea | XIMStatusNothing | XIMStatusNone);
-			if (style)
-				goto done;
-			break;
+			case XimOverTheSpot:
+				DebugPrint("checking for over-the-spot");
+				style = CheckStyle(styles, XIMPreeditPosition,
+				                   XIMStatusArea | XIMStatusNothing | XIMStatusNone);
+				if (style)
+					goto done;
+				break;
 
-		case XimOffTheSpot:
-			DebugPrint("checking for off-the-spot");
-			style = CheckStyle(styles, XIMPreeditArea,
-							   XIMStatusArea | XIMStatusNothing | XIMStatusNone);
-			if (style)
-				goto done;
-			break;
+			case XimOffTheSpot:
+				DebugPrint("checking for off-the-spot");
+				style = CheckStyle(styles, XIMPreeditArea,
+				                   XIMStatusArea | XIMStatusNothing | XIMStatusNone);
+				if (style)
+					goto done;
+				break;
 
-		case XimRootWindow:
-			DebugPrint("checking for root-window");
-			style = CheckStyle(styles, XIMPreeditNothing,
-							   XIMStatusNothing | XIMStatusNone);
-			if (style)
-				goto done;
-			break;
+			case XimRootWindow:
+				DebugPrint("checking for root-window");
+				style = CheckStyle(styles, XIMPreeditNothing,
+				                   XIMStatusNothing | XIMStatusNone);
+				if (style)
+					goto done;
+				break;
 
-		case XimOnTheSpot:
-			DebugPrint("checking for on-the-spot");
-			style = CheckStyle(styles, XIMPreeditCallbacks,
-							   XIMStatusArea | XIMStatusNothing | XIMStatusNone);
-			if (style)
-				goto done;
-			break;
+			case XimOnTheSpot:
+				DebugPrint("checking for on-the-spot");
+				style = CheckStyle(styles, XIMPreeditCallbacks,
+				                   XIMStatusArea | XIMStatusNothing | XIMStatusNone);
+				if (style)
+					goto done;
+				break;
 
-		case XimStyleNone:
-			/* This shouldn't happen.  */
-			abort();
+			case XimStyleNone:
+				/* This shouldn't happen.  */
+				abort();
 		}
 	}
 
@@ -2800,9 +2799,9 @@ HandleNewIM(XIM xim)
 	current_xim = NULL;
 
 	/* And its cd.  */
-	if (current_cd != (iconv_t)-1)
+	if (current_cd != (iconv_t) -1)
 		iconv_close(current_cd);
-	current_cd = (iconv_t)-1;
+	current_cd = (iconv_t) -1;
 
 	/* Obtain the locale of the new input method.  */
 	locale = XLocaleOfIM(xim);
@@ -2835,7 +2834,7 @@ HandleNewIM(XIM xim)
 	XLFree(coding);
 
 	/* If cd creation failed, assume it isn't supported.  */
-	if (cd == (iconv_t)-1)
+	if (cd == (iconv_t) -1)
 		goto bad_locale;
 
 	DebugPrint("conversion descriptor created to UTF-8");
@@ -2849,7 +2848,7 @@ HandleNewIM(XIM xim)
 	destroy_callback.client_data = NULL;
 	destroy_callback.callback = IMDestroyCallback;
 	XSetIMValues(xim, XNDestroyCallback, &destroy_callback,
-				 NULL);
+	             NULL);
 
 	/* Initialize the styles supported by this input method.  */
 	CheckStyles(xim);
@@ -2864,10 +2863,10 @@ HandleNewIM(XIM xim)
 		{
 			/* Try to create the IC for this one input.  */
 			if (input->current_state.enabled
-				/* If this is NULL, then the IC will only be created
-			   upon the next commit after the focus is actually
-			   transferred to the text input.  */
-				&& input->client_info->focus_surface)
+			    /* If this is NULL, then the IC will only be created
+		       upon the next commit after the focus is actually
+		       transferred to the text input.  */
+			    && input->client_info->focus_surface)
 			{
 				CreateIC(input);
 
@@ -2902,7 +2901,7 @@ bad_locale:
 
 static void
 IMInstantiateCallback(Display *display, XPointer client_data,
-					  XPointer call_data)
+                      XPointer call_data)
 {
 	XIM newim;
 
@@ -2910,15 +2909,15 @@ IMInstantiateCallback(Display *display, XPointer client_data,
 
 	/* Open the input method.  */
 	newim = XOpenIM(compositor.display,
-					XrmGetDatabase(compositor.display),
-					(char *)compositor.resource_name,
-					(char *)compositor.app_name);
+	                XrmGetDatabase(compositor.display),
+	                (char *) compositor.resource_name,
+	                (char *) compositor.app_name);
 
 	/* Obtain its locale.  */
 	if (newim)
 	{
 		DebugPrint("created input method with locale: %s",
-				   XLocaleOfIM(newim));
+		           XLocaleOfIM(newim));
 		HandleNewIM(newim);
 	}
 	else
@@ -2933,7 +2932,7 @@ FocusInCallback(Seat *seat, Surface *surface)
 	DebugPrint("seat %p, surface %p", seat, surface);
 
 	info = GetClientInfo(wl_resource_get_client(surface->resource),
-						 seat, False);
+	                     seat, False);
 
 	if (info)
 	{
@@ -3044,11 +3043,11 @@ ConvertString(char *buffer, size_t nbytes, size_t *size_out)
 	while (nbytes > 0)
 	{
 		rc = iconv(current_cd, &buffer, &nbytes,
-				   &outptr, &outbytesleft);
+		           &outptr, &outbytesleft);
 
 		DebugPrint("iconv gave: %zu", rc);
 
-		if (rc == (size_t)-1)
+		if (rc == (size_t) -1)
 		{
 			/* See what went wrong.  */
 			if (errno == E2BIG)
@@ -3065,7 +3064,7 @@ ConvertString(char *buffer, size_t nbytes, size_t *size_out)
 				outbytesleft += BUFSIZ;
 
 				DebugPrint("expanding outsize to %zu, outbytesleft now %zu",
-						   outsize, outbytesleft);
+				           outsize, outbytesleft);
 			}
 			else
 				goto finish;
@@ -3074,7 +3073,7 @@ ConvertString(char *buffer, size_t nbytes, size_t *size_out)
 
 finish:
 	DebugPrint("conversion finished, size_out %zu",
-			   outsize - outbytesleft);
+	           outsize - outbytesleft);
 
 	/* Return outbuf and the number of bytes put in it.  */
 	if (size_out)
@@ -3088,7 +3087,7 @@ finish:
 
 static void
 PreeditString(TextInput *input, const char *buffer,
-			  size_t buffer_size, ptrdiff_t cursor)
+              size_t buffer_size, ptrdiff_t cursor)
 {
 	char chunk[4000];
 	const char *start, *end;
@@ -3123,7 +3122,7 @@ PreeditString(TextInput *input, const char *buffer,
 		}
 
 		DebugPrint("end-start (%p-%p): %td", end, start,
-				   end - start);
+		           end - start);
 
 		/* Now, start to end contain a UTF-8 sequence less than 4000
 	   bytes in length.  */
@@ -3147,7 +3146,7 @@ PreeditString(TextInput *input, const char *buffer,
 
 		/* Send the sequence.  */
 		zwp_text_input_v3_send_preedit_string(input->resource, chunk,
-											  cursor_pos, cursor_pos);
+		                                      cursor_pos, cursor_pos);
 
 		start = end;
 	}
@@ -3158,7 +3157,7 @@ PreeditString(TextInput *input, const char *buffer,
 
 static void
 CommitString(TextInput *input, const char *buffer,
-			 size_t buffer_size)
+             size_t buffer_size)
 {
 	char chunk[4000];
 	const char *start, *end;
@@ -3192,7 +3191,7 @@ CommitString(TextInput *input, const char *buffer,
 		}
 
 		DebugPrint("end-start (%p-%p): %td", end, start,
-				   end - start);
+		           end - start);
 
 		/* Now, start to end contain a UTF-8 sequence less than 4000
 	   bytes in length.  */
@@ -3230,7 +3229,7 @@ LookupString(TextInput *input, XEvent *event, KeySym *keysym_return)
 	/* First, do XmbLookupString with the default buffer size.  */
 	buffer = alloca(256);
 	nbytes = XmbLookupString(input->xic, &event->xkey,
-							 buffer, 256, &keysym, &status);
+	                         buffer, 256, &keysym, &status);
 	DebugPrint("looked up %zu", nbytes);
 
 	if (status == XBufferOverflow)
@@ -3240,8 +3239,8 @@ LookupString(TextInput *input, XEvent *event, KeySym *keysym_return)
 		/* Handle overflow by growing the buffer.  */
 		buffer = alloca(nbytes + 1);
 		nbytes = XmbLookupString(input->xic, &event->xkey,
-								 buffer, nbytes + 1,
-								 &keysym, &status);
+		                         buffer, nbytes + 1,
+		                         &keysym, &status);
 	}
 
 	DebugPrint("status is: %d", (int)status);
@@ -3296,8 +3295,8 @@ CalculateKeycodeForEvent(XEvent *event, KeySym keysym)
 	   was looked up for the key press but not for the corresponding
 	   key release.  */
 	if (XkbLookupKeySym(compositor.display, event->xkey.keycode,
-						event->xkey.state, &mods_return, &sym_return) &&
-		keysym == sym_return)
+	                    event->xkey.state, &mods_return, &sym_return) &&
+	    keysym == sym_return)
 		return 0;
 
 	/* Otherwise, convert the keysym to a keycode and use that.  */
@@ -3306,7 +3305,7 @@ CalculateKeycodeForEvent(XEvent *event, KeySym keysym)
 
 static Bool
 FilterInputCallback(Seat *seat, Surface *surface, void *event,
-					KeyCode *keycode)
+                    KeyCode *keycode)
 {
 	XIDeviceEvent *xev;
 	XEvent xkey;
@@ -3318,11 +3317,11 @@ FilterInputCallback(Seat *seat, Surface *surface, void *event,
 	keysym = 0;
 
 	DebugPrint("seat %p, surface %p, detail: %d, event: %lx",
-			   seat, surface, xev->detail, xev->event);
+	           seat, surface, xev->detail, xev->event);
 
 	/* Find the client info.  */
 	info = GetClientInfo(wl_resource_get_client(surface->resource),
-						 seat, False);
+	                     seat, False);
 
 	/* Find the enabled text input.  */
 	if (info)
@@ -3334,7 +3333,7 @@ FilterInputCallback(Seat *seat, Surface *surface, void *event,
 		if (input && input->xic)
 		{
 			DebugPrint("found enabled text input %p on client-seat info %p",
-					   input, info);
+			           input, info);
 
 			/* Convert the extension event into a fake core event that
 			   the input method can understand.  */
@@ -3369,10 +3368,10 @@ FilterInputCallback(Seat *seat, Surface *surface, void *event,
 
 /* Seat input callbacks.  */
 static TextInputFuncs input_funcs =
-	{
-		.focus_in = FocusInCallback,
-		.focus_out = FocusOutCallback,
-		.filter_input = FilterInputCallback,
+{
+	.focus_in = FocusInCallback,
+	.focus_out = FocusOutCallback,
+	.filter_input = FilterInputCallback,
 };
 
 void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
@@ -3384,21 +3383,21 @@ void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
 	KeyCode effective_keycode;
 
 	DebugPrint("dispatching core event to surface %p:\n"
-			   "\ttype: %d\n"
-			   "\tserial: %lu\n"
-			   "\tsend_event: %d\n"
-			   "\twindow: %lx\n"
-			   "\troot: %lx\n"
-			   "\tsubwindow: %lx\n"
-			   "\ttime: %lu\n"
-			   "\tstate: %x\n"
-			   "\tkeycode: %x",
-			   surface,
-			   event->xkey.type,
-			   event->xkey.serial, event->xkey.send_event,
-			   event->xkey.window, event->xkey.subwindow,
-			   event->xkey.subwindow, event->xkey.time,
-			   event->xkey.state, event->xkey.keycode);
+	           "\ttype: %d\n"
+	           "\tserial: %lu\n"
+	           "\tsend_event: %d\n"
+	           "\twindow: %lx\n"
+	           "\troot: %lx\n"
+	           "\tsubwindow: %lx\n"
+	           "\ttime: %lu\n"
+	           "\tstate: %x\n"
+	           "\tkeycode: %x",
+	           surface,
+	           event->xkey.type,
+	           event->xkey.serial, event->xkey.send_event,
+	           event->xkey.window, event->xkey.subwindow,
+	           event->xkey.subwindow, event->xkey.time,
+	           event->xkey.state, event->xkey.keycode);
 
 	keysym = 0;
 
@@ -3416,7 +3415,7 @@ void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
 	/* Next, find the client info associated with the surface for that
 	   seat.  */
 	info = GetClientInfo(wl_resource_get_client(surface->resource),
-						 im_seat, False);
+	                     im_seat, False);
 
 	if (!info)
 		return;
@@ -3425,8 +3424,8 @@ void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
 	{
 		/* The surface is no longer focused.  */
 		DebugPrint("incorrect focus surface (focus surface is %p, "
-				   "surface is %p)",
-				   info->focus_surface, surface);
+		           "surface is %p)",
+		           info->focus_surface, surface);
 		return;
 	}
 
@@ -3446,13 +3445,13 @@ void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
 
 			if (event->xkey.subwindow & (1U << 31))
 				DebugPrint("lookup failed; not dispatching event because"
-						   " this is a key repeat");
+				" this is a key repeat");
 			else
 			{
 				/* Since that failed, dispatch the event to the seat.  */
 				DebugPrint("lookup failed; dispatching event to seat; "
-						   "keysym is: %lu",
-						   keysym);
+				           "keysym is: %lu",
+				           keysym);
 
 				/* First, clear effective_keycode.  */
 				effective_keycode = 0;
@@ -3475,9 +3474,9 @@ void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
 					effective_keycode = CalculateKeycodeForEvent(event, keysym);
 
 					DebugPrint("inserting keycode %lu into map under %u",
-							   effective_keycode, event->xkey.keycode);
+					           effective_keycode, event->xkey.keycode);
 					InsertKeycode(&input->keysym_map, event->xkey.keycode,
-								  effective_keycode);
+					              effective_keycode);
 				}
 				else if (event->xkey.type == KeyRelease)
 				{
@@ -3490,16 +3489,16 @@ void XLTextInputDispatchCoreEvent(Surface *surface, XEvent *event)
 					if (!keysym)
 					{
 						effective_keycode = GetKeycode(&input->keysym_map,
-													   event->xkey.keycode);
+						                               event->xkey.keycode);
 						DebugPrint("obtained keycode %lu for keycode %u"
-								   " while processing KeyRelease event",
-								   keysym, event->xkey.keycode);
+						           " while processing KeyRelease event",
+						           keysym, event->xkey.keycode);
 					}
 					else
 						effective_keycode = CalculateKeycodeForEvent(event, keysym);
 
 					DebugPrint("removing keycode %u from map",
-							   event->xkey.keycode);
+					           event->xkey.keycode);
 
 					/* Remove the keycode from the keycode-keysym
 					   map.  */
@@ -3545,16 +3544,16 @@ InitFontset(void)
 	classlist[2] = NULLQUARK;
 
 	if (XrmQGetResource(rdb, namelist, classlist,
-						&type, &value) &&
-		type == QString)
+	                    &type, &value) &&
+	    type == QString)
 	{
 		DebugPrint("XIM fontset: %s", value.addr);
 
 		im_fontset = XCreateFontSet(compositor.display,
-									(char *)value.addr,
-									&missing_charset_list,
-									&missing_charset_count,
-									&def_string);
+		                            (char *) value.addr,
+		                            &missing_charset_list,
+		                            &missing_charset_count,
+		                            &def_string);
 
 		if (missing_charset_count)
 			XFreeStringList(missing_charset_list);
@@ -3591,8 +3590,8 @@ InitInputStyles(void)
 	classlist[2] = NULLQUARK;
 
 	if (XrmQGetResource(rdb, namelist, classlist,
-						&type, &value) &&
-		type == QString)
+	                    &type, &value) &&
+	    type == QString)
 	{
 		DebugPrint("XIM styles: %s", value.addr);
 		string = value.addr;
@@ -3660,12 +3659,12 @@ void XLInitTextInput(void)
 	char **missing_charset_list, *def_string;
 	int missing_charset_count;
 
-	current_cd = (iconv_t)-1;
+	current_cd = (iconv_t) -1;
 
 	if (!XSupportsLocale())
 	{
 		DebugPrint("not initializing text input because the"
-				   " locale is not supported by the X library");
+			" locale is not supported by the X library");
 		return;
 	}
 
@@ -3675,23 +3674,23 @@ void XLInitTextInput(void)
 	DebugPrint("locale modifiers are: %s", modifiers);
 
 	/* Prevent -Wunused-but-set-variable when not debug.  */
-	((void)modifiers);
+	((void) modifiers);
 
 	all_client_infos.next = &all_client_infos;
 	all_client_infos.last = &all_client_infos;
 
 	text_input_manager_global = wl_global_create(compositor.wl_display,
-												 &zwp_text_input_manager_v3_interface,
-												 1, NULL, HandleBind);
+	                                             &zwp_text_input_manager_v3_interface,
+	                                             1, NULL, HandleBind);
 
 	/* Initialize the IM fontset.  */
 	if (!InitFontset())
 	{
 		im_fontset = XCreateFontSet(compositor.display,
-									"-*-*-*-R-*-*-*-120-*-*-*-*",
-									&missing_charset_list,
-									&missing_charset_count,
-									&def_string);
+		                            "-*-*-*-R-*-*-*-120-*-*-*-*",
+		                            &missing_charset_list,
+		                            &missing_charset_count,
+		                            &def_string);
 		if (missing_charset_count)
 			XFreeStringList(missing_charset_list);
 	}
@@ -3704,10 +3703,10 @@ void XLInitTextInput(void)
 
 	/* Register the IM callback.  */
 	XRegisterIMInstantiateCallback(compositor.display,
-								   XrmGetDatabase(compositor.display),
-								   (char *)compositor.resource_name,
-								   (char *)compositor.app_name,
-								   IMInstantiateCallback, NULL);
+	                               XrmGetDatabase(compositor.display),
+	                               (char *) compositor.resource_name,
+	                               (char *) compositor.app_name,
+	                               IMInstantiateCallback, NULL);
 
 	/* Register the text input functions.  */
 	XLSeatSetTextInputFuncs(&input_funcs);

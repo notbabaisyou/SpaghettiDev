@@ -32,14 +32,14 @@
 void *
 XLMalloc(size_t size)
 {
-	void *ptr;
-
-	ptr = malloc(size);
+	void *ptr = malloc(size);
 
 	if (!ptr && size)
 	{
-		fprintf(stderr, "Allocation of %zu bytes failed\n",
-				size);
+		MBLog(MB_LOG_ERROR,
+		      "Allocation of %zu bytes failed\n",
+		      size);
+
 		abort();
 	}
 
@@ -55,14 +55,14 @@ XLSafeMalloc(size_t size)
 void *
 XLCalloc(size_t nmemb, size_t size)
 {
-	void *ptr;
-
-	ptr = calloc(nmemb, size);
+	void *ptr = calloc(nmemb, size);
 
 	if (!ptr && nmemb && size)
 	{
-		fprintf(stderr, "Allocation of %zu * %zu failed\n",
-				nmemb, size);
+		MBLog(MB_LOG_ERROR,
+		      "Allocation of %zu * %zu failed\n",
+		      nmemb, size);
+
 		abort();
 	}
 
@@ -78,14 +78,13 @@ void XLFree(void *ptr)
 char *
 XLStrdup(const char *data)
 {
-	char *string;
-
-	string = strdup(data);
+	char *string = strdup(data);
 
 	if (!string)
 	{
-		fprintf(stderr, "Allocation of %zu bytes failed\n",
-				strlen(data));
+		MBLog(MB_LOG_ERROR,
+		      "Allocation of %zu bytes failed\n",
+		      strlen(data));
 		abort();
 	}
 
@@ -102,7 +101,9 @@ XLRealloc(void *ptr, size_t size)
 
 	if (size && !ptr)
 	{
-		fprintf(stderr, "Reallocation of %zu bytes failed\n", size);
+		MBLog(MB_LOG_ERROR,
+		      "Reallocation of %zu bytes failed\n",
+		      size);
 		abort();
 	}
 

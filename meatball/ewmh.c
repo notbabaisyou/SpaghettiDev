@@ -37,11 +37,11 @@ GetWmCheckWindow(void)
 
 	tmp_data = NULL;
 	rc = XGetWindowProperty(compositor.display,
-							DefaultRootWindow(compositor.display),
-							_NET_SUPPORTING_WM_CHECK,
-							0, 1, False, XA_WINDOW, &actual_type,
-							&actual_format, &actual_size,
-							&bytes_remaining, &tmp_data);
+	                        DefaultRootWindow(compositor.display),
+	                        _NET_SUPPORTING_WM_CHECK,
+	                        0, 1, False, XA_WINDOW, &actual_type,
+	                        &actual_format, &actual_size,
+	                        &bytes_remaining, &tmp_data);
 
 	if (rc != Success || actual_type != XA_WINDOW || actual_format != 32 || actual_size != 1 || !tmp_data)
 	{
@@ -51,7 +51,7 @@ GetWmCheckWindow(void)
 		return None;
 	}
 
-	result = *(Window *)tmp_data;
+	result = *(Window *) tmp_data;
 	XFree(tmp_data);
 
 	return result;
@@ -62,7 +62,7 @@ IsValidWmCheckWindow(Window window)
 {
 	CatchXErrors();
 	XSelectInput(compositor.display, window,
-				 SubstructureNotifyMask);
+	             SubstructureNotifyMask);
 	return !UncatchXErrors(NULL);
 }
 
@@ -99,10 +99,10 @@ start_check:
 
 	CatchXErrors();
 	rc = XGetWindowProperty(compositor.display,
-							DefaultRootWindow(compositor.display),
-							_NET_SUPPORTED, 0, 4096, False, XA_ATOM,
-							&actual_type, &actual_format, &actual_size,
-							&bytes_remaining, &tmp_data);
+	                        DefaultRootWindow(compositor.display),
+	                        _NET_SUPPORTED, 0, 4096, False, XA_ATOM,
+	                        &actual_type, &actual_format, &actual_size,
+	                        &bytes_remaining, &tmp_data);
 	errors = UncatchXErrors(NULL);
 
 	if (rc != Success || actual_type != XA_ATOM || errors)
@@ -114,7 +114,7 @@ start_check:
 	}
 	else
 	{
-		net_supported_atoms = (Atom *)tmp_data;
+		net_supported_atoms = (Atom *) tmp_data;
 		n_supported_atoms = actual_size;
 
 		goto start_check;

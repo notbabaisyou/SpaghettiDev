@@ -29,16 +29,14 @@
 
 #define IconSurfaceFromRole(role) ((IconSurface *)role)
 
-enum
-{
-	StateIsMapped = 1,
-	StateIsReleased = (1 << 1),
+enum {
+	StateIsMapped             = 1,
+	StateIsReleased           = (1 << 1),
 	StatePendingBufferRelease = (1 << 2),
 	StatePendingFrameCallback = (1 << 3),
 };
 
-struct _IconSurface
-{
+struct _IconSurface {
 	/* The role object itself.  */
 	Role role;
 
@@ -84,9 +82,9 @@ WriteRedirectProperty(IconSurface *icon)
 
 	bypass_compositor = 2;
 	XChangeProperty(compositor.display, icon->window,
-					_NET_WM_BYPASS_COMPOSITOR, XA_CARDINAL,
-					32, PropModeReplace,
-					(unsigned char *)&bypass_compositor, 1);
+	                _NET_WM_BYPASS_COMPOSITOR, XA_CARDINAL,
+	                32, PropModeReplace,
+	                (unsigned char *) &bypass_compositor, 1);
 }
 
 static void
@@ -148,15 +146,15 @@ Setup(Surface *surface, Role *role)
 
 	icon = IconSurfaceFromRole(role);
 	ViewSetSubcompositor(surface->view,
-						 icon->subcompositor);
+	                     icon->subcompositor);
 	ViewSetSubcompositor(surface->under,
-						 icon->subcompositor);
+	                     icon->subcompositor);
 
 	/* Make sure the under view ends up beneath surface->view.  */
 	SubcompositorInsert(icon->subcompositor,
-						surface->under);
+	                    surface->under);
 	SubcompositorInsert(icon->subcompositor,
-						surface->view);
+	                    surface->view);
 
 	/* Retain the backing data.  */
 	icon->refcount++;
@@ -174,13 +172,13 @@ ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer)
 	render_buffer = XLRenderBufferFromBuffer(buffer);
 
 	if (RenderIsBufferIdle(render_buffer, icon->target))
-		/* If the buffer is already idle, release it now.  */
+	/* If the buffer is already idle, release it now.  */
 		XLReleaseBuffer(buffer);
 	else
 	{
 		/* Release the buffer once it is destroyed or becomes idle.  */
 		ReleaseBufferWithHelper(icon->release_helper,
-								buffer, icon->target);
+		                        buffer, icon->target);
 		icon->state |= StatePendingBufferRelease;
 	}
 }
@@ -197,10 +195,10 @@ UpdateOutputs(IconSurface *icon)
 	y_off = icon->role.surface->current_state.y;
 
 	XLUpdateSurfaceOutputs(icon->role.surface,
-						   icon->x + icon->min_x + x_off,
-						   icon->y + icon->min_y + y_off,
-						   icon->max_x - icon->min_x + 1,
-						   icon->max_y - icon->min_y + 1);
+	                       icon->x + icon->min_x + x_off,
+	                       icon->y + icon->min_y + y_off,
+	                       icon->max_x - icon->min_x + 1,
+	                       icon->max_y - icon->min_y + 1);
 }
 
 static void
@@ -219,8 +217,8 @@ NoteBounds(void *data, int min_x, int min_y, int max_x, int max_y)
 		/* If the bounds changed, move the window to the right
 	   position.  */
 		XMoveResizeWindow(compositor.display, icon->window,
-						  x + min_x, y + min_y, max_x - min_x + 1,
-						  max_y - min_y + 1);
+		                  x + min_x, y + min_y, max_x - min_x + 1,
+		                  max_y - min_y + 1);
 
 		/* Update the outputs that this surface is inside.  */
 		UpdateOutputs(icon);
@@ -333,8 +331,8 @@ MoveWindowTo(IconSurface *icon, int x, int y)
 	y_off = icon->role.surface->current_state.y;
 
 	XMoveWindow(compositor.display, icon->window,
-				icon->x + icon->min_x + x_off,
-				icon->y + icon->min_y + y_off);
+	            icon->x + icon->min_x + x_off,
+	            icon->y + icon->min_y + y_off);
 	UpdateOutputs(icon);
 }
 
@@ -403,30 +401,30 @@ XLGetIconSurface(Surface *surface)
 	attrs.override_redirect = 1;
 
 	role->window = XCreateWindow(compositor.display,
-								 DefaultRootWindow(compositor.display),
-								 0, 0, 1, 1, 0, compositor.n_planes,
-								 InputOutput, compositor.visual, flags,
-								 &attrs);
+	                             DefaultRootWindow(compositor.display),
+	                             0, 0, 1, 1, 0, compositor.n_planes,
+	                             InputOutput, compositor.visual, flags,
+	                             &attrs);
 
 	/* Add _NET_WM_SYNC_REQUEST to the list of supported protocols.  */
 	XSetWMProtocols(compositor.display, role->window,
-					&_NET_WM_SYNC_REQUEST, 1);
+	                &_NET_WM_SYNC_REQUEST, 1);
 
 	/* Set _NET_WM_WINDOW_TYPE to _NET_WM_WINDOW_TYPE_DND.  */
 	XChangeProperty(compositor.display, role->window,
-					_NET_WM_WINDOW_TYPE, XA_ATOM, 32,
-					PropModeReplace,
-					(unsigned char *)&_NET_WM_WINDOW_TYPE_DND, 1);
+	                _NET_WM_WINDOW_TYPE, XA_ATOM, 32,
+	                PropModeReplace,
+	                (unsigned char *) &_NET_WM_WINDOW_TYPE_DND, 1);
 
 	/* Create a target associated with the window.  */
 	role->target = RenderTargetFromWindow(role->window, None);
 	role->release_helper = MakeBufferReleaseHelper(AllBuffersReleased,
-												   role);
+	                                               role);
 
 	/* Set the client.  */
 	if (surface->resource)
 		RenderSetClient(role->target,
-						wl_resource_get_client(surface->resource));
+		                wl_resource_get_client(surface->resource));
 
 	/* For simplicity reasons we do not handle idle notifications
 	   asynchronously.  */
@@ -435,20 +433,20 @@ XLGetIconSurface(Surface *surface)
 	/* Create a subcompositor associated with the window.  */
 	role->subcompositor = MakeSubcompositor();
 	role->sync_helper = MakeSyncHelper(role->subcompositor,
-									   role->window,
-									   role->target,
-									   HandleFrameCallback,
-									   &role->role);
+	                                   role->window,
+	                                   role->target,
+	                                   HandleFrameCallback,
+	                                   &role->role);
 
 	/* Set the subcompositor target and some callbacks.  */
 	SubcompositorSetTarget(role->subcompositor, &role->target);
 	SubcompositorSetBoundsCallback(role->subcompositor,
-								   NoteBounds, role);
+	                               NoteBounds, role);
 
 	/* Clear the input region of the window.  */
 	XShapeCombineRectangles(compositor.display, role->window,
-							ShapeInput, 0, 0, NULL, 0, ShapeSet,
-							Unsorted);
+	                        ShapeInput, 0, 0, NULL, 0, ShapeSet,
+	                        Unsorted);
 
 	XLMakeAssoc(surfaces, role->window, role);
 
@@ -466,7 +464,10 @@ Bool XLHandleOneXEventForIconSurfaces(XEvent *event)
 {
 	IconSurface *icon;
 
-	if (event->type == ClientMessage && ((event->xclient.message_type == _NET_WM_FRAME_DRAWN || event->xclient.message_type == _NET_WM_FRAME_TIMINGS) || (event->xclient.message_type == WM_PROTOCOLS && event->xclient.data.l[0] == _NET_WM_SYNC_REQUEST)))
+	if (event->type == ClientMessage && ((event->xclient.message_type == _NET_WM_FRAME_DRAWN || event->xclient.
+	                                      message_type == _NET_WM_FRAME_TIMINGS) || (
+		                                     event->xclient.message_type == WM_PROTOCOLS && event->xclient.data.l[0] ==
+		                                     _NET_WM_SYNC_REQUEST)))
 	{
 		icon = XLLookUpAssoc(surfaces, event->xclient.window);
 

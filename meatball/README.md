@@ -11,7 +11,7 @@ A Wayland implementation on X11, based upon 12to11 that lets Spaghetti users sle
 > Hardware acceleration
 
 - A video DDX with DRI3 v1.2 support [1] [2]
-- An EGL capable graphics card with the following extensions supported:
+- An EGL and GLES 2.0 capable graphics card with the following extensions supported:
   - `GL_OES_EGL_sync`
   - `GL_OES_EGL_image`
   - `GL_OES_EGL_image_external`
@@ -36,7 +36,7 @@ A Wayland implementation on X11, based upon 12to11 that lets Spaghetti users sle
 
 ## Enabling Meatball
 
-As of this commit, Meatball is not yet available.
+Meatball will be available via the Sauce interposer, pending further enablement and testing.
 
 ## License
 

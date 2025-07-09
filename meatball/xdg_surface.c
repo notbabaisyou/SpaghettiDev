@@ -35,16 +35,15 @@
 #define DefaultEventMask \
 	(ExposureMask | StructureNotifyMask | PropertyChangeMask)
 
-enum
-{
-	StatePendingFrameCallback = 1,
-	StatePendingWindowGeometry = (1 << 2),
+enum {
+	StatePendingFrameCallback   = 1,
+	StatePendingWindowGeometry  = (1 << 2),
 	StateWaitingForAckConfigure = (1 << 3),
-	StateWaitingForAckCommit = (1 << 4),
-	StateMaybeConfigure = (1 << 5),
-	StateDirtyFrameExtents = (1 << 6),
-	StateTemporaryBounds = (1 << 7),
-	StatePendingBufferRelease = (1 << 8),
+	StateWaitingForAckCommit    = (1 << 4),
+	StateMaybeConfigure         = (1 << 5),
+	StateDirtyFrameExtents      = (1 << 6),
+	StateTemporaryBounds        = (1 << 7),
+	StatePendingBufferRelease   = (1 << 8),
 };
 
 typedef struct _XdgRole XdgRole;
@@ -63,8 +62,7 @@ static XLAssocTable *surfaces;
 
 unsigned long border_pixel;
 
-struct _ReconstrainCallback
-{
+struct _ReconstrainCallback {
 	/* Function called when a configure event is received.  */
 	void (*configure)(void *, XEvent *);
 
@@ -78,16 +76,14 @@ struct _ReconstrainCallback
 	ReconstrainCallback *next, *last;
 };
 
-struct _XdgState
-{
+struct _XdgState {
 	int window_geometry_x;
 	int window_geometry_y;
 	int window_geometry_width;
 	int window_geometry_height;
 };
 
-struct _XdgRole
-{
+struct _XdgRole {
 	/* The role object.  */
 	Role role;
 
@@ -164,8 +160,7 @@ struct _XdgRole
 	XdgRoleImplementationType type;
 };
 
-struct _PingEvent
-{
+struct _PingEvent {
 	/* Function called to reply to this event.  */
 	void (*reply_func)(XEvent *);
 
@@ -287,7 +282,7 @@ AllBuffersReleased(void *data)
 	if (surface && role->state & StatePendingFrameCallback)
 	{
 		RunFrameCallbacks(surface, role,
-						  role->pending_frame_time);
+		                  role->pending_frame_time);
 
 		role->state &= ~StatePendingFrameCallback;
 	}
@@ -298,7 +293,10 @@ Bool XLHandleXEventForXdgSurfaces(XEvent *event)
 	XdgRole *role;
 	Window window;
 
-	if (event->type == ClientMessage && ((event->xclient.message_type == _NET_WM_FRAME_DRAWN || event->xclient.message_type == _NET_WM_FRAME_TIMINGS) || (event->xclient.message_type == WM_PROTOCOLS && event->xclient.data.l[0] == _NET_WM_SYNC_REQUEST)))
+	if (event->type == ClientMessage && ((event->xclient.message_type == _NET_WM_FRAME_DRAWN || event->xclient.
+	                                      message_type == _NET_WM_FRAME_TIMINGS) || (
+		                                     event->xclient.message_type == WM_PROTOCOLS && event->xclient.data.l[0] ==
+		                                     _NET_WM_SYNC_REQUEST)))
 	{
 		role = XLLookUpAssoc(surfaces, event->xclient.window);
 
@@ -350,7 +348,7 @@ Bool XLHandleXEventForXdgSurfaces(XEvent *event)
 		if (role && role->role.surface)
 		{
 			XLDispatchGEForSeats(event, role->role.surface,
-								 role->subcompositor);
+			                     role->subcompositor);
 			return True;
 		}
 
@@ -370,7 +368,7 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 	if (role->impl)
 	{
 		wl_resource_post_error(resource, XDG_WM_BASE_ERROR_ROLE,
-							   "trying to destroy xdg surface with role");
+		                       "trying to destroy xdg surface with role");
 		return;
 	}
 
@@ -384,7 +382,7 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 static void
 GetToplevel(struct wl_client *client, struct wl_resource *resource,
-			uint32_t id)
+            uint32_t id)
 {
 	XdgRole *role;
 
@@ -397,7 +395,7 @@ GetToplevel(struct wl_client *client, struct wl_resource *resource,
 	if (role->type == TypePopup)
 	{
 		wl_resource_post_error(resource, XDG_WM_BASE_ERROR_ROLE,
-							   "surface was previously a popup");
+		                       "surface was previously a popup");
 		return;
 	}
 
@@ -408,8 +406,8 @@ GetToplevel(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetPopup(struct wl_client *client, struct wl_resource *resource,
-		 uint32_t id, struct wl_resource *parent_resource,
-		 struct wl_resource *positioner_resource)
+         uint32_t id, struct wl_resource *parent_resource,
+         struct wl_resource *positioner_resource)
 {
 	XdgRole *role;
 
@@ -422,25 +420,26 @@ GetPopup(struct wl_client *client, struct wl_resource *resource,
 	if (role->type == TypeToplevel)
 	{
 		wl_resource_post_error(resource, XDG_WM_BASE_ERROR_ROLE,
-							   "surface was previously a toplevel");
+		                       "surface was previously a toplevel");
 		return;
 	}
 
 	role->type = TypePopup;
 
 	XLGetXdgPopup(client, resource, id, parent_resource,
-				  positioner_resource);
+	              positioner_resource);
 }
 
 static void
 SetWindowGeometry(struct wl_client *client, struct wl_resource *resource,
-				  int32_t x, int32_t y, int32_t width, int32_t height)
+                  int32_t x, int32_t y, int32_t width, int32_t height)
 {
 	XdgRole *role;
 
 	role = wl_resource_get_user_data(resource);
 
-	if (x == role->current_state.window_geometry_x && y == role->pending_state.window_geometry_y && width == role->pending_state.window_geometry_width && height == role->pending_state.window_geometry_height)
+	if (x == role->current_state.window_geometry_x && y == role->pending_state.window_geometry_y && width == role->
+	    pending_state.window_geometry_width && height == role->pending_state.window_geometry_height)
 		return;
 
 	role->state |= StatePendingWindowGeometry;
@@ -461,7 +460,7 @@ SetWindowGeometry(struct wl_client *client, struct wl_resource *resource,
 
 static void
 AckConfigure(struct wl_client *client, struct wl_resource *resource,
-			 uint32_t serial)
+             uint32_t serial)
 {
 	XdgRole *xdg_role;
 
@@ -478,7 +477,7 @@ AckConfigure(struct wl_client *client, struct wl_resource *resource,
 	{
 		/* The client specified the same serial twice.  */
 		wl_resource_post_error(resource, XDG_SURFACE_ERROR_INVALID_SERIAL,
-							   "same serial specified twice");
+		                       "same serial specified twice");
 		return;
 	}
 
@@ -498,8 +497,8 @@ AckConfigure(struct wl_client *client, struct wl_resource *resource,
 
 	if (xdg_role->impl)
 		xdg_role->impl->funcs.ack_configure(&xdg_role->role,
-											xdg_role->impl,
-											serial);
+		                                    xdg_role->impl,
+		                                    serial);
 }
 
 static const struct xdg_surface_interface xdg_surface_impl =
@@ -548,7 +547,7 @@ Commit(Surface *surface, Role *role)
 	}
 
 	xdg_role->impl->funcs.commit(role, surface,
-								 xdg_role->impl);
+	                             xdg_role->impl);
 
 	/* This flag means no commit has happened after an
 	   ack_configure.  */
@@ -572,26 +571,26 @@ Commit(Surface *surface, Role *role)
 
 		if (xdg_role->impl->funcs.after_commit)
 			xdg_role->impl->funcs.after_commit(role, surface,
-											   xdg_role->impl);
+			                                   xdg_role->impl);
 	}
 	else
-		/* Now, tell the sync helper to generate a frame.
-		   Many clients do this:
+	/* Now, tell the sync helper to generate a frame.
+	   Many clients do this:
 
-		   wl_surface@1.frame (new id wl_callback@2)
-		   wl_surface@1.commit ()
+	   wl_surface@1.frame (new id wl_callback@2)
+	   wl_surface@1.commit ()
 
-		   and upon receiving a configure event, potentially call:
+	   and upon receiving a configure event, potentially call:
 
-		   xdg_surface@3.ack_configure (1)
+	   xdg_surface@3.ack_configure (1)
 
-		   but do not commit (or even ack_configure) until the frame
-		   callback is triggered.
+	   but do not commit (or even ack_configure) until the frame
+	   callback is triggered.
 
-		   That is problematic because the frame clock is not unfrozen
-		   until the commit happens.  To work around the problem, tell the
-		   sync helper to check for this situation, and run frame
-		   callbacks if necessary.  */
+	   That is problematic because the frame clock is not unfrozen
+	   until the commit happens.  To work around the problem, tell the
+	   sync helper to check for this situation, and run frame
+	   callbacks if necessary.  */
 		SyncHelperCheckFrameCallback(xdg_role->sync_helper);
 
 	return;
@@ -611,15 +610,15 @@ Setup(Surface *surface, Role *role)
 
 	xdg_role = XdgRoleFromRole(role);
 	ViewSetSubcompositor(surface->view,
-						 xdg_role->subcompositor);
+	                     xdg_role->subcompositor);
 	ViewSetSubcompositor(surface->under,
-						 xdg_role->subcompositor);
+	                     xdg_role->subcompositor);
 
 	/* Make sure the under view ends up beneath surface->view.  */
 	SubcompositorInsert(xdg_role->subcompositor,
-						surface->under);
+	                    surface->under);
 	SubcompositorInsert(xdg_role->subcompositor,
-						surface->view);
+	                    surface->view);
 
 	/* Retain the backing data.  */
 	xdg_role->refcount++;
@@ -712,13 +711,13 @@ ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer)
 	xdg_role = XdgRoleFromRole(role);
 
 	if (RenderIsBufferIdle(render_buffer, xdg_role->target))
-		/* If the buffer is already idle, release it now.  */
+	/* If the buffer is already idle, release it now.  */
 		XLReleaseBuffer(buffer);
 	else
 	{
 		/* Release the buffer once it is destroyed or becomes idle.  */
 		ReleaseBufferWithHelper(xdg_role->release_helper,
-								buffer, xdg_role->target);
+		                        buffer, xdg_role->target);
 		xdg_role->state |= StatePendingBufferRelease;
 	}
 }
@@ -783,8 +782,8 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 static void
 OpaqueRegionChanged(Subcompositor *subcompositor,
-					void *client_data,
-					pixman_region32_t *opaque_region)
+                    void *client_data,
+                    pixman_region32_t *opaque_region)
 {
 	XdgRole *role;
 	long *data;
@@ -808,9 +807,9 @@ OpaqueRegionChanged(Subcompositor *subcompositor,
 	}
 
 	XChangeProperty(compositor.display, role->window,
-					_NET_WM_OPAQUE_REGION, XA_CARDINAL,
-					32, PropModeReplace,
-					(unsigned char *)data, nrects * 4);
+	                _NET_WM_OPAQUE_REGION, XA_CARDINAL,
+	                32, PropModeReplace,
+	                (unsigned char *) data, nrects * 4);
 
 	if (nrects >= 64)
 		XLFree(data);
@@ -818,8 +817,8 @@ OpaqueRegionChanged(Subcompositor *subcompositor,
 
 static void
 InputRegionChanged(Subcompositor *subcompositor,
-				   void *data,
-				   pixman_region32_t *input_region)
+                   void *data,
+                   pixman_region32_t *input_region)
 {
 	XdgRole *role;
 	int nrects, i;
@@ -849,12 +848,12 @@ InputRegionChanged(Subcompositor *subcompositor,
 	}
 
 	XShapeCombineRectangles(compositor.display,
-							role->window, ShapeInput,
-							0, 0, rects, nrects,
-							/* pixman uses the same region
-							   representation as the X server, which is
-							   YXBanded.  */
-							ShapeSet, YXBanded);
+	                        role->window, ShapeInput,
+	                        0, 0, rects, nrects,
+	                        /* pixman uses the same region
+	                           representation as the X server, which is
+	                           YXBanded.  */
+	                        ShapeSet, YXBanded);
 
 	if (nrects >= 256)
 		XLFree(rects);
@@ -873,14 +872,14 @@ NoteConfigure(XdgRole *role, XEvent *event)
 	{
 		/* Update the list of outputs that the surface is inside.  */
 		XLUpdateSurfaceOutputs(role->role.surface,
-							   event->xconfigure.x + role->min_x,
-							   event->xconfigure.y + role->min_y,
-							   -1, -1);
+		                       event->xconfigure.x + role->min_x,
+		                       event->xconfigure.y + role->min_y,
+		                       -1, -1);
 
 		/* Update pointer constraints.  */
 		XLPointerConstraintsSurfaceMovedTo(role->role.surface,
-										   event->xconfigure.x,
-										   event->xconfigure.y);
+		                                   event->xconfigure.x,
+		                                   event->xconfigure.y);
 	}
 
 	/* Tell the frame clock how many WM-generated configure events have
@@ -905,13 +904,13 @@ CurrentRootPosition(XdgRole *role, int *root_x, int *root_y)
 	}
 
 	XTranslateCoordinates(compositor.display, role->window,
-						  DefaultRootWindow(compositor.display),
-						  0, 0, root_x, root_y, &child_return);
+	                      DefaultRootWindow(compositor.display),
+	                      0, 0, root_x, root_y, &child_return);
 }
 
 static void
 NoteBounds(void *data, int min_x, int min_y,
-		   int max_x, int max_y)
+           int max_x, int max_y)
 {
 	XdgRole *role;
 	int bounds_width, bounds_height, root_x, root_y;
@@ -952,23 +951,23 @@ NoteBounds(void *data, int min_x, int min_y,
 
 		/* Next, update the output set.  */
 		XLUpdateSurfaceOutputs(role->role.surface, root_x + min_x,
-							   root_y + min_y, -1, -1);
+		                       root_y + min_y, -1, -1);
 
 		if (role->impl->funcs.note_window_pre_resize)
 			role->impl->funcs.note_window_pre_resize(&role->role,
-													 role->impl,
-													 bounds_width,
-													 bounds_height);
+			                                         role->impl,
+			                                         bounds_width,
+			                                         bounds_height);
 
 		XResizeWindow(compositor.display, role->window,
-					  bounds_width, bounds_height);
+		              bounds_width, bounds_height);
 		run_reconstrain_callbacks = True;
 
 		if (role->impl->funcs.note_window_resized)
 			role->impl->funcs.note_window_resized(&role->role,
-												  role->impl,
-												  bounds_width,
-												  bounds_height);
+			                                      role->impl,
+			                                      bounds_width,
+			                                      bounds_height);
 	}
 
 	if (role->state & StateDirtyFrameExtents)
@@ -978,7 +977,7 @@ NoteBounds(void *data, int min_x, int min_y,
 
 		if (role->impl->funcs.handle_geometry_change)
 			role->impl->funcs.handle_geometry_change(&role->role,
-													 role->impl);
+			                                         role->impl);
 
 		role->state &= ~StateDirtyFrameExtents;
 	}
@@ -995,8 +994,8 @@ NoteBounds(void *data, int min_x, int min_y,
 			CurrentRootPosition(role, &root_x, &root_y);
 
 		XMoveWindow(compositor.display, role->window,
-					root_x + min_x + role->min_x,
-					root_y + min_y + role->min_y);
+		            root_x + min_x + role->min_x,
+		            root_y + min_y + role->min_y);
 		run_reconstrain_callbacks = True;
 
 		/* Set pending root window positions.  These positions will be
@@ -1022,8 +1021,8 @@ NoteBounds(void *data, int min_x, int min_y,
 
 	if (role->impl && role->impl->funcs.note_size)
 		role->impl->funcs.note_size(&role->role, role->impl,
-									max_x - min_x + 1,
-									max_y - min_y + 1);
+		                            max_x - min_x + 1,
+		                            max_y - min_y + 1);
 
 	/* Run reconstrain callbacks if a resize happened.  */
 	if (run_reconstrain_callbacks)
@@ -1038,9 +1037,9 @@ WriteRedirectProperty(XdgRole *role)
 	bypass_compositor = 2;
 
 	XChangeProperty(compositor.display, role->window,
-					_NET_WM_BYPASS_COMPOSITOR, XA_CARDINAL,
-					32, PropModeReplace,
-					(unsigned char *)&bypass_compositor, 1);
+	                _NET_WM_BYPASS_COMPOSITOR, XA_CARDINAL,
+	                32, PropModeReplace,
+	                (unsigned char *) &bypass_compositor, 1);
 }
 
 static void
@@ -1049,7 +1048,7 @@ ResizeForMap(XdgRole *role)
 	int min_x, min_y, max_x, max_y;
 
 	SubcompositorBounds(role->subcompositor, &min_x,
-						&min_y, &max_x, &max_y);
+	                    &min_y, &max_x, &max_y);
 
 	/* At this point, we are probably still waiting for ack_commit; as a
 	   result, NoteBounds will not really resize the window.  */
@@ -1067,7 +1066,7 @@ ResizeForMap(XdgRole *role)
 
 		if (role->impl->funcs.handle_geometry_change)
 			role->impl->funcs.handle_geometry_change(&role->role,
-													 role->impl);
+			                                         role->impl);
 
 		role->state &= ~StateDirtyFrameExtents;
 	}
@@ -1075,18 +1074,18 @@ ResizeForMap(XdgRole *role)
 	/* Resize the window pre-map.  This should generate a
 	   ConfigureNotify event once the resize completes.  */
 	XResizeWindow(compositor.display, role->window,
-				  max_x - min_x + 1, max_y - min_y + 1);
+	              max_x - min_x + 1, max_y - min_y + 1);
 
 	if (role->impl->funcs.note_window_resized)
 		role->impl->funcs.note_window_resized(&role->role,
-											  role->impl,
-											  max_x - min_x + 1,
-											  max_y - min_y + 1);
+		                                      role->impl,
+		                                      max_x - min_x + 1,
+		                                      max_y - min_y + 1);
 }
 
 static void
 GetResizeDimensions(Surface *surface, Role *role, int *x_out,
-					int *y_out)
+                    int *y_out)
 {
 	XLXdgRoleGetCurrentGeometry(role, NULL, NULL, x_out, y_out);
 
@@ -1096,7 +1095,7 @@ GetResizeDimensions(Surface *surface, Role *role, int *x_out,
 
 static void
 PostResize(Surface *surface, Role *role, int west_motion,
-		   int north_motion, int new_width, int new_height)
+           int north_motion, int new_width, int new_height)
 {
 	XdgRole *xdg_role;
 
@@ -1106,8 +1105,8 @@ PostResize(Surface *surface, Role *role, int west_motion,
 		return;
 
 	xdg_role->impl->funcs.post_resize(role, xdg_role->impl,
-									  west_motion, north_motion,
-									  new_width, new_height);
+	                                  west_motion, north_motion,
+	                                  new_width, new_height);
 }
 
 static void
@@ -1186,7 +1185,7 @@ CheckFastForward(void *data)
 
 static void
 SelectExtraEvents(Surface *surface, Role *role,
-				  unsigned long event_mask)
+                  unsigned long event_mask)
 {
 	XdgRole *xdg_role;
 
@@ -1194,11 +1193,11 @@ SelectExtraEvents(Surface *surface, Role *role,
 
 	/* Select extra events for the input method.  */
 	XSelectInput(compositor.display, xdg_role->window,
-				 DefaultEventMask | event_mask);
+	             DefaultEventMask | event_mask);
 
 	/* Set the target standard event mask.  */
 	RenderSetStandardEventMask(xdg_role->target,
-							   DefaultEventMask | event_mask);
+	                           DefaultEventMask | event_mask);
 }
 
 static void
@@ -1210,7 +1209,7 @@ NoteFocus(Surface *surface, Role *role, FocusMode focus)
 
 	if (xdg_role->impl && xdg_role->impl->funcs.note_focus)
 		xdg_role->impl->funcs.note_focus(role, xdg_role->impl,
-										 focus);
+		                                 focus);
 }
 
 static void
@@ -1226,7 +1225,7 @@ OutputsChanged(Surface *surface, Role *role)
 
 static void
 Activate(Surface *surface, Role *role, int deviceid,
-		 Timestamp timestamp, Surface *activator_surface)
+         Timestamp timestamp, Surface *activator_surface)
 {
 	XdgRole *xdg_role;
 
@@ -1234,9 +1233,9 @@ Activate(Surface *surface, Role *role, int deviceid,
 
 	if (xdg_role->impl && xdg_role->impl->funcs.activate)
 		xdg_role->impl->funcs.activate(role, xdg_role->impl,
-									   deviceid,
-									   timestamp.milliseconds,
-									   activator_surface);
+		                               deviceid,
+		                               timestamp.milliseconds,
+		                               activator_surface);
 }
 
 static void
@@ -1249,7 +1248,7 @@ HandleFrameCallback(void *data, uint32_t frame_time)
 }
 
 void XLGetXdgSurface(struct wl_client *client, struct wl_resource *resource,
-					 uint32_t id, struct wl_resource *surface_resource)
+                     uint32_t id, struct wl_resource *surface_resource)
 {
 	XdgRole *role;
 	XSetWindowAttributes attrs;
@@ -1264,7 +1263,7 @@ void XLGetXdgSurface(struct wl_client *client, struct wl_resource *resource,
 	{
 		/* A role already exists on that surface.  */
 		wl_resource_post_error(resource, XDG_WM_BASE_ERROR_ROLE,
-							   "surface already has attached role");
+		                       "surface already has attached role");
 		return;
 	}
 
@@ -1279,8 +1278,8 @@ void XLGetXdgSurface(struct wl_client *client, struct wl_resource *resource,
 	memset(role, 0, sizeof *role);
 
 	role->role.resource = wl_resource_create(client, &xdg_surface_interface,
-											 wl_resource_get_version(resource),
-											 id);
+	                                         wl_resource_get_version(resource),
+	                                         id);
 
 	if (!role->role.resource)
 	{
@@ -1291,7 +1290,7 @@ void XLGetXdgSurface(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(role->role.resource, &xdg_surface_impl,
-								   role, HandleResourceDestroy);
+	                               role, HandleResourceDestroy);
 
 	/* Link the role onto the wm base.  */
 	role->link.next = wm_base->list.next;
@@ -1327,33 +1326,33 @@ void XLGetXdgSurface(struct wl_client *client, struct wl_resource *resource,
 	flags = CWColormap | CWBorderPixel | CWEventMask | CWCursor;
 
 	role->window = XCreateWindow(compositor.display,
-								 DefaultRootWindow(compositor.display),
-								 0, 0, 20, 20, 0, compositor.n_planes,
-								 InputOutput, compositor.visual, flags,
-								 &attrs);
+	                             DefaultRootWindow(compositor.display),
+	                             0, 0, 20, 20, 0, compositor.n_planes,
+	                             InputOutput, compositor.visual, flags,
+	                             &attrs);
 	role->target = RenderTargetFromWindow(role->window, DefaultEventMask);
 	role->release_helper = MakeBufferReleaseHelper(AllBuffersReleased,
-												   role);
+	                                               role);
 
 	/* Set the client.  */
 	RenderSetClient(role->target, client);
 
 	role->subcompositor = MakeSubcompositor();
 	role->sync_helper = MakeSyncHelper(role->subcompositor,
-									   role->window,
-									   role->target,
-									   HandleFrameCallback,
-									   &role->role);
+	                                   role->window,
+	                                   role->target,
+	                                   HandleFrameCallback,
+	                                   &role->role);
 	SyncHelperSetResizeCallback(role->sync_helper, HandleResize,
-								CheckFastForward);
+	                            CheckFastForward);
 
 	SubcompositorSetTarget(role->subcompositor, &role->target);
 	SubcompositorSetInputCallback(role->subcompositor,
-								  InputRegionChanged, role);
+	                              InputRegionChanged, role);
 	SubcompositorSetOpaqueCallback(role->subcompositor,
-								   OpaqueRegionChanged, role);
+	                               OpaqueRegionChanged, role);
 	SubcompositorSetBoundsCallback(role->subcompositor,
-								   NoteBounds, role);
+	                               NoteBounds, role);
 	XLSelectStandardEvents(role->window);
 	XLMakeAssoc(surfaces, role->window, role);
 
@@ -1445,7 +1444,7 @@ void XLXdgRoleSendConfigure(Role *role, uint32_t serial)
 }
 
 void XLXdgRoleCalcNewWindowSize(Role *role, int width, int height,
-								int *new_width, int *new_height)
+                                int *new_width, int *new_height)
 {
 	XdgRole *xdg_role;
 	int temp, temp1, geometry_width, geometry_height;
@@ -1454,9 +1453,9 @@ void XLXdgRoleCalcNewWindowSize(Role *role, int width, int height,
 	xdg_role = XdgRoleFromRole(role);
 
 	if (!xdg_role->current_state.window_geometry_width
-		/* If no surface exists, we might as well return immediately,
-	   since the scale factor will not be obtainable.  */
-		|| !role->surface)
+	    /* If no surface exists, we might as well return immediately,
+       since the scale factor will not be obtainable.  */
+	    || !role->surface)
 	{
 		*new_width = width;
 		*new_height = height;
@@ -1465,7 +1464,7 @@ void XLXdgRoleCalcNewWindowSize(Role *role, int width, int height,
 	}
 
 	SubcompositorBounds(xdg_role->subcompositor,
-						&min_x, &min_y, &max_x, &max_y);
+	                    &min_x, &min_y, &max_x, &max_y);
 
 	/* Calculate the current width and height.  */
 	current_width = (max_x - min_x + 1);
@@ -1474,11 +1473,11 @@ void XLXdgRoleCalcNewWindowSize(Role *role, int width, int height,
 	/* Adjust the current_width and current_height by the scale
 	   factor.  */
 	TruncateScaleToSurface(role->surface, current_width,
-						   current_height, &current_width,
-						   &current_height);
+	                       current_height, &current_width,
+	                       &current_height);
 
 	XLXdgRoleGetCurrentGeometry(role, NULL, NULL, &geometry_width,
-								&geometry_height);
+	                            &geometry_height);
 
 	/* Now, temp and temp1 become the difference between the current
 	   window geometry and the size of the surface (incl. subsurfaces)
@@ -1506,7 +1505,7 @@ int XLXdgRoleGetWidth(Role *role)
 	xdg_role = XdgRoleFromRole(role);
 
 	SubcompositorBounds(xdg_role->subcompositor,
-						&x, &y, &x1, &y1);
+	                    &x, &y, &x1, &y1);
 
 	return x1 - x + 1;
 }
@@ -1519,7 +1518,7 @@ int XLXdgRoleGetHeight(Role *role)
 	xdg_role = XdgRoleFromRole(role);
 
 	SubcompositorBounds(xdg_role->subcompositor,
-						&x, &y, &x1, &y1);
+	                    &x, &y, &x1, &y1);
 
 	return y1 - y + 1;
 }
@@ -1550,7 +1549,7 @@ void XLXdgRoleSetBoundsSize(Role *role, int bounds_width, int bounds_height)
 }
 
 void XLXdgRoleGetCurrentGeometry(Role *role, int *x_return, int *y_return,
-								 int *width, int *height)
+                                 int *width, int *height)
 {
 	XdgRole *xdg_role;
 	int x, y, x1, y1, min_x, max_x, min_y, max_y;
@@ -1558,7 +1557,7 @@ void XLXdgRoleGetCurrentGeometry(Role *role, int *x_return, int *y_return,
 	xdg_role = XdgRoleFromRole(role);
 
 	SubcompositorBounds(xdg_role->subcompositor,
-						&min_x, &min_y, &max_x, &max_y);
+	                    &min_x, &min_y, &max_x, &max_y);
 
 	if (!xdg_role->current_state.window_geometry_width)
 	{
@@ -1647,7 +1646,7 @@ Bool XLXdgRoleInputRegionContains(Role *role, int x, int y)
 
 	xdg_role = XdgRoleFromRole(role);
 	return pixman_region32_contains_point(&xdg_role->input_region,
-										  x, y, &dummy_box);
+	                                      x, y, &dummy_box);
 }
 
 void XLXdgRoleResizeForMap(Role *role)
@@ -1666,7 +1665,7 @@ void XLXdgRoleResizeForMap(Role *role)
 
 void *
 XLXdgRoleRunOnReconstrain(Role *role, void (*configure_func)(void *, XEvent *),
-						  void (*resize_func)(void *), void *data)
+                          void (*resize_func)(void *), void *data)
 {
 	ReconstrainCallback *callback;
 	XdgRole *xdg_role;
@@ -1712,7 +1711,7 @@ void XLXdgRoleMoveBy(Role *role, int west, int north)
 
 	CurrentRootPosition(xdg_role, &root_x, &root_y);
 	XMoveWindow(compositor.display, xdg_role->window,
-				root_x - west, root_y - north);
+	            root_x - west, root_y - north);
 
 	/* Set pending root window positions.  These positions will be
 	   used until the movement really happens, to avoid outdated
@@ -1735,7 +1734,7 @@ void XLInitXdgSurfaces(void)
 	alloc.blue = 0;
 
 	if (!XAllocColor(compositor.display, compositor.colormap,
-					 &alloc))
+	                 &alloc))
 	{
 		fprintf(stderr, "Failed to allocate green pixel\n");
 		exit(1);
@@ -1748,25 +1747,25 @@ void XLInitXdgSurfaces(void)
 	   later.  */
 
 	if (!XShapeQueryExtension(compositor.display, &shape_base,
-							  &shape_error))
+	                          &shape_error))
 	{
 		fprintf(stderr, "The Nonrectangular Window Shape extension is not"
-						" present on the X server\n");
+		        " present on the X server\n");
 		exit(1);
 	}
 
 	if (!XShapeQueryVersion(compositor.display,
-							&shape_major, &shape_minor))
+	                        &shape_major, &shape_minor))
 	{
 		fprintf(stderr, "A supported version of the Nonrectangular Window"
-						" Shape extension is not present on the X server\n");
+		        " Shape extension is not present on the X server\n");
 		exit(1);
 	}
 
 	if (shape_major < 1 || (shape_major == 1 && shape_minor < 1))
 	{
 		fprintf(stderr, "The version of the Nonrectangular Window Shape"
-						" extension is too old\n");
+		        " extension is too old\n");
 		exit(1);
 	}
 }
@@ -1821,7 +1820,7 @@ void XLXdgRoleNoteRejectedConfigure(Role *role)
 }
 
 void XLXdgRoleHandlePing(Role *role, XEvent *event,
-						 void (*reply_func)(XEvent *))
+                         void (*reply_func)(XEvent *))
 {
 	XdgRole *xdg_role;
 	PingEvent *record;
@@ -1840,7 +1839,7 @@ void XLXdgRoleHandlePing(Role *role, XEvent *event,
 		record->event = *event;
 		record->reply_func = reply_func;
 		xdg_role->ping_events = XLListPrepend(xdg_role->ping_events,
-											  record);
+		                                      record);
 		XLXdgWmBaseSendPing(xdg_role->wm_base);
 	}
 }

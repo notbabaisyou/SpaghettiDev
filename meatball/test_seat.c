@@ -84,12 +84,12 @@ struct _TestXIButtonState {
 };
 
 enum {
-	StateDeviceIdSet = 1,
-	StateNameSet = 1 << 1,
-	StateUseSet = 1 << 2,
+	StateDeviceIdSet   = 1,
+	StateNameSet       = 1 << 1,
+	StateUseSet        = 1 << 2,
 	StateAttachmentSet = 1 << 3,
-	StateEnabledSet = 1 << 4,
-	StateComplete = 0x1f,
+	StateEnabledSet    = 1 << 4,
+	StateComplete      = 0x1f,
 };
 
 struct _TestXIDeviceInfo {
@@ -121,13 +121,15 @@ struct _TestXIDeviceInfo {
 
 static void
 DestroyXIModifierState(struct wl_client *client,
-                       struct wl_resource *resource) {
+                       struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
 static void
 SetValues(struct wl_client *client, struct wl_resource *resource,
-          int32_t base, int32_t latched, int32_t locked, int32_t effective) {
+          int32_t base, int32_t latched, int32_t locked, int32_t effective)
+{
 	TestXIModifierState *state;
 
 	state = wl_resource_get_user_data(resource);
@@ -144,7 +146,8 @@ static const struct test_XIModifierState_interface XIModifierState_impl =
 };
 
 static void
-HandleXIModifierStateDestroy(struct wl_resource *resource) {
+HandleXIModifierStateDestroy(struct wl_resource *resource)
+{
 	TestXIModifierState *state;
 
 	state = wl_resource_get_user_data(resource);
@@ -154,13 +157,15 @@ HandleXIModifierStateDestroy(struct wl_resource *resource) {
 
 static void
 DestroyXIButtonState(struct wl_client *client,
-                     struct wl_resource *resource) {
+                     struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
 static void
 AddButton(struct wl_client *client, struct wl_resource *resource,
-          uint32_t button) {
+          uint32_t button)
+{
 	TestXIButtonState *state;
 
 	state = wl_resource_get_user_data(resource);
@@ -175,7 +180,8 @@ AddButton(struct wl_client *client, struct wl_resource *resource,
 
 static void
 RemoveButton(struct wl_client *client, struct wl_resource *resource,
-             uint32_t button) {
+             uint32_t button)
+{
 	TestXIButtonState *state;
 
 	state = wl_resource_get_user_data(resource);
@@ -195,7 +201,8 @@ static const struct test_XIButtonState_interface XIButtonState_impl =
 };
 
 static void
-HandleXIButtonStateDestroy(struct wl_resource *resource) {
+HandleXIButtonStateDestroy(struct wl_resource *resource)
+{
 	TestXIButtonState *state;
 
 	state = wl_resource_get_user_data(resource);
@@ -205,7 +212,8 @@ HandleXIButtonStateDestroy(struct wl_resource *resource) {
 
 static void
 DestroyXIValuatorState(struct wl_client *client,
-                       struct wl_resource *resource) {
+                       struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
@@ -213,12 +221,14 @@ static void
 AddValuatorToTestXIValuatorState(struct wl_client *client,
                                  struct wl_resource *resource,
                                  uint32_t valuator,
-                                 wl_fixed_t value) {
+                                 wl_fixed_t value)
+{
 	TestXIValuatorState *state;
 	double *old_values, *new_values;
 	size_t i, j;
 
-	if (valuator < 1 || valuator > 65535) {
+	if (valuator < 1 || valuator > 65535)
+	{
 		/* The valuator cannot be represented.  */
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_VALUATOR,
 		                       "the specified valuator cannot be represented");
@@ -233,9 +243,11 @@ AddValuatorToTestXIValuatorState(struct wl_client *client,
 	    && MaskIsSet(state->mask, valuator))
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_VALUE_EXISTS,
 		                       "the specified valuator is already set");
-	else {
+	else
+	{
 		/* If the mask needs to be expanded, do it now.  */
-		if (state->mask_len < XIMaskLen(valuator)) {
+		if (state->mask_len < XIMaskLen(valuator))
+		{
 			state->mask = XLRealloc(state->mask,
 			                        XIMaskLen(valuator));
 
@@ -253,7 +265,8 @@ AddValuatorToTestXIValuatorState(struct wl_client *client,
 		                      sizeof *state->values);
 
 		for (i = 0, j = 0; i < MAX(state->mask_len,
-		                           XIMaskLen(valuator)) * 8; ++i) {
+		                           XIMaskLen(valuator)) * 8; ++i)
+		{
 			if (i == valuator)
 				/* Insert the new value.  */
 				new_values[j++] = wl_fixed_to_double(value);
@@ -279,7 +292,8 @@ static const struct test_XIValuatorState_interface XIValuatorState_impl =
 };
 
 static void
-HandleXIValuatorStateDestroy(struct wl_resource *resource) {
+HandleXIValuatorStateDestroy(struct wl_resource *resource)
+{
 	TestXIValuatorState *state;
 
 	state = wl_resource_get_user_data(resource);
@@ -296,18 +310,21 @@ HandleXIValuatorStateDestroy(struct wl_resource *resource) {
 
 
 static void
-DestroyDeviceInfo(struct wl_client *client, struct wl_resource *resource) {
+DestroyDeviceInfo(struct wl_client *client, struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
 static void
 SetDeviceId(struct wl_client *client, struct wl_resource *resource,
-            uint32_t device_id) {
+            uint32_t device_id)
+{
 	TestXIDeviceInfo *info;
 
 	info = wl_resource_get_user_data(resource);
 
-	if (device_id < 65536) {
+	if (device_id < 65536)
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_DEVICE_ID,
 		                       "invalid device id specified");
 		return;
@@ -319,7 +336,8 @@ SetDeviceId(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetName(struct wl_client *client, struct wl_resource *resource,
-        const char *name) {
+        const char *name)
+{
 	TestXIDeviceInfo *info;
 
 	info = wl_resource_get_user_data(resource);
@@ -332,7 +350,8 @@ SetName(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetUse(struct wl_client *client, struct wl_resource *resource,
-       int32_t use) {
+       int32_t use)
+{
 	TestXIDeviceInfo *info;
 
 	info = wl_resource_get_user_data(resource);
@@ -342,7 +361,8 @@ SetUse(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetAttachment(struct wl_client *client, struct wl_resource *resource,
-              struct wl_resource *attachment_resource) {
+              struct wl_resource *attachment_resource)
+{
 	TestSeatController *controller;
 	TestXIDeviceInfo *info;
 
@@ -355,7 +375,8 @@ SetAttachment(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetEnabled(struct wl_client *client, struct wl_resource *resource,
-           uint32_t enabled) {
+           uint32_t enabled)
+{
 	TestXIDeviceInfo *info;
 
 	info = wl_resource_get_user_data(resource);
@@ -370,11 +391,13 @@ SetEnabled(struct wl_client *client, struct wl_resource *resource,
 static void
 AddXIScrollClassInfo(struct wl_client *client, struct wl_resource *resource,
                      int32_t sourceid, int32_t number, int32_t scroll_type,
-                     wl_fixed_t increment, int32_t flags) {
+                     wl_fixed_t increment, int32_t flags)
+{
 	TestXIDeviceInfo *info;
 	XIScrollClassInfo *class;
 
-	if (sourceid < 65536) {
+	if (sourceid < 65536)
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_DEVICE_ID,
 		                       "invalid device ID specified");
 		return;
@@ -403,11 +426,13 @@ static void
 AddXIValuatorClassInfo(struct wl_client *client, struct wl_resource *resource,
                        int32_t sourceid, int32_t number, const char *label,
                        wl_fixed_t min, wl_fixed_t max, wl_fixed_t value,
-                       int32_t resolution, int32_t mode) {
+                       int32_t resolution, int32_t mode)
+{
 	TestXIDeviceInfo *info;
 	XIValuatorClassInfo *class;
 
-	if (sourceid < 65536) {
+	if (sourceid < 65536)
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_DEVICE_ID,
 		                       "invalid device ID specified");
 		return;
@@ -415,7 +440,8 @@ AddXIValuatorClassInfo(struct wl_client *client, struct wl_resource *resource,
 
 	/* Avoid interning empty strings.  */
 
-	if (!strlen(label)) {
+	if (!strlen(label))
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_LABEL,
 		                       "the specified label is invalid");
 		return;
@@ -455,7 +481,8 @@ static const struct test_XIDeviceInfo_interface XIDeviceInfo_impl =
 };
 
 static void
-HandleXIDeviceInfoDestroy(struct wl_resource *resource) {
+HandleXIDeviceInfoDestroy(struct wl_resource *resource)
+{
 	TestXIDeviceInfo *info;
 	int i;
 
@@ -478,13 +505,15 @@ HandleXIDeviceInfoDestroy(struct wl_resource *resource) {
 
 static void
 DestroyDeviceController(struct wl_client *client,
-                        struct wl_resource *resource) {
+                        struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
 static void
 AddDeviceInfo(struct wl_client *client, struct wl_resource *resource,
-              struct wl_resource *device_info) {
+              struct wl_resource *device_info)
+{
 	TestDeviceController *controller;
 	TestXIDeviceInfo *info;
 	Seat *seat;
@@ -498,7 +527,8 @@ AddDeviceInfo(struct wl_client *client, struct wl_resource *resource,
 
 	/* First, ensure that the device info is completely specified.  */
 
-	if ((info->state & StateComplete) != StateComplete) {
+	if ((info->state & StateComplete) != StateComplete)
+	{
 		wl_resource_post_error(resource,
 		                       TEST_MANAGER_ERROR_INCOMPLETE_DEVICE_INFO,
 		                       "the specified device information was not"
@@ -510,11 +540,13 @@ AddDeviceInfo(struct wl_client *client, struct wl_resource *resource,
 	seat = XLLookUpAssoc(seats, info->device_id);
 	deviceinfo = XLLookUpAssoc(devices, info->device_id);
 
-	if ((seat && seat->flags & IsTestDeviceSpecified) || deviceinfo) {
+	if ((seat && seat->flags & IsTestDeviceSpecified) || deviceinfo)
+	{
 		/* If a device already exists, see whether or not it was created
 	   by this test device controller.  */
 
-		for (i = 0; i < controller->num_ids; ++i) {
+		for (i = 0; i < controller->num_ids; ++i)
+		{
 			if (controller->device_ids[i] == info->device_id)
 				/* It was created by this controller.  Simply update the
 				   values.  */
@@ -544,7 +576,8 @@ continue_update:
 	/* If the seat exists, repopulate its valuators with that specified
 	   in the device info.  */
 
-	if (seat) {
+	if (seat)
+	{
 		FreeValuators(seat);
 		UpdateValuators(seat, &test_info);
 
@@ -559,12 +592,14 @@ continue_update:
 
 static void
 GetDeviceInfo(struct wl_client *client, struct wl_resource *resource,
-              uint32_t id) {
+              uint32_t id)
+{
 	TestXIDeviceInfo *info;
 
 	info = XLSafeMalloc(sizeof *info);
 
-	if (!info) {
+	if (!info)
+	{
 		wl_resource_post_no_memory(resource);
 		return;
 	}
@@ -574,7 +609,8 @@ GetDeviceInfo(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_XIDeviceInfo_interface,
 			                     wl_resource_get_version(resource), id);
 
-	if (!info->resource) {
+	if (!info->resource)
+	{
 		XLFree(info);
 		return;
 	}
@@ -591,7 +627,8 @@ static const struct test_device_controller_interface device_controller_impl =
 };
 
 static void
-HandleTestDeviceControllerDestroy(struct wl_resource *resource) {
+HandleTestDeviceControllerDestroy(struct wl_resource *resource)
+{
 	TestDeviceController *controller;
 	int i;
 	Seat *seat;
@@ -599,7 +636,8 @@ HandleTestDeviceControllerDestroy(struct wl_resource *resource) {
 	controller = wl_resource_get_user_data(resource);
 
 	/* Remove each device associated with the device controller.  */
-	for (i = 0; i < controller->num_ids; ++i) {
+	for (i = 0; i < controller->num_ids; ++i)
+	{
 		NoticeDeviceDisabled(controller->device_ids[i]);
 
 		/* NoticeDeviceDisabled is special-cased to not free valuators
@@ -618,13 +656,15 @@ HandleTestDeviceControllerDestroy(struct wl_resource *resource) {
 
 static void
 DestroySeatController(struct wl_client *client,
-                      struct wl_resource *resource) {
+                      struct wl_resource *resource)
+{
 	wl_resource_destroy(resource);
 }
 
 static void
 BindSeat(struct wl_client *client, struct wl_resource *resource,
-         uint32_t version, uint32_t id) {
+         uint32_t version, uint32_t id)
+{
 	TestSeatController *controller;
 
 	controller = wl_resource_get_user_data(resource);
@@ -640,13 +680,15 @@ BindSeat(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetXIModifierState(struct wl_client *client, struct wl_resource *resource,
-                   uint32_t id) {
+                   uint32_t id)
+{
 	TestXIModifierState *state;
 	struct wl_resource *state_resource;
 
 	state = XLSafeMalloc(sizeof *state);
 
-	if (!state) {
+	if (!state)
+	{
 		/* Allocating the state structure failed.  */
 		wl_resource_post_no_memory(resource);
 		return;
@@ -657,7 +699,8 @@ GetXIModifierState(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_XIModifierState_interface,
 			                     wl_resource_get_version(resource), id);
 
-	if (!state_resource) {
+	if (!state_resource)
+	{
 		/* Allocating the resource failed.  */
 		XLFree(state);
 		wl_resource_post_no_memory(resource);
@@ -675,13 +718,15 @@ GetXIModifierState(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetXIButtonState(struct wl_client *client, struct wl_resource *resource,
-                 uint32_t id) {
+                 uint32_t id)
+{
 	TestXIButtonState *state;
 	struct wl_resource *state_resource;
 
 	state = XLSafeMalloc(sizeof *state);
 
-	if (!state) {
+	if (!state)
+	{
 		/* Allocating the state structure failed.  */
 		wl_resource_post_no_memory(resource);
 		return;
@@ -692,7 +737,8 @@ GetXIButtonState(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_XIButtonState_interface,
 			                     wl_resource_get_version(resource), id);
 
-	if (!state_resource) {
+	if (!state_resource)
+	{
 		/* Allocating the resource failed.  */
 		XLFree(state);
 		wl_resource_post_no_memory(resource);
@@ -710,13 +756,15 @@ GetXIButtonState(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetXIValuatorState(struct wl_client *client, struct wl_resource *resource,
-                   uint32_t id) {
+                   uint32_t id)
+{
 	TestXIValuatorState *state;
 	struct wl_resource *state_resource;
 
 	state = XLSafeMalloc(sizeof *state);
 
-	if (!state) {
+	if (!state)
+	{
 		/* Allocating the state structure failed.  */
 		wl_resource_post_no_memory(resource);
 		return;
@@ -727,7 +775,8 @@ GetXIValuatorState(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_XIValuatorState_interface,
 			                     wl_resource_get_version(resource), id);
 
-	if (!state_resource) {
+	if (!state_resource)
+	{
 		/* Allocating the resource failed.  */
 		XLFree(state);
 		wl_resource_post_no_memory(resource);
@@ -745,10 +794,12 @@ GetXIValuatorState(struct wl_client *client, struct wl_resource *resource,
 
 
 static void
-TranslateTestButtons(struct wl_resource *resource, XIButtonState *buttons) {
+TranslateTestButtons(struct wl_resource *resource, XIButtonState *buttons)
+{
 	TestXIButtonState *state;
 
-	if (!resource) {
+	if (!resource)
+	{
 		/* Use default values if nothing was specified.  */
 
 		buttons->mask_len = 0;
@@ -765,10 +816,12 @@ TranslateTestButtons(struct wl_resource *resource, XIButtonState *buttons) {
 
 static void
 TranslateTestValuators(struct wl_resource *resource,
-                       XIValuatorState *valuators) {
+                       XIValuatorState *valuators)
+{
 	TestXIValuatorState *state;
 
-	if (!resource) {
+	if (!resource)
+	{
 		/* Use default values if nothing was specified.  */
 		valuators->mask_len = 0;
 		valuators->values = NULL;
@@ -785,10 +838,12 @@ TranslateTestValuators(struct wl_resource *resource,
 
 static void
 TranslateTestModifiers(struct wl_resource *resource,
-                       XIModifierState *modifiers) {
+                       XIModifierState *modifiers)
+{
 	TestXIModifierState *state;
 
-	if (!resource) {
+	if (!resource)
+	{
 		/* Use default values if nothing was specified.  */
 		modifiers->base = 0;
 		modifiers->latched = 0;
@@ -807,7 +862,8 @@ TranslateTestModifiers(struct wl_resource *resource,
 
 static void
 DispatchTestEvent(TestSeatController *controller, Window window,
-                  XIEvent *event) {
+                  XIEvent *event)
+{
 	Surface *surface;
 	Subcompositor *subcompositor;
 
@@ -881,7 +937,8 @@ DispatchXIEnter(struct wl_client *client, struct wl_resource *resource,
                 int32_t focus, int32_t same_screen,
                 struct wl_resource *buttons_resource,
                 struct wl_resource *mods_resource,
-                struct wl_resource *group_resource) {
+                struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIEnterEvent test_event;
 
@@ -901,7 +958,8 @@ DispatchXILeave(struct wl_client *client, struct wl_resource *resource,
                 int32_t focus, int32_t same_screen,
                 struct wl_resource *buttons_resource,
                 struct wl_resource *mods_resource,
-                struct wl_resource *group_resource) {
+                struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XILeaveEvent test_event;
 
@@ -945,7 +1003,8 @@ DispatchXIMotion(struct wl_client *client, struct wl_resource *resource,
                  struct wl_resource *buttons_resource,
                  struct wl_resource *valuators_resource,
                  struct wl_resource *mods_resource,
-                 struct wl_resource *group_resource) {
+                 struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIDeviceEvent test_event;
 
@@ -965,7 +1024,8 @@ DispatchXIButtonPress(struct wl_client *client, struct wl_resource *resource,
                       struct wl_resource *buttons_resource,
                       struct wl_resource *valuators_resource,
                       struct wl_resource *mods_resource,
-                      struct wl_resource *group_resource) {
+                      struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIDeviceEvent test_event;
 
@@ -985,7 +1045,8 @@ DispatchXIButtonRelease(struct wl_client *client, struct wl_resource *resource,
                         struct wl_resource *buttons_resource,
                         struct wl_resource *valuators_resource,
                         struct wl_resource *mods_resource,
-                        struct wl_resource *group_resource) {
+                        struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIDeviceEvent test_event;
 
@@ -998,12 +1059,14 @@ DispatchXIButtonRelease(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetDeviceController(struct wl_client *client, struct wl_resource *resource,
-                    uint32_t id) {
+                    uint32_t id)
+{
 	TestDeviceController *controller;
 
 	controller = XLSafeMalloc(sizeof *controller);
 
-	if (!controller) {
+	if (!controller)
+	{
 		wl_resource_post_no_memory(resource);
 		return;
 	}
@@ -1013,7 +1076,8 @@ GetDeviceController(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_device_controller_interface,
 			                     wl_resource_get_version(resource), id);
 
-	if (!controller->resource) {
+	if (!controller->resource)
+	{
 		XLFree(controller);
 		wl_resource_post_no_memory(resource);
 		return;
@@ -1027,7 +1091,8 @@ GetDeviceController(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetLastUserTime(struct wl_client *client, struct wl_resource *resource,
-                uint32_t months, uint32_t milliseconds) {
+                uint32_t months, uint32_t milliseconds)
+{
 	Timestamp timestamp;
 	TestSeatController *controller;
 
@@ -1036,7 +1101,8 @@ SetLastUserTime(struct wl_client *client, struct wl_resource *resource,
 	controller = wl_resource_get_user_data(resource);
 
 	if (TimestampIs(timestamp, Earlier,
-	                controller->seat->last_user_time)) {
+	                controller->seat->last_user_time))
+	{
 		wl_resource_post_error(resource, TEST_MANAGER_ERROR_INVALID_USER_TIME,
 		                       "the specified user time (%"PRIu32":%"PRIu32
 		                       ") lies in the past.  the current time is %u:%u",
@@ -1059,7 +1125,8 @@ DispatchXIFocusIn(struct wl_client *client, struct wl_resource *resource,
                   int32_t focus, int32_t same_screen,
                   struct wl_resource *buttons_resource,
                   struct wl_resource *mods_resource,
-                  struct wl_resource *group_resource) {
+                  struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIFocusInEvent test_event;
 
@@ -1079,7 +1146,8 @@ DispatchXIFocusOut(struct wl_client *client, struct wl_resource *resource,
                    int32_t focus, int32_t same_screen,
                    struct wl_resource *buttons_resource,
                    struct wl_resource *mods_resource,
-                   struct wl_resource *group_resource) {
+                   struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIFocusInEvent test_event;
 
@@ -1108,7 +1176,8 @@ DispatchXIFocusOut(struct wl_client *client, struct wl_resource *resource,
 static void
 DispatchXIRawKeyPress(struct wl_client *client, struct wl_resource *resource,
                       uint32_t time, int32_t sourceid, int32_t detail,
-                      int32_t flags, struct wl_resource *valuators_resource) {
+                      int32_t flags, struct wl_resource *valuators_resource)
+{
 	TestSeatController *controller;
 	XIRawEvent test_event;
 
@@ -1122,7 +1191,8 @@ DispatchXIRawKeyPress(struct wl_client *client, struct wl_resource *resource,
 static void
 DispatchXIRawKeyRelease(struct wl_client *client, struct wl_resource *resource,
                         uint32_t time, int32_t sourceid, int32_t detail,
-                        int32_t flags, struct wl_resource *valuators_resource) {
+                        int32_t flags, struct wl_resource *valuators_resource)
+{
 	TestSeatController *controller;
 	XIRawEvent test_event;
 
@@ -1142,7 +1212,8 @@ DispatchXIKeyPress(struct wl_client *client, struct wl_resource *resource,
                    struct wl_resource *buttons_resource,
                    struct wl_resource *valuators_resource,
                    struct wl_resource *mods_resource,
-                   struct wl_resource *group_resource) {
+                   struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIDeviceEvent test_event;
 
@@ -1162,7 +1233,8 @@ DispatchXIKeyRelease(struct wl_client *client, struct wl_resource *resource,
                      struct wl_resource *buttons_resource,
                      struct wl_resource *valuators_resource,
                      struct wl_resource *mods_resource,
-                     struct wl_resource *group_resource) {
+                     struct wl_resource *group_resource)
+{
 	TestSeatController *controller;
 	XIDeviceEvent test_event;
 
@@ -1196,7 +1268,8 @@ static const struct test_seat_controller_interface seat_controller_impl =
 };
 
 static void
-HandleControllerResourceDestroy(struct wl_resource *resource) {
+HandleControllerResourceDestroy(struct wl_resource *resource)
+{
 	TestSeatController *controller;
 	Seat *seat;
 
@@ -1240,14 +1313,16 @@ HandleControllerResourceDestroy(struct wl_resource *resource) {
 
 void
 XLGetTestSeat(struct wl_client *client, struct wl_resource *resource,
-              uint32_t id) {
+              uint32_t id)
+{
 	TestSeatController *controller;
 	Seat *seat;
 	char name_format[sizeof "test seat: " + 40];
 
 	controller = XLSafeMalloc(sizeof *controller);
 
-	if (!controller) {
+	if (!controller)
+	{
 		wl_resource_post_no_memory(resource);
 		return;
 	}
@@ -1257,7 +1332,8 @@ XLGetTestSeat(struct wl_client *client, struct wl_resource *resource,
 			= wl_resource_create(client, &test_seat_controller_interface,
 			                     wl_resource_get_version(resource), id);
 
-	if (!controller->resource) {
+	if (!controller->resource)
+	{
 		wl_resource_post_no_memory(resource);
 		XLFree(controller);
 		return;
@@ -1296,7 +1372,7 @@ XLGetTestSeat(struct wl_client *client, struct wl_resource *resource,
 	/* Initialize seat->key_pressed.  */
 	seat->key_pressed
 			= XLCalloc(MaskLen(xkb_desc->max_key_code
-			                   - xkb_desc->min_key_code), 1);
+				- xkb_desc->min_key_code), 1);
 
 	/* Retain the seat.  */
 	RetainSeat(seat);

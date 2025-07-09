@@ -28,15 +28,13 @@ typedef struct _Mode Mode;
 typedef struct _Output Output;
 typedef struct _ScaleChangeCallback ScaleChangeCallback;
 
-struct _Mode
-{
+struct _Mode {
 	int flags;
 	unsigned int width, height;
 	unsigned long refresh;
 };
 
-struct _Output
-{
+struct _Output {
 	/* The output ID of this output.  */
 	RROutput output;
 
@@ -68,8 +66,7 @@ struct _Output
 	int scale;
 };
 
-struct _ScaleChangeCallback
-{
+struct _ScaleChangeCallback {
 	/* The next and last callbacks in this list.  */
 	ScaleChangeCallback *next, *last;
 
@@ -80,11 +77,10 @@ struct _ScaleChangeCallback
 	void *data;
 };
 
-enum
-{
-	ModesChanged = 1,
+enum {
+	ModesChanged    = 1,
 	GeometryChanged = (1 << 2),
-	NameChanged = (1 << 3),
+	NameChanged     = (1 << 3),
 	/* N.B. that this isn't currently checked during comparisons,
 	   since the rest of the code only supports a single global
 	   scale.  */
@@ -170,29 +166,29 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 	if (output)
 		output->resources = XLListRemove(output->resources,
-										 resource);
+		                                 resource);
 }
 
 static void
 HandleRelease(struct wl_client *client,
-			  struct wl_resource *resource)
+              struct wl_resource *resource)
 {
 	wl_resource_destroy(resource);
 }
 
 static const struct wl_output_interface wl_output_impl =
-	{
-		.release = HandleRelease,
+{
+	.release = HandleRelease,
 };
 
 static void
 SendGeometry(Output *output, struct wl_resource *resource)
 {
 	wl_output_send_geometry(resource, output->x, output->y,
-							output->mm_width, output->mm_height,
-							output->subpixel,
-							ServerVendor(compositor.display),
-							output->name, output->transform);
+	                        output->mm_width, output->mm_height,
+	                        output->subpixel,
+	                        ServerVendor(compositor.display),
+	                        output->name, output->transform);
 }
 
 static void
@@ -205,7 +201,7 @@ static void
 SendMode(Mode *mode, struct wl_resource *resource)
 {
 	wl_output_send_mode(resource, mode->flags, mode->width,
-						mode->height, mode->refresh);
+	                    mode->height, mode->refresh);
 }
 
 static Bool
@@ -224,7 +220,7 @@ FindOutputId(RROutput *outputs, int noutputs, RROutput id)
 
 static void
 HandleOutputBound(struct wl_client *client, Output *output,
-				  struct wl_resource *resource)
+                  struct wl_resource *resource)
 {
 	Surface *surface;
 
@@ -236,7 +232,7 @@ HandleOutputBound(struct wl_client *client, Output *output,
 	while (surface != &all_surfaces)
 	{
 		if (client == wl_resource_get_client(surface->resource) && FindOutputId(surface->outputs, surface->n_outputs,
-																				output->output))
+			    output->output))
 			wl_surface_send_enter(surface->resource, resource);
 
 		surface = surface->next;
@@ -245,7 +241,7 @@ HandleOutputBound(struct wl_client *client, Output *output,
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	struct wl_resource *resource;
 	Output *output;
@@ -254,7 +250,7 @@ HandleBind(struct wl_client *client, void *data,
 	output = data;
 
 	resource = wl_resource_create(client, &wl_output_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -263,7 +259,7 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(resource, &wl_output_impl, data,
-								   HandleResourceDestroy);
+	                               HandleResourceDestroy);
 	output->resources = XLListPrepend(output->resources, resource);
 
 	SendGeometry(output, resource);
@@ -327,7 +323,7 @@ GetModeRefresh(XRRModeInfo *info)
 
 static void
 AppendRRMode(Output *output, RRMode id, XRRScreenResources *res,
-			 XRRCrtcInfo *info, Bool preferred)
+             XRRCrtcInfo *info, Bool preferred)
 {
 	Mode *mode;
 	int i;
@@ -356,23 +352,23 @@ ComputeSubpixel(XRROutputInfo *info)
 {
 	switch (info->subpixel_order)
 	{
-	case SubPixelHorizontalRGB:
-		return WL_OUTPUT_SUBPIXEL_HORIZONTAL_RGB;
+		case SubPixelHorizontalRGB:
+			return WL_OUTPUT_SUBPIXEL_HORIZONTAL_RGB;
 
-	case SubPixelHorizontalBGR:
-		return WL_OUTPUT_SUBPIXEL_HORIZONTAL_BGR;
+		case SubPixelHorizontalBGR:
+			return WL_OUTPUT_SUBPIXEL_HORIZONTAL_BGR;
 
-	case SubPixelVerticalRGB:
-		return WL_OUTPUT_SUBPIXEL_VERTICAL_RGB;
+		case SubPixelVerticalRGB:
+			return WL_OUTPUT_SUBPIXEL_VERTICAL_RGB;
 
-	case SubPixelVerticalBGR:
-		return WL_OUTPUT_SUBPIXEL_VERTICAL_BGR;
+		case SubPixelVerticalBGR:
+			return WL_OUTPUT_SUBPIXEL_VERTICAL_BGR;
 
-	case SubPixelNone:
-		return WL_OUTPUT_SUBPIXEL_NONE;
+		case SubPixelNone:
+			return WL_OUTPUT_SUBPIXEL_NONE;
 
-	default:
-		return WL_OUTPUT_SUBPIXEL_UNKNOWN;
+		default:
+			return WL_OUTPUT_SUBPIXEL_UNKNOWN;
 	}
 }
 
@@ -381,33 +377,33 @@ ComputeTransform(XRRCrtcInfo *info)
 {
 	switch (info->rotation)
 	{
-	case RR_Rotate_0:
-		return WL_OUTPUT_TRANSFORM_NORMAL;
+		case RR_Rotate_0:
+			return WL_OUTPUT_TRANSFORM_NORMAL;
 
-	case RR_Rotate_90:
-		return WL_OUTPUT_TRANSFORM_90;
+		case RR_Rotate_90:
+			return WL_OUTPUT_TRANSFORM_90;
 
-	case RR_Rotate_180:
-		return WL_OUTPUT_TRANSFORM_180;
+		case RR_Rotate_180:
+			return WL_OUTPUT_TRANSFORM_180;
 
-	case RR_Rotate_270:
-		return WL_OUTPUT_TRANSFORM_270;
+		case RR_Rotate_270:
+			return WL_OUTPUT_TRANSFORM_270;
 
-	case RR_Reflect_X | RR_Rotate_0:
-		return WL_OUTPUT_TRANSFORM_FLIPPED;
+		case RR_Reflect_X | RR_Rotate_0:
+			return WL_OUTPUT_TRANSFORM_FLIPPED;
 
-	case RR_Reflect_X | RR_Rotate_90:
-		return WL_OUTPUT_TRANSFORM_FLIPPED_90;
+		case RR_Reflect_X | RR_Rotate_90:
+			return WL_OUTPUT_TRANSFORM_FLIPPED_90;
 
-	case RR_Reflect_X | RR_Rotate_180:
-		return WL_OUTPUT_TRANSFORM_FLIPPED_180;
+		case RR_Reflect_X | RR_Rotate_180:
+			return WL_OUTPUT_TRANSFORM_FLIPPED_180;
 
-	case RR_Reflect_X | RR_Rotate_270:
-		return WL_OUTPUT_TRANSFORM_FLIPPED_270;
+		case RR_Reflect_X | RR_Rotate_270:
+			return WL_OUTPUT_TRANSFORM_FLIPPED_270;
 
 		/* How should Y axis reflection be handled here? */
-	default:
-		return WL_OUTPUT_TRANSFORM_NORMAL;
+		default:
+			return WL_OUTPUT_TRANSFORM_NORMAL;
 	}
 }
 
@@ -422,7 +418,7 @@ BuildOutputTree(void)
 	XLList *all_outputs_local = NULL;
 
 	resources = XRRGetScreenResources(compositor.display,
-									  DefaultRootWindow(compositor.display));
+	                                  DefaultRootWindow(compositor.display));
 
 	if (!resources || !resources->noutput)
 	{
@@ -437,7 +433,7 @@ BuildOutputTree(void)
 		/* Catch errors in case the output disappears.  */
 		CatchXErrors();
 		info = XRRGetOutputInfo(compositor.display, resources,
-								resources->outputs[i]);
+		                        resources->outputs[i]);
 		UncatchXErrors(NULL);
 
 		if (!info)
@@ -448,7 +444,7 @@ BuildOutputTree(void)
 			/* Catch errors in case the CRT controller disappears.  */
 			CatchXErrors();
 			crtc = XRRGetCrtcInfo(compositor.display, resources,
-								  info->crtc);
+			                      info->crtc);
 			UncatchXErrors(NULL);
 
 			if (!crtc)
@@ -480,11 +476,11 @@ BuildOutputTree(void)
 			{
 				if (info->npreferred != j)
 					AppendRRMode(output, info->modes[j],
-								 resources, crtc, False);
+					             resources, crtc, False);
 			}
 
 			AppendRRMode(output, info->modes[info->npreferred],
-						 resources, crtc, True);
+			             resources, crtc, True);
 
 			XRRFreeCrtcInfo(crtc);
 		}
@@ -504,7 +500,7 @@ AreModesIdentical(XLList *first, XLList *second)
 	/* This explicitly also checks the order in which the modes
 	   appear.  */
 	for (tem1 = first, tem2 = second; tem1 && tem2;
-		 tem1 = tem1->next, tem2 = tem2->next)
+	     tem1 = tem1->next, tem2 = tem2->next)
 	{
 		if (memcmp(tem1->data, tem2->data, sizeof(Mode)))
 			return False;
@@ -526,7 +522,8 @@ CompareOutputs(Output *output, Output *other, int *flags)
 	if (!AreModesIdentical(output->modes, other->modes))
 		difference |= ModesChanged;
 
-	if (output->mm_width != other->mm_width || output->mm_height != other->mm_height || output->x != other->x || output->y != other->y || output->subpixel != other->subpixel || output->transform != other->transform)
+	if (output->mm_width != other->mm_width || output->mm_height != other->mm_height || output->x != other->x || output
+	    ->y != other->y || output->subpixel != other->subpixel || output->transform != other->transform)
 		difference |= GeometryChanged;
 
 	if (strcmp(output->name, other->name))
@@ -558,8 +555,8 @@ MakeGlobal(Output *output)
 	XLAssert(!output->global);
 
 	output->global = wl_global_create(compositor.wl_display,
-									  &wl_output_interface, 4,
-									  output, HandleBind);
+	                                  &wl_output_interface, 4,
+	                                  output, HandleBind);
 
 	if (!output->global)
 	{
@@ -708,7 +705,7 @@ GetCurrentRefresh(Output *output)
 		mode = list->data;
 
 		if (mode->flags & WL_OUTPUT_MODE_CURRENT)
-			return (double)mode->refresh / 1000;
+			return (double) mode->refresh / 1000;
 	}
 
 	/* No current mode! */
@@ -740,14 +737,14 @@ GetOutputAt(int x, int y)
 
 static Bool
 AnyIntersectionBetween(int x, int y, int x1, int y1,
-					   int x2, int y2, int x3, int y3)
+                       int x2, int y2, int x3, int y3)
 {
 	return (x < x3 && x1 > x2 && y < y3 && y1 > y2);
 }
 
 static int
 ComputeSurfaceOutputs(int x, int y, int width, int height,
-					  int noutputs, Output **outputs)
+                      int noutputs, Output **outputs)
 {
 	XLList *tem;
 	Output *output;
@@ -762,10 +759,10 @@ ComputeSurfaceOutputs(int x, int y, int width, int height,
 		/* Test all four corners in case some extend outside the screen
 	   or output.  */
 		if (AnyIntersectionBetween(x, y, x + width - 1, y + height - 1,
-								   output->x, output->y,
-								   output->x + output->width - 1,
-								   output->y + output->height - 1) &&
-			i + 1 < noutputs)
+		                           output->x, output->y,
+		                           output->x + output->width - 1,
+		                           output->y + output->height - 1) &&
+		    i + 1 < noutputs)
 			outputs[i++] = output;
 	}
 
@@ -805,13 +802,13 @@ FindOutputResource(Output *output, Surface *client_surface)
 
 static Bool
 BoxContains(pixman_box32_t *box, int x, int y, int width,
-			int height)
+            int height)
 {
 	return (x >= box->x1 && y >= box->y1 && x + width <= box->x2 && y + height <= box->y2);
 }
 
 void XLUpdateSurfaceOutputs(Surface *surface, int x, int y, int width,
-							int height)
+                            int height)
 {
 	Output *outputs[256], *output;
 	int n, i;
@@ -824,15 +821,15 @@ void XLUpdateSurfaceOutputs(Surface *surface, int x, int y, int width,
 		height = ViewHeight(surface->view);
 
 	if (BoxContains(pixman_region32_extents(&surface->output_region),
-					x, y, width, height))
+	                x, y, width, height))
 		/* The surface didn't move past the output region.  */
 		return;
 
 	/* TODO: store the number of outputs somewhere instead of hardcoding
 	   256.  */
 	n = ComputeSurfaceOutputs(x, y, width, height,
-							  ArrayElements(outputs),
-							  outputs);
+	                          ArrayElements(outputs),
+	                          outputs);
 
 	/* First, find and leave all the outputs that the surface is no
 	   longer inside.  */
@@ -864,7 +861,7 @@ void XLUpdateSurfaceOutputs(Surface *surface, int x, int y, int width,
 	for (i = 0; i < n; ++i)
 	{
 		if (!FindOutputId(surface->outputs, surface->n_outputs,
-						  outputs[i]->output))
+		                  outputs[i]->output))
 		{
 			resource = FindOutputResource(outputs[i], surface);
 
@@ -874,16 +871,16 @@ void XLUpdateSurfaceOutputs(Surface *surface, int x, int y, int width,
 
 		if (!i)
 			pixman_region32_init_rect(&surface->output_region,
-									  outputs[i]->x, outputs[i]->y,
-									  outputs[i]->width,
-									  outputs[i]->height);
+			                          outputs[i]->x, outputs[i]->y,
+			                          outputs[i]->width,
+			                          outputs[i]->height);
 		else
 			pixman_region32_intersect_rect(&surface->output_region,
-										   &surface->output_region,
-										   outputs[i]->x,
-										   outputs[i]->y,
-										   outputs[i]->width,
-										   outputs[i]->height);
+			                               &surface->output_region,
+			                               outputs[i]->x,
+			                               outputs[i]->y,
+			                               outputs[i]->width,
+			                               outputs[i]->height);
 	}
 
 	/* Copy the list of outputs to the surface as well.  */
@@ -891,7 +888,7 @@ void XLUpdateSurfaceOutputs(Surface *surface, int x, int y, int width,
 
 	if (surface->n_outputs)
 		surface->outputs = XLRealloc(surface->outputs,
-									 sizeof *surface->outputs * surface->n_outputs);
+		                             sizeof *surface->outputs * surface->n_outputs);
 	else
 	{
 		XLFree(surface->outputs);
@@ -912,7 +909,7 @@ void XLUpdateSurfaceOutputs(Surface *surface, int x, int y, int width,
 }
 
 Bool XLGetOutputRectAt(int x, int y, int *x_out, int *y_out,
-					   int *width_out, int *height_out)
+                       int *width_out, int *height_out)
 {
 	Output *output;
 
@@ -944,7 +941,7 @@ Bool XLHandleOneXEventForOutputs(XEvent *event)
 	XRRResourceChangeNotifyEvent *resource;
 	Time time;
 
-	notify = (XRRNotifyEvent *)event;
+	notify = (XRRNotifyEvent *) event;
 
 	if (event->type == compositor.rr_event_base + RRNotify)
 	{
@@ -957,15 +954,15 @@ Bool XLHandleOneXEventForOutputs(XEvent *event)
 			/* See if a timestamp of some sort can be extracted.  */
 			switch (notify->subtype)
 			{
-			case RRNotify_OutputProperty:
-				property = (XRROutputPropertyNotifyEvent *)notify;
-				time = property->timestamp;
-				break;
+				case RRNotify_OutputProperty:
+					property = (XRROutputPropertyNotifyEvent *) notify;
+					time = property->timestamp;
+					break;
 
-			case RRNotify_ResourceChange:
-				resource = (XRRResourceChangeNotifyEvent *)notify;
-				time = resource->timestamp;
-				break;
+				case RRNotify_ResourceChange:
+					resource = (XRRResourceChangeNotifyEvent *) notify;
+					time = resource->timestamp;
+					break;
 			}
 
 			change_hook(time);
@@ -1031,7 +1028,7 @@ RunScaleChangeCallbacks(void)
 	while (callback != &scale_callbacks)
 	{
 		callback->scale_change(callback->data,
-							   global_scale_factor);
+		                       global_scale_factor);
 		callback = callback->next;
 	}
 }
@@ -1134,7 +1131,7 @@ void XLOutputSetChangeFunction(void (*change_func)(Time))
 }
 
 void XLGetMaxOutputBounds(int *x_min, int *y_min, int *x_max,
-						  int *y_max)
+                          int *y_max)
 {
 	int x1, y1, x2, y2;
 	Output *output;
@@ -1148,11 +1145,11 @@ void XLGetMaxOutputBounds(int *x_min, int *y_min, int *x_max,
 		*x_min = 0;
 		*y_min = 0;
 		*x_max = DisplayWidth(compositor.display,
-							  DefaultScreen(compositor.display)) -
-				 1;
+		                      DefaultScreen(compositor.display)) -
+		         1;
 		*y_max = DisplayHeight(compositor.display,
-							   DefaultScreen(compositor.display)) -
-				 1;
+		                       DefaultScreen(compositor.display)) -
+		         1;
 		return;
 	}
 
@@ -1195,25 +1192,25 @@ void XLInitRROutputs(void)
 	Bool extension;
 
 	extension = XRRQueryExtension(compositor.display,
-								  &compositor.rr_event_base,
-								  &compositor.rr_error_base);
+	                              &compositor.rr_event_base,
+	                              &compositor.rr_error_base);
 
 	if (!extension)
 	{
 		fprintf(stderr, "Display '%s' does not support the RandR extension\n",
-				DisplayString(compositor.display));
+		        DisplayString(compositor.display));
 		abort();
 	}
 
 	XRRQueryVersion(compositor.display,
-					&compositor.rr_major,
-					&compositor.rr_minor);
+	                &compositor.rr_major,
+	                &compositor.rr_minor);
 
 	if (compositor.rr_major < 1 || (compositor.rr_major == 1 && compositor.rr_minor < 4))
 	{
 		fprintf(stderr, "Display '%s' does not support a"
-						" sufficiently new version of the RandR extension\n",
-				DisplayString(compositor.display));
+		        " sufficiently new version of the RandR extension\n",
+		        DisplayString(compositor.display));
 		abort();
 	}
 
@@ -1224,7 +1221,7 @@ void XLInitRROutputs(void)
 	   factor was specified for debugging.  */
 	if (!ApplyEnvironment("GLOBAL_SCALE", &global_scale_factor))
 		XLListenToIntegerSetting("Gdk/WindowScalingFactor",
-								 HandleScaleSettingChange);
+		                         HandleScaleSettingChange);
 
 	/* Set the real scale factor.  */
 	real_scale_factor = global_scale_factor;
@@ -1235,8 +1232,9 @@ void XLInitRROutputs(void)
 
 	/* Select for various kinds of required input.  */
 	XRRSelectInput(compositor.display,
-				   DefaultRootWindow(compositor.display),
-				   (RRCrtcChangeNotifyMask | RROutputChangeNotifyMask | RROutputPropertyNotifyMask | RRResourceChangeNotifyMask));
+	               DefaultRootWindow(compositor.display),
+	               (RRCrtcChangeNotifyMask | RROutputChangeNotifyMask | RROutputPropertyNotifyMask |
+	                RRResourceChangeNotifyMask));
 
 	all_outputs = BuildOutputTree();
 	MakeGlobalsForOutputTree(all_outputs);

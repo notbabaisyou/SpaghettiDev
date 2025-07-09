@@ -32,7 +32,7 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 static void
 GetToplevelDecoration(struct wl_client *client, struct wl_resource *resource,
-					  uint32_t id, struct wl_resource *toplevel_resource)
+                      uint32_t id, struct wl_resource *toplevel_resource)
 {
 	XdgRoleImplementation *impl;
 
@@ -48,13 +48,13 @@ static const struct zxdg_decoration_manager_v1_interface manager_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &zxdg_decoration_manager_v1_interface,
-								  version, id);
+	                              &zxdg_decoration_manager_v1_interface,
+	                              version, id);
 
 	if (!resource)
 	{
@@ -68,6 +68,6 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 void XLInitDecoration(void)
 {
 	decoration_manager_global = wl_global_create(compositor.wl_display,
-												 &zxdg_decoration_manager_v1_interface,
-												 1, NULL, HandleBind);
+	                                             &zxdg_decoration_manager_v1_interface,
+	                                             1, NULL, HandleBind);
 }

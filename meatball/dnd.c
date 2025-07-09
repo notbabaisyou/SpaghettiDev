@@ -31,8 +31,7 @@
    Drags between Wayland clients are implemented in seat.c and
    data_device.c instead.  */
 
-enum
-{
+enum {
 	XdndProtocolVersion = 5,
 };
 
@@ -42,18 +41,16 @@ typedef struct _WindowCache WindowCache;
 typedef struct _WindowCacheEntry WindowCacheEntry;
 typedef struct _WindowCacheEntryHeader WindowCacheEntryHeader;
 
-enum
-{
-	IsMapped = 1,
-	IsDestroyed = (1 << 2),
-	IsToplevel = (1 << 3),
-	IsNotToplevel = (1 << 4),
+enum {
+	IsMapped       = 1,
+	IsDestroyed    = (1 << 2),
+	IsToplevel     = (1 << 3),
+	IsNotToplevel  = (1 << 4),
 	IsPropertyRead = (1 << 5),
 	IsShapeDirtied = (1 << 6),
 };
 
-struct _DndState
-{
+struct _DndState {
 	/* The source window.  */
 	Window source_window;
 
@@ -126,22 +123,20 @@ struct _DndState
 	int version;
 };
 
-enum
-{
-	TypeListSet = 1,
+enum {
+	TypeListSet          = 1,
 	MoreThanThreeTargets = (1 << 2),
-	WaitingForStatus = (1 << 3),
-	PendingPosition = (1 << 4),
-	PendingDrop = (1 << 5),
-	WillAcceptDrop = (1 << 6),
-	NeedMouseRect = (1 << 7),
-	SelectionFailed = (1 << 8),
-	SelectionSet = (1 << 9),
-	ActionListSet = (1 << 10),
+	WaitingForStatus     = (1 << 3),
+	PendingPosition      = (1 << 4),
+	PendingDrop          = (1 << 5),
+	WillAcceptDrop       = (1 << 6),
+	NeedMouseRect        = (1 << 7),
+	SelectionFailed      = (1 << 8),
+	SelectionSet         = (1 << 9),
+	ActionListSet        = (1 << 10),
 };
 
-struct _DragState
-{
+struct _DragState {
 	/* The seat performing the drag.  */
 	Seat *seat;
 
@@ -184,8 +179,7 @@ struct _DragState
 	unsigned int modifiers;
 };
 
-struct _WindowCache
-{
+struct _WindowCache {
 	/* The association table between windows and entries.  */
 	XLAssocTable *entries;
 
@@ -193,15 +187,13 @@ struct _WindowCache
 	WindowCacheEntry *root_window;
 };
 
-struct _WindowCacheEntryHeader
-{
+struct _WindowCacheEntryHeader {
 	/* The next and last window cache entries.  Not set on the root
 	   window.  */
 	WindowCacheEntry *next, *last;
 };
 
-struct _WindowCacheEntry
-{
+struct _WindowCacheEntry {
 	/* The next and last window cache entries.  Not set on the root
 	   window.  */
 	WindowCacheEntry *next, *last;
@@ -313,15 +305,16 @@ TranslateAction(Atom action)
 /* Forward declarations.  */
 
 static void SendStatus(void);
+
 static void RespondToDndDrop(void);
 
 static void
 Accept(struct wl_client *client, struct wl_resource *resource,
-	   uint32_t serial, const char *mime_type)
+       uint32_t serial, const char *mime_type)
 {
 	uint32_t sc;
 
-	sc = (uintptr_t)wl_resource_get_user_data(resource);
+	sc = (uintptr_t) wl_resource_get_user_data(resource);
 
 	if (sc < dnd_state.serial || dnd_state.source_window == None)
 		/* This data offer is out of date.  */
@@ -351,11 +344,11 @@ Accept(struct wl_client *client, struct wl_resource *resource,
 
 static void
 Receive(struct wl_client *client, struct wl_resource *resource,
-		const char *mime_type, int fd)
+        const char *mime_type, int fd)
 {
 	uint32_t serial;
 
-	serial = (uintptr_t)wl_resource_get_user_data(resource);
+	serial = (uintptr_t) wl_resource_get_user_data(resource);
 
 	if (serial < dnd_state.serial || dnd_state.source_window == None)
 	{
@@ -365,7 +358,7 @@ Receive(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	XLReceiveDataFromSelection(dnd_state.timestamp, XdndSelection,
-							   InternAtom(mime_type), fd);
+	                           InternAtom(mime_type), fd);
 }
 
 static void
@@ -379,12 +372,12 @@ Finish(struct wl_client *client, struct wl_resource *resource)
 {
 	uint32_t serial;
 
-	serial = (uintptr_t)wl_resource_get_user_data(resource);
+	serial = (uintptr_t) wl_resource_get_user_data(resource);
 
 	if (serial < dnd_state.serial || !dnd_state.used_action || !dnd_state.accepted || dnd_state.finished)
 	{
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-							   "finish called at inopportune moment");
+		                       "finish called at inopportune moment");
 		return;
 	}
 
@@ -441,7 +434,7 @@ SendStatus(void)
 
 	CatchXErrors();
 	XSendEvent(compositor.display, dnd_state.source_window,
-			   False, NoEventMask, &event);
+	           False, NoEventMask, &event);
 	UncatchXErrors(NULL);
 }
 
@@ -479,7 +472,7 @@ UpdateUsedAction(void)
 		{
 			if (wl_resource_get_version(list->data) >= 3)
 				wl_data_offer_send_action(list->data,
-										  dnd_state.used_action);
+				                          dnd_state.used_action);
 		}
 	}
 
@@ -489,20 +482,24 @@ UpdateUsedAction(void)
 
 static void
 SetActions(struct wl_client *client, struct wl_resource *resource,
-		   uint32_t dnd_actions, uint32_t preferred_action)
+           uint32_t dnd_actions, uint32_t preferred_action)
 {
 	uint32_t serial;
 
-	serial = (uintptr_t)wl_resource_get_user_data(resource);
+	serial = (uintptr_t) wl_resource_get_user_data(resource);
 
 	if (serial < dnd_state.serial || !dnd_state.source_window)
 		/* This data offer is out of date.  */
 		return;
 
-	if (dnd_actions & ~(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE | WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK) || (preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE))
+	if (dnd_actions & ~(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE |
+	                    WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK) || (
+		    preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK && preferred_action !=
+		    WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE && preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY &&
+		    preferred_action != WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE))
 		wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_ACTION,
-							   "invalid action or action mask among: %u %u",
-							   dnd_actions, preferred_action);
+		                       "invalid action or action mask among: %u %u",
+		                       dnd_actions, preferred_action);
 
 	/* Otherwise, update the DND state with the supported action.  */
 	dnd_state.supported_actions = dnd_actions;
@@ -513,12 +510,12 @@ SetActions(struct wl_client *client, struct wl_resource *resource,
 }
 
 static const struct wl_data_offer_interface wl_data_offer_impl =
-	{
-		.accept = Accept,
-		.receive = Receive,
-		.destroy = Destroy,
-		.finish = Finish,
-		.set_actions = SetActions,
+{
+	.accept = Accept,
+	.receive = Receive,
+	.destroy = Destroy,
+	.finish = Finish,
+	.set_actions = SetActions,
 };
 
 static void
@@ -526,7 +523,7 @@ HandleResourceDestroy(struct wl_resource *resource)
 {
 	uint32_t serial;
 
-	serial = (uintptr_t)wl_resource_get_user_data(resource);
+	serial = (uintptr_t) wl_resource_get_user_data(resource);
 
 	if (serial >= dnd_state.serial && dnd_state.source_window != None)
 	{
@@ -542,7 +539,7 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 		/* Remove the resource from the resource list.  */
 		dnd_state.resources = XLListRemove(dnd_state.resources,
-										   resource);
+		                                   resource);
 
 		/* If there are no more resources, finish the drag and drop
 	   operation.  Note that this might've already been done by
@@ -559,16 +556,16 @@ CreateOffer(struct wl_client *client, int version)
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_data_offer_interface,
-								  version, 0);
+	                              version, 0);
 
 	if (!resource)
 		return NULL;
 
 	wl_resource_set_implementation(resource, &wl_data_offer_impl,
-								   (void *)(intptr_t)dnd_state.serial,
-								   HandleResourceDestroy);
+	                               (void *) (intptr_t) dnd_state.serial,
+	                               HandleResourceDestroy);
 	dnd_state.resources = XLListPrepend(dnd_state.resources,
-										resource);
+	                                    resource);
 
 	/* If version <= 2, then the drag-and-drop operation should always
 	   be accepted, no matter whether or not accept is called.  */
@@ -590,7 +587,7 @@ SendOffers(struct wl_resource *resource)
 	{
 		if (dnd_state.targets[i])
 			wl_data_offer_send_offer(resource,
-									 dnd_state.targets[i]);
+			                         dnd_state.targets[i]);
 	}
 }
 
@@ -600,10 +597,10 @@ FinishDndEntry(void)
 	int i;
 
 	if (dnd_state.seat && dnd_state.resources
-		/* Don't send leave if a drop already happened.  */
-		&& !dnd_state.dropped)
+	    /* Don't send leave if a drop already happened.  */
+	    && !dnd_state.dropped)
 		XLDataDeviceSendLeave(dnd_state.seat, dnd_state.surface,
-							  NULL);
+		                      NULL);
 
 	dnd_state.source_window = None;
 	dnd_state.target_window = None;
@@ -679,7 +676,7 @@ RespondToDndDrop(void)
 
 	CatchXErrors();
 	XSendEvent(compositor.display, dnd_state.source_window,
-			   False, NoEventMask, &event);
+	           False, NoEventMask, &event);
 	UncatchXErrors(NULL);
 
 	/* Now that XdndFinished has been sent, the drag and drop operation
@@ -696,15 +693,16 @@ HandleSurfaceDestroy(void *data)
 
 static void
 HandleDndEntry(Surface *target, Window source, Atom *targets,
-			   int ntargets, int proto)
+               int ntargets, int proto)
 {
 	int i;
 	char **names;
 
 	if (dnd_state.source_window)
 	{
-		fprintf(stderr, "XdndEnter received while a drag-and-drop operation"
-						" is in progress; overriding current drag-and-drop operation\n");
+		MBLog(MB_LOG_ERROR,
+		      "XdndEnter received while a drag-and-drop operation"
+		      " is in progress; overriding current drag-and-drop operation\n");
 		FinishDndEntry();
 	}
 
@@ -712,13 +710,13 @@ HandleDndEntry(Surface *target, Window source, Atom *targets,
 	dnd_state.source_window = source;
 	dnd_state.surface = target;
 	dnd_state.callback = XLSurfaceRunOnFree(dnd_state.surface,
-											HandleSurfaceDestroy, NULL);
+	                                        HandleSurfaceDestroy, NULL);
 
 	/* Retrieve the atoms inside the targets list.  */
 	names = XLCalloc(ntargets, sizeof *names);
 
 	XGetAtomNames(compositor.display, targets,
-				  ntargets, names);
+	              ntargets, names);
 
 	/* Enter the names of the targets into the atom table so that they
 	   can be interned without roundtrips in the future.  */
@@ -736,8 +734,8 @@ HandleDndEntry(Surface *target, Window source, Atom *targets,
 	   all future drag-and-drop messages with dummy values.  */
 	if (dnd_state.seat)
 		dnd_state.seat_callback = XLSeatRunOnDestroy(dnd_state.seat,
-													 HandleSeatDestroy,
-													 NULL);
+		                                             HandleSeatDestroy,
+		                                             NULL);
 
 	/* Initialize available data types from the atom names.  */
 	dnd_state.targets = names;
@@ -769,11 +767,12 @@ ReadXdndTypeList(Window window, int *nitems_return)
 
 	CatchXErrors();
 	rc = XGetWindowProperty(compositor.display, window,
-							XdndTypeList, 0, LONG_MAX,
-							False, XA_ATOM, &actual_type,
-							&actual_format, &nitems,
-							&bytes_remaining, &tmp_data);
-	if (UncatchXErrors(NULL) || rc != Success || actual_format != 32 || !tmp_data || actual_type != XA_ATOM || nitems < 1)
+	                        XdndTypeList, 0, LONG_MAX,
+	                        False, XA_ATOM, &actual_type,
+	                        &actual_format, &nitems,
+	                        &bytes_remaining, &tmp_data);
+	if (UncatchXErrors(NULL) || rc != Success || actual_format != 32 || !tmp_data || actual_type != XA_ATOM || nitems <
+	    1)
 	{
 		if (tmp_data)
 			XFree(tmp_data);
@@ -782,7 +781,7 @@ ReadXdndTypeList(Window window, int *nitems_return)
 	}
 
 	*nitems_return = nitems;
-	return (Atom *)tmp_data;
+	return (Atom *) tmp_data;
 }
 
 static Bool
@@ -793,10 +792,10 @@ HandleXdndEnterEvent(Surface *surface, XEvent *event)
 	int ntargets, proto;
 
 	if (event->xclient.data.l[1] & 1)
-		/* There are more than 3 targets; retrieve them from the
-		   XdndTypeList property.  */
+	/* There are more than 3 targets; retrieve them from the
+	   XdndTypeList property.  */
 		targets = ReadXdndTypeList(event->xclient.data.l[0],
-								   &ntargets);
+		                           &ntargets);
 	else
 	{
 		/* Otherwise, the first three properties contain the selection
@@ -820,10 +819,10 @@ HandleXdndEnterEvent(Surface *surface, XEvent *event)
 		return True;
 
 	proto = MIN(event->xclient.data.l[1] >> 24,
-				XdndProtocolVersion);
+	            XdndProtocolVersion);
 
 	HandleDndEntry(surface, event->xclient.data.l[0],
-				   targets, ntargets, proto);
+	               targets, ntargets, proto);
 
 	if (event->xclient.data.l[1] & 1)
 		/* Now, free the type list, which was allocated by Xlib.  */
@@ -839,7 +838,7 @@ HandleChildUnmap(void *data)
 
 	if (dnd_state.seat)
 		XLDataDeviceSendLeave(dnd_state.seat, dnd_state.child,
-							  NULL);
+		                      NULL);
 	XLSurfaceCancelUnmapCallback(dnd_state.unmap_callback);
 
 	dnd_state.child = NULL;
@@ -853,7 +852,7 @@ HandleChildUnmap(void *data)
 
 static Bool
 HandleMotion(Surface *toplevel, int x, int y, uint32_t action,
-			 int *x_out, int *y_out)
+             int *x_out, int *y_out)
 {
 	Subcompositor *subcompositor;
 	View *view;
@@ -866,7 +865,7 @@ HandleMotion(Surface *toplevel, int x, int y, uint32_t action,
 
 	/* Find the view underneath the subcompositor.  */
 	view = SubcompositorLookupView(subcompositor, x, y,
-								   &x_off, &y_off);
+	                               &x_off, &y_off);
 
 	if (view)
 		child = ViewGetData(view);
@@ -882,7 +881,7 @@ HandleMotion(Surface *toplevel, int x, int y, uint32_t action,
 		/* x_out and y_out are only used if dnd_state.child ends up
 		   non-NULL.  */
 		TruncateWindowToSurface(child, x - x_off, y - y_off,
-								x_out, y_out);
+		                        x_out, y_out);
 
 	if (dnd_state.child == child)
 		/* If nothing changed, don't do anything.  */
@@ -893,7 +892,7 @@ HandleMotion(Surface *toplevel, int x, int y, uint32_t action,
 	if (dnd_state.child)
 	{
 		XLDataDeviceSendLeave(dnd_state.seat, dnd_state.child,
-							  NULL);
+		                      NULL);
 		XLSurfaceCancelUnmapCallback(dnd_state.unmap_callback);
 
 		dnd_state.child = NULL;
@@ -922,7 +921,7 @@ HandleMotion(Surface *toplevel, int x, int y, uint32_t action,
 
 		/* Create the offers and send data to the clients.  */
 		XLDataDeviceMakeOffers(dnd_state.seat, funcs, child, *x_out,
-							   *y_out);
+		                       *y_out);
 		/* Send source actions to each resource created.  */
 		for (tem = dnd_state.resources; tem; tem = tem->next)
 		{
@@ -952,11 +951,12 @@ ReadDndActionList(Window window)
 
 	CatchXErrors();
 	rc = XGetWindowProperty(compositor.display, window,
-							XdndActionList, 0, LONG_MAX,
-							False, XA_ATOM, &actual_type,
-							&actual_format, &nitems,
-							&bytes_remaining, &tmp_data);
-	if (UncatchXErrors(NULL) || rc != Success || actual_format != 32 || !tmp_data || actual_type != XA_ATOM || nitems < 1)
+	                        XdndActionList, 0, LONG_MAX,
+	                        False, XA_ATOM, &actual_type,
+	                        &actual_format, &nitems,
+	                        &bytes_remaining, &tmp_data);
+	if (UncatchXErrors(NULL) || rc != Success || actual_format != 32 || !tmp_data || actual_type != XA_ATOM || nitems <
+	    1)
 	{
 		if (tmp_data)
 			XFree(tmp_data);
@@ -964,7 +964,7 @@ ReadDndActionList(Window window)
 		return WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
 	}
 
-	atoms = (Atom *)tmp_data;
+	atoms = (Atom *) tmp_data;
 
 	for (i = 0; i < nitems; ++i)
 		mask |= TranslateAction(atoms[i]);
@@ -996,9 +996,9 @@ HandleXdndPositionEvent(Surface *surface, XEvent *event)
 
 	/* Translate the coordinates to the surface's window.  */
 	XTranslateCoordinates(compositor.display,
-						  DefaultRootWindow(compositor.display),
-						  XLWindowFromSurface(surface),
-						  root_x, root_y, &x, &y, &child);
+	                      DefaultRootWindow(compositor.display),
+	                      XLWindowFromSurface(surface),
+	                      root_x, root_y, &x, &y, &child);
 
 	action = TranslateAction(event->xclient.data.l[4]);
 
@@ -1042,9 +1042,9 @@ HandleXdndPositionEvent(Surface *surface, XEvent *event)
 
 	if (dnd_state.seat && dnd_state.child)
 		XLDataDeviceSendMotion(dnd_state.seat, surface,
-							   /* l[3] is the timestamp of the
-								  movement.  */
-							   x, y, event->xclient.data.l[3]);
+		                       /* l[3] is the timestamp of the
+			                      movement.  */
+		                       x, y, event->xclient.data.l[3]);
 
 	/* Send an XdndStatus event in response.  */
 	SendStatus();
@@ -1088,11 +1088,11 @@ HandleXdndDropEvent(Surface *surface, XEvent *event)
 	/* If finish has already been called, send XdndFinish to the source,
 	   and complete the transfer.  */
 	if (dnd_state.finished
-		/* Also respond (but with default values) if the transfer cannot
-	   continue because the seat has been destroyed.  */
-		|| !dnd_state.respond || !dnd_state.seat
-		/* Also respond if the resource version is less than 3.  */
-		|| dnd_state.version <= 2)
+	    /* Also respond (but with default values) if the transfer cannot
+       continue because the seat has been destroyed.  */
+	    || !dnd_state.respond || !dnd_state.seat
+	    /* Also respond if the resource version is less than 3.  */
+	    || dnd_state.version <= 2)
 		RespondToDndDrop();
 
 	/* Set dnd_state.dropped.  */
@@ -1107,8 +1107,8 @@ void XLDndWriteAwarenessProperty(Window window)
 
 	version = XdndProtocolVersion;
 	XChangeProperty(compositor.display, window,
-					XdndAware, XA_ATOM, 32, PropModeReplace,
-					(unsigned char *)&version, 1);
+	                XdndAware, XA_ATOM, 32, PropModeReplace,
+	                (unsigned char *) &version, 1);
 }
 
 /* Keep in mind that the given surface should be a toplevel surface
@@ -1145,7 +1145,7 @@ static void AddChildren(WindowCacheEntry *, xcb_query_tree_reply_t *);
 
 static void
 InitRegionWithRects(pixman_region32_t *region,
-					xcb_shape_get_rectangles_reply_t *rects)
+                    xcb_shape_get_rectangles_reply_t *rects)
 {
 	pixman_box32_t *boxes;
 	xcb_rectangle_t *rectangles;
@@ -1182,7 +1182,7 @@ InitRegionWithRects(pixman_region32_t *region,
 
 static void
 IntersectRegionWith(pixman_region32_t *region,
-					xcb_shape_get_rectangles_reply_t *rects)
+                    xcb_shape_get_rectangles_reply_t *rects)
 {
 	pixman_box32_t *boxes;
 	xcb_rectangle_t *rectangles;
@@ -1226,11 +1226,11 @@ IntersectRegionWith(pixman_region32_t *region,
 
 static void
 AddChild(WindowCacheEntry *parent, Window window,
-		 xcb_get_geometry_reply_t *geometry,
-		 xcb_query_tree_reply_t *children,
-		 xcb_get_window_attributes_reply_t *attributes,
-		 xcb_shape_get_rectangles_reply_t *bounding,
-		 xcb_shape_get_rectangles_reply_t *input)
+         xcb_get_geometry_reply_t *geometry,
+         xcb_query_tree_reply_t *children,
+         xcb_get_window_attributes_reply_t *attributes,
+         xcb_shape_get_rectangles_reply_t *bounding,
+         xcb_shape_get_rectangles_reply_t *input)
 {
 	WindowCacheEntry *entry;
 	unsigned long mask;
@@ -1274,7 +1274,7 @@ AddChild(WindowCacheEntry *parent, Window window,
 
 	/* Add this child to the assoc table.  */
 	XLMakeAssoc(parent->cache->entries, window,
-				entry);
+	            entry);
 
 	/* Add this child's children.  */
 	AddChildren(entry, children);
@@ -1326,37 +1326,37 @@ AddChildren(WindowCacheEntry *entry, xcb_query_tree_reply_t *reply)
 	for (i = 0; i < n_children; ++i)
 	{
 		geometries[i] = xcb_get_geometry(compositor.conn,
-										 windows[i]);
+		                                 windows[i]);
 		children[i] = xcb_query_tree(compositor.conn,
-									 windows[i]);
+		                             windows[i]);
 		attributes[i] = xcb_get_window_attributes(compositor.conn,
-												  windows[i]);
+		                                          windows[i]);
 		boundings[i] = xcb_shape_get_rectangles(compositor.conn,
-												windows[i],
-												XCB_SHAPE_SK_BOUNDING);
+		                                        windows[i],
+		                                        XCB_SHAPE_SK_BOUNDING);
 		inputs[i] = xcb_shape_get_rectangles(compositor.conn,
-											 windows[i],
-											 XCB_SHAPE_SK_INPUT);
+		                                     windows[i],
+		                                     XCB_SHAPE_SK_INPUT);
 	}
 
 	/* Next, retrieve selection replies.  */
 	for (i = 0; i < n_children; ++i)
 	{
 		geometry = xcb_get_geometry_reply(compositor.conn,
-										  geometries[i],
-										  &error);
+		                                  geometries[i],
+		                                  &error);
 		tree = xcb_query_tree_reply(compositor.conn,
-									children[i],
-									&error1);
+		                            children[i],
+		                            &error1);
 		attribute = xcb_get_window_attributes_reply(compositor.conn,
-													attributes[i],
-													&error2);
+		                                            attributes[i],
+		                                            &error2);
 		bounding = xcb_shape_get_rectangles_reply(compositor.conn,
-												  boundings[i],
-												  &error3);
+		                                          boundings[i],
+		                                          &error3);
 		input = xcb_shape_get_rectangles_reply(compositor.conn,
-											   inputs[i],
-											   &error4);
+		                                       inputs[i],
+		                                       &error4);
 
 		if (error || error1 || error2 || error3 || error4 || !geometry || !tree || !attribute || !bounding || !input)
 		{
@@ -1410,8 +1410,8 @@ AddChildren(WindowCacheEntry *entry, xcb_query_tree_reply_t *reply)
 			continue;
 
 		AddChild(entry, windows[i], all_geometries[i],
-				 all_trees[i], all_attributes[i],
-				 all_boundings[i], all_inputs[i]);
+		         all_trees[i], all_attributes[i],
+		         all_boundings[i], all_inputs[i]);
 
 		free(all_geometries[i]);
 		free(all_trees[i]);
@@ -1459,14 +1459,14 @@ MakeRootWindowEntry(WindowCache *cache)
 
 	/* Get the replies from those requests.  */
 	geometry = xcb_get_geometry_reply(compositor.conn, geometry_cookie,
-									  NULL);
+	                                  NULL);
 	tree = xcb_query_tree_reply(compositor.conn, tree_cookie, NULL);
 
 	if (!geometry || !tree)
 	{
 		/* This should not happen in principle.  */
 		fprintf(stderr, "failed to obtain window geometry or tree"
-						" of root window");
+		        " of root window");
 		abort();
 	}
 
@@ -1478,8 +1478,8 @@ MakeRootWindowEntry(WindowCache *cache)
 
 	/* The root window shouldn't have an input shape.  */
 	pixman_region32_init_rect(&entry->shape, entry->x,
-							  entry->y, entry->width,
-							  entry->height);
+	                          entry->y, entry->width,
+	                          entry->height);
 
 	/* Select for SubstructureNotifyMask on the root window.  */
 	entry->input_key = XLSelectInputFromRootWindow(SubstructureNotifyMask);
@@ -1527,7 +1527,7 @@ FreeWindowCacheEntry(WindowCacheEntry *entry)
 
 	/* Remove the association.  */
 	XLDeleteAssoc(entry->cache->entries,
-				  entry->window);
+	              entry->window);
 
 	/* Free the sentinel node.  */
 	XLFree(entry->children);
@@ -1542,16 +1542,16 @@ FreeWindowCacheEntry(WindowCacheEntry *entry)
 		{
 			/* Revert back to the old event mask.  */
 			XSelectInput(compositor.display, entry->window,
-						 entry->old_event_mask);
+			             entry->old_event_mask);
 
 			/* Also stop selecting for ShapeNotify events.  */
 			xcb_shape_select_input(compositor.conn,
-								   entry->window, 0);
+			                       entry->window, 0);
 		}
 	}
 	else
-		/* This is the root window; stop selecting for
-		   SubstructureNotifyMask.  */
+	/* This is the root window; stop selecting for
+	   SubstructureNotifyMask.  */
 		XLDeselectInputFromRootWindow(entry->input_key);
 
 	/* Free the region.  */
@@ -1637,7 +1637,8 @@ HandleConfigureNotify(WindowCache *cache, XEvent *event)
 
 	/* Reinitialize the contents of the window with the new
 	   information.  */
-	if (event->xconfigure.x != window->x || event->xconfigure.y != window->y || event->xconfigure.width != window->width || event->xconfigure.height != window->height)
+	if (event->xconfigure.x != window->x || event->xconfigure.y != window->y || event->xconfigure.width != window->width
+	    || event->xconfigure.height != window->height)
 	{
 		window->x = event->xconfigure.x;
 		window->y = event->xconfigure.y;
@@ -1728,30 +1729,30 @@ HandleCreateNotify(WindowCache *cache, XEvent *event)
 
 	/* Add the window in front of the parent.  */
 	geometry_cookie = xcb_get_geometry(compositor.conn,
-									   event->xcreatewindow.window);
+	                                   event->xcreatewindow.window);
 	tree_cookie = xcb_query_tree(compositor.conn,
-								 event->xcreatewindow.window);
+	                             event->xcreatewindow.window);
 	attributes_cookie = xcb_get_window_attributes(compositor.conn,
-												  event->xcreatewindow.window);
+	                                              event->xcreatewindow.window);
 	bounding_cookie = xcb_shape_get_rectangles(compositor.conn,
-											   event->xcreatewindow.window,
-											   XCB_SHAPE_SK_BOUNDING);
+	                                           event->xcreatewindow.window,
+	                                           XCB_SHAPE_SK_BOUNDING);
 	input_cookie = xcb_shape_get_rectangles(compositor.conn,
-											event->xcreatewindow.window,
-											XCB_SHAPE_SK_INPUT);
+	                                        event->xcreatewindow.window,
+	                                        XCB_SHAPE_SK_INPUT);
 
 	/* Ask for replies from the X server.  */
 	geometry = xcb_get_geometry_reply(compositor.conn, geometry_cookie,
-									  &error);
+	                                  &error);
 	tree = xcb_query_tree_reply(compositor.conn, tree_cookie, &error1);
 	attributes = xcb_get_window_attributes_reply(compositor.conn,
-												 attributes_cookie,
-												 &error2);
+	                                             attributes_cookie,
+	                                             &error2);
 	bounding = xcb_shape_get_rectangles_reply(compositor.conn,
-											  bounding_cookie,
-											  &error3);
+	                                          bounding_cookie,
+	                                          &error3);
 	input = xcb_shape_get_rectangles_reply(compositor.conn,
-										   input_cookie, &error4);
+	                                       input_cookie, &error4);
 
 	if (error || error1 || error2 || error3 || error4 || !geometry || !tree || !attributes || !bounding || !input)
 	{
@@ -1791,7 +1792,7 @@ HandleCreateNotify(WindowCache *cache, XEvent *event)
 	/* Now, really add the window.  */
 	CatchXErrors();
 	AddChild(parent, event->xcreatewindow.window, geometry,
-			 tree, attributes, bounding, input);
+	         tree, attributes, bounding, input);
 	UncatchXErrors(NULL);
 
 	/* And free the reply data.  */
@@ -1921,18 +1922,18 @@ EnsureShape(WindowCacheEntry *entry, Bool force)
 
 	/* Reinitialize the window shape.  */
 	bounding_cookie = xcb_shape_get_rectangles(compositor.conn,
-											   entry->window,
-											   XCB_SHAPE_SK_BOUNDING);
+	                                           entry->window,
+	                                           XCB_SHAPE_SK_BOUNDING);
 	input_cookie = xcb_shape_get_rectangles(compositor.conn,
-											entry->window,
-											XCB_SHAPE_SK_INPUT);
+	                                        entry->window,
+	                                        XCB_SHAPE_SK_INPUT);
 
 	/* Ask for replies from the X server.  */
 	bounding = xcb_shape_get_rectangles_reply(compositor.conn,
-											  bounding_cookie,
-											  &error);
+	                                          bounding_cookie,
+	                                          &error);
 	input = xcb_shape_get_rectangles_reply(compositor.conn,
-										   input_cookie, &error1);
+	                                       input_cookie, &error1);
 
 	if (error || error1 || !bounding || !input)
 	{
@@ -1991,37 +1992,37 @@ ProcessEventForWindowCache(WindowCache *cache, XEvent *event)
 {
 	switch (event->type)
 	{
-	case CirculateNotify:
-		HandleCirculateNotify(cache, event);
-		break;
+		case CirculateNotify:
+			HandleCirculateNotify(cache, event);
+			break;
 
-	case ConfigureNotify:
-		HandleConfigureNotify(cache, event);
-		break;
+		case ConfigureNotify:
+			HandleConfigureNotify(cache, event);
+			break;
 
-	case CreateNotify:
-		HandleCreateNotify(cache, event);
-		break;
+		case CreateNotify:
+			HandleCreateNotify(cache, event);
+			break;
 
-	case DestroyNotify:
-		HandleDestroyNotify(cache, event);
-		break;
+		case DestroyNotify:
+			HandleDestroyNotify(cache, event);
+			break;
 
-	case MapNotify:
-		HandleMapNotify(cache, event);
-		break;
+		case MapNotify:
+			HandleMapNotify(cache, event);
+			break;
 
-	case ReparentNotify:
-		HandleReparentNotify(cache, event);
-		break;
+		case ReparentNotify:
+			HandleReparentNotify(cache, event);
+			break;
 
-	case UnmapNotify:
-		HandleUnmapNotify(cache, event);
-		break;
+		case UnmapNotify:
+			HandleUnmapNotify(cache, event);
+			break;
 
-	case PropertyNotify:
-		HandlePropertyNotify(cache, event);
-		break;
+		case PropertyNotify:
+			HandlePropertyNotify(cache, event);
+			break;
 	}
 
 	if (event->type == shape_base + XCB_SHAPE_NOTIFY)
@@ -2051,9 +2052,9 @@ IsToplevelWindow(WindowCacheEntry *entry)
 
 	CatchXErrors();
 	rc = XGetWindowProperty(compositor.display, entry->window, WM_STATE,
-							0, 2, False, WM_STATE, &actual_type,
-							&actual_format, &actual_size, &bytes_remaining,
-							&tmp_data);
+	                        0, 2, False, WM_STATE, &actual_type,
+	                        &actual_format, &actual_size, &bytes_remaining,
+	                        &tmp_data);
 	if (UncatchXErrors(NULL) || rc != Success || actual_type != WM_STATE || actual_format != 32 || bytes_remaining)
 	{
 		/* This means the window is not a toplevel.  */
@@ -2088,7 +2089,8 @@ FindToplevelWindow1(WindowCacheEntry *entry, int x, int y)
 
 		/* Check if X and Y are contained by the child and its input
 	   region.  */
-		if (x >= child->x && x < child->x + child->width && y >= child->y && y < child->y + child->height && pixman_region32_contains_point(&child->shape, x - child->x, y - child->y, &temp))
+		if (x >= child->x && x < child->x + child->width && y >= child->y && y < child->y + child->height &&
+		    pixman_region32_contains_point(&child->shape, x - child->x, y - child->y, &temp))
 		{
 			/* If this child is already a toplevel, return it.  */
 			if (IsToplevelWindow(child))
@@ -2096,7 +2098,7 @@ FindToplevelWindow1(WindowCacheEntry *entry, int x, int y)
 
 			/* Otherwise, keep looking.  */
 			return FindToplevelWindow1(child, x - child->x,
-									   y - child->y);
+			                           y - child->y);
 		}
 
 	next:
@@ -2144,11 +2146,11 @@ FinishDrag(void)
 
 	/* Delete the XdndTypeList property.  */
 	XDeleteProperty(compositor.display, selection_transfer_window,
-					XdndTypeList);
+	                XdndTypeList);
 
 	/* Delete the XdndActionList property.  */
 	XDeleteProperty(compositor.display, selection_transfer_window,
-					XdndActionList);
+	                XdndActionList);
 
 	/* Clear flags.  */
 	drag_state.flags = 0;
@@ -2172,7 +2174,7 @@ HandleDragSeatDestroy(void *data)
 
 static void
 ReadProtocolProperties(Window window, int *version_return,
-					   Window *proxy_return)
+                       Window *proxy_return)
 {
 	WindowCacheEntry *entry;
 	xcb_get_property_cookie_t xdnd_proto_cookie;
@@ -2209,17 +2211,17 @@ ReadProtocolProperties(Window window, int *version_return,
 	}
 
 	xdnd_proto_cookie = xcb_get_property(compositor.conn, 0,
-										 window, XdndAware,
-										 XCB_ATOM_ATOM, 0, 1);
+	                                     window, XdndAware,
+	                                     XCB_ATOM_ATOM, 0, 1);
 	xdnd_proxy_cookie = xcb_get_property(compositor.conn, 0,
-										 window, XdndProxy,
-										 XCB_ATOM_WINDOW, 0, 1);
+	                                     window, XdndProxy,
+	                                     XCB_ATOM_WINDOW, 0, 1);
 
 	/* Ask for replies from the X server.  */
 	proto = xcb_get_property_reply(compositor.conn, xdnd_proto_cookie,
-								   &error);
+	                               &error);
 	proxy = xcb_get_property_reply(compositor.conn, xdnd_proxy_cookie,
-								   &error1);
+	                               &error1);
 
 	/* If any errors occured, bail out, while freeing any data
 	   allocated.  */
@@ -2314,8 +2316,8 @@ WriteTypeList(void)
 	{
 		/* There are more than 3 targets.  Write the type list.  */
 		XChangeProperty(compositor.display, selection_transfer_window,
-						XdndTypeList, XA_ATOM, 32, PropModeReplace,
-						(unsigned char *)targets, n_targets);
+		                XdndTypeList, XA_ATOM, 32, PropModeReplace,
+		                (unsigned char *) targets, n_targets);
 		drag_state.flags |= MoreThanThreeTargets;
 	}
 
@@ -2374,8 +2376,8 @@ WriteActionList(void)
 			actions[nactions++] = XdndActionMove;
 
 		XChangeProperty(compositor.display, selection_transfer_window,
-						XdndActionList, XA_ATOM, 32, PropModeReplace,
-						(unsigned char *)actions, nactions);
+		                XdndActionList, XA_ATOM, 32, PropModeReplace,
+		                (unsigned char *) actions, nactions);
 
 		/* Write XdndActionDescription.  This is a list of strings,
 	   terminated by NULL, describing the drag and drop actions.
@@ -2396,13 +2398,13 @@ WriteActionList(void)
 			strncpy(ask_actions + fill, name, end - fill);
 		}
 
-		prop.value = (unsigned char *)ask_actions;
+		prop.value = (unsigned char *) ask_actions;
 		prop.encoding = XA_STRING;
 		prop.format = 8;
 		prop.nitems = end;
 
 		XSetTextProperty(compositor.display, selection_transfer_window,
-						 &prop, XdndActionDescription);
+		                 &prop, XdndActionDescription);
 		XLFree(ask_actions);
 	}
 }
@@ -2429,8 +2431,8 @@ SendEnter(void)
 	message.xclient.window = drag_state.toplevel;
 	message.xclient.data.l[0] = selection_transfer_window;
 	message.xclient.data.l[1] = MIN(XdndProtocolVersion,
-									drag_state.version)
-								<< 24;
+	                                drag_state.version)
+	                            << 24;
 
 	if (drag_state.flags & MoreThanThreeTargets)
 		message.xclient.data.l[1] |= 1;
@@ -2441,7 +2443,7 @@ SendEnter(void)
 
 	CatchXErrors();
 	XSendEvent(compositor.display, drag_state.target,
-			   False, NoEventMask, &message);
+	           False, NoEventMask, &message);
 	UncatchXErrors(NULL);
 }
 
@@ -2491,7 +2493,9 @@ SendPosition(short root_x, short root_y)
 
 	/* If this rectangle is within the mouse rectangle, do nothing.  */
 
-	if (drag_state.flags & NeedMouseRect && root_x >= drag_state.mouse_rect.x && root_y >= drag_state.mouse_rect.y && root_x < (drag_state.mouse_rect.x + drag_state.mouse_rect.width) && root_y < (drag_state.mouse_rect.y + drag_state.mouse_rect.height))
+	if (drag_state.flags & NeedMouseRect && root_x >= drag_state.mouse_rect.x && root_y >= drag_state.mouse_rect.y &&
+	    root_x < (drag_state.mouse_rect.x + drag_state.mouse_rect.width) && root_y < (
+		    drag_state.mouse_rect.y + drag_state.mouse_rect.height))
 		return;
 
 	/* Otherwise, send the XdndPosition event now.  */
@@ -2511,11 +2515,11 @@ SendPosition(short root_x, short root_y)
 	if (MIN(XdndProtocolVersion, drag_state.version) >= 4)
 	{
 		source = (finish_source
-					  /* Use the finish source if it is available.
-						 drag_state.seat's source will be NULL by the time
-						 this is called in response to a delayed drop.  */
-					  ? finish_source
-					  : XLSeatGetDragDataSource(drag_state.seat));
+			          /* Use the finish source if it is available.
+				         drag_state.seat's source will be NULL by the time
+				         this is called in response to a delayed drop.  */
+			          ? finish_source
+			          : XLSeatGetDragDataSource(drag_state.seat));
 		action_mask = XLDataSourceGetSupportedActions(source);
 
 		/* A word about how converting actions between
@@ -2561,7 +2565,7 @@ SendPosition(short root_x, short root_y)
 
 	CatchXErrors();
 	XSendEvent(compositor.display, drag_state.target,
-			   False, NoEventMask, &message);
+	           False, NoEventMask, &message);
 	UncatchXErrors(NULL);
 
 	/* Now wait for an XdndStatus to be sent in reply.  */
@@ -2596,7 +2600,7 @@ SendLeave(void)
 
 	CatchXErrors();
 	XSendEvent(compositor.display, drag_state.target,
-			   False, NoEventMask, &message);
+	           False, NoEventMask, &message);
 	UncatchXErrors(NULL);
 }
 
@@ -2632,7 +2636,7 @@ ReportStateToSource(void)
 		wl_data_source_send_target(resource, NULL);
 	else
 		wl_data_source_send_target(resource,
-								   PickMimeType(source));
+		                           PickMimeType(source));
 
 	/* If the source is new enough, report the selected action to the
 	   source.  */
@@ -2689,7 +2693,7 @@ HandleXdndStatus(XEvent *event)
 	/* Send any pending XdndPosition event.  */
 	if (drag_state.flags & PendingPosition)
 		SendPosition(drag_state.last_root_x,
-					 drag_state.last_root_y);
+		             drag_state.last_root_y);
 
 	if (!(drag_state.flags & WaitingForStatus) && drag_state.flags & PendingDrop)
 	{
@@ -2706,7 +2710,7 @@ HandleXdndStatus(XEvent *event)
 			XLDataSourceSendDropCancelled(finish_source);
 		}
 		else
-			/* Otherwise, send the drop.  */
+		/* Otherwise, send the drop.  */
 			SendDrop();
 	}
 }
@@ -2735,14 +2739,14 @@ HandleXdndFinished(XEvent *event)
 
 			if (new_action != finish_action)
 				wl_data_source_send_action(resource,
-										   TranslateAction(new_action));
+				                           TranslateAction(new_action));
 		}
 
 		if (wl_resource_get_version(resource) >= 3)
 			wl_data_source_send_dnd_finished(resource);
 	}
 	else
-		/* Send the drop cancelled event.  */
+	/* Send the drop cancelled event.  */
 		XLDataSourceSendDropCancelled(finish_source);
 
 	finish_source = NULL;
@@ -2807,7 +2811,7 @@ SendDrop(void)
 
 	CatchXErrors();
 	XSendEvent(compositor.display, drag_state.target,
-			   False, NoEventMask, &message);
+	           False, NoEventMask, &message);
 	UncatchXErrors(NULL);
 
 	/* Tell the source to start waiting for finish.  */
@@ -2836,7 +2840,7 @@ void XLHandleOneXEventForDnd(XEvent *event)
 {
 	if (drag_state.window_cache)
 		ProcessEventForWindowCache(drag_state.window_cache,
-								   event);
+		                           event);
 
 	if (drag_state.seat && event->type == ClientMessage)
 		ProcessClientMessage(event);
@@ -2886,7 +2890,7 @@ void XLDoDragMotion(Seat *seat, double root_x, double root_y)
 		drag_state.seat_key = XLSeatRunOnDestroy(seat, HandleDragSeatDestroy, NULL);
 		drag_state.modifiers = XLSeatGetEffectiveModifiers(seat);
 		drag_state.mods_key = XLSeatAddModifierCallback(seat, HandleModifiersChanged,
-														NULL);
+		                                                NULL);
 
 		drag_state.last_root_x = INT_MIN;
 		drag_state.last_root_y = INT_MIN;
@@ -2910,7 +2914,7 @@ void XLDoDragMotion(Seat *seat, double root_x, double root_y)
 		drag_state.timestamp = timestamp.milliseconds;
 
 		if (!XLOwnDragSelection(drag_state.timestamp,
-								XLSeatGetDragDataSource(seat)))
+		                        XLSeatGetDragDataSource(seat)))
 		{
 			/* We could not obtain ownership over XdndSelection.  */
 			drag_state.flags |= SelectionFailed;
@@ -2925,7 +2929,7 @@ void XLDoDragMotion(Seat *seat, double root_x, double root_y)
 		drag_state.window_cache = AllocWindowCache();
 
 	toplevel = FindToplevelWindow(drag_state.window_cache,
-								  root_x, root_y);
+	                              root_x, root_y);
 
 	if (XLIsXdgToplevel(toplevel))
 		/* If this one of our own surfaces, ignore it.  */
@@ -2981,8 +2985,8 @@ void XLDoDragMotion(Seat *seat, double root_x, double root_y)
 		{
 			drag_state.toplevel = toplevel;
 			drag_state.target = (proxy != None
-									 ? proxy
-									 : toplevel);
+				                     ? proxy
+				                     : toplevel);
 			drag_state.version = version;
 
 			/* Then, send XdndEnter followed by XdndPosition, and wait
@@ -3013,8 +3017,8 @@ StartFinishTimeout(void)
 	   expire.  */
 	finish_source = XLSeatGetDragDataSource(drag_state.seat);
 	finish_source_key = XLDataSourceAddDestroyCallback(finish_source,
-													   HandleDataSourceDestroy,
-													   NULL);
+	                                                   HandleDataSourceDestroy,
+	                                                   NULL);
 	finish_version = drag_state.version;
 	finish_action = drag_state.action;
 

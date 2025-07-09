@@ -17,7 +17,7 @@
  */
 #include <log.h>
 
-void MBLog(enum MBLogType type, const char* format, ...)
+void MBLog(enum MBLogType type, const char *format, ...)
 {
 	/**
 	 * TODO

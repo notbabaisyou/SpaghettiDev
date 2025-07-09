@@ -46,54 +46,48 @@ typedef struct _XdgUnmapCallback XdgUnmapCallback;
 typedef enum _How How;
 typedef enum _DecorationMode DecorationMode;
 
-enum
-{
-	StateIsMapped = 1,
-	StatePendingMaxSize = (1 << 1),
-	StatePendingMinSize = (1 << 2),
-	StatePendingAckMovement = (1 << 3),
-	StatePendingResize = (1 << 4),
-	StatePendingConfigureSize = (1 << 5),
-	StatePendingConfigureStates = (1 << 6),
-	StateDecorationModeDirty = (1 << 7),
-	StateEverMapped = (1 << 8),
-	StateNeedDecorationConfigure = (1 << 9),
+enum {
+	StateIsMapped                   = 1,
+	StatePendingMaxSize             = (1 << 1),
+	StatePendingMinSize             = (1 << 2),
+	StatePendingAckMovement         = (1 << 3),
+	StatePendingResize              = (1 << 4),
+	StatePendingConfigureSize       = (1 << 5),
+	StatePendingConfigureStates     = (1 << 6),
+	StateDecorationModeDirty        = (1 << 7),
+	StateEverMapped                 = (1 << 8),
+	StateNeedDecorationConfigure    = (1 << 9),
 	StateWaitingForInitialConfigure = (1 << 10),
-	StateMaximizeOnMap = (1 << 11),
-	StateUnmaximizeOnMap = (1 << 12),
-	StateFullscreenOnMap = (1 << 13),
-	StateUnfullscreenOnMap = (1 << 14),
+	StateMaximizeOnMap              = (1 << 11),
+	StateUnmaximizeOnMap            = (1 << 12),
+	StateFullscreenOnMap            = (1 << 13),
+	StateUnfullscreenOnMap          = (1 << 14),
 };
 
-enum
-{
+enum {
 	SupportsWindowMenu = 1,
-	SupportsMaximize = (1 << 2),
+	SupportsMaximize   = (1 << 2),
 	SupportsFullscreen = (1 << 3),
-	SupportsMinimize = (1 << 4),
+	SupportsMinimize   = (1 << 4),
 };
 
-enum
-{
+enum {
 	MwmHintsDecorations = (1L << 1),
-	MwmDecorAll = (1L << 0),
+	MwmDecorAll         = (1L << 0),
 };
 
-enum _How
-{
+enum _How {
 	Remove = 0,
-	Add = 1,
+	Add    = 1,
 	Toggle = 2,
 };
 
-enum _DecorationMode
-{
-	DecorationModeClient = 0,
+enum _DecorationMode {
+	DecorationModeClient        = 0,
 	DecorationModeWindowManager = 1,
 };
 
-struct _XdgUnmapCallback
-{
+struct _XdgUnmapCallback {
 	/* Function run when the toplevel is unmapped or detached.  */
 	void (*unmap)(void *);
 
@@ -104,8 +98,7 @@ struct _XdgUnmapCallback
 	XdgUnmapCallback *next, *last;
 };
 
-struct _PropMotifWmHints
-{
+struct _PropMotifWmHints {
 	unsigned long flags;
 	unsigned long functions;
 	unsigned long decorations;
@@ -113,30 +106,28 @@ struct _PropMotifWmHints
 	unsigned long status;
 };
 
-struct _ToplevelState
-{
+struct _ToplevelState {
 	/* The surface is maximized. The window geometry specified in the
 	   configure event must be obeyed by the client.
 
 	   The client should draw without shadow or other decoration outside
 	   of the window geometry.  */
-	Bool maximized : 1;
+	Bool maximized: 1;
 
 	/* The surface is fullscreen.  The window geometry specified in the
 	   configure event is a maximum; the client cannot resize beyond
 	   it. For a surface to cover the whole fullscreened area, the
 	   geometry dimensions must be obeyed by the client. For more
 	   details, see xdg_toplevel.set_fullscreen.  */
-	Bool fullscreen : 1;
+	Bool fullscreen: 1;
 
 	/* Client window decorations should be painted as if the window is
 	   active. Do not assume this means that the window actually has
 	   keyboard or pointer focus.  */
-	Bool activated : 1;
+	Bool activated: 1;
 };
 
-struct _XdgToplevel
-{
+struct _XdgToplevel {
 	/* The parent role implementation.  */
 	XdgRoleImplementation impl;
 
@@ -253,8 +244,7 @@ struct _XdgToplevel
 	XSizeHints size_hints;
 };
 
-struct _XdgDecoration
-{
+struct _XdgDecoration {
 	/* The associated resource.  */
 	struct wl_resource *resource;
 
@@ -262,8 +252,7 @@ struct _XdgDecoration
 	XdgToplevel *toplevel;
 };
 
-enum
-{
+enum {
 	NetWmPingMask = 1,
 };
 
@@ -283,7 +272,7 @@ static int window_manager_protocols;
 
 static XdgUnmapCallback *
 RunOnUnmap(XdgToplevel *toplevel, void (*unmap)(void *),
-		   void *data)
+           void *data)
 {
 	XdgUnmapCallback *callback;
 
@@ -345,10 +334,10 @@ static void
 WriteHints(XdgToplevel *toplevel)
 {
 	XChangeProperty(compositor.display,
-					XLWindowFromXdgRole(toplevel->role),
-					_MOTIF_WM_HINTS, _MOTIF_WM_HINTS, 32,
-					PropModeReplace,
-					(unsigned char *)&toplevel->motif, 5);
+	                XLWindowFromXdgRole(toplevel->role),
+	                _MOTIF_WM_HINTS, _MOTIF_WM_HINTS, 32,
+	                PropModeReplace,
+	                (unsigned char *) &toplevel->motif, 5);
 }
 
 static void
@@ -379,7 +368,7 @@ DestroyBacking(XdgToplevel *toplevel)
 		CancelUnmapCallback(toplevel->parent_callback);
 
 	XLListFree(toplevel->resize_callbacks,
-			   XLSeatCancelResizeCallback);
+	           XLSeatCancelResizeCallback);
 
 	wl_array_release(&toplevel->states);
 	XLFree(toplevel);
@@ -404,10 +393,10 @@ SendDecorationConfigure1(XdgToplevel *toplevel)
 
 	if (toplevel->decor == DecorationModeClient)
 		zxdg_toplevel_decoration_v1_send_configure(toplevel->decoration->resource,
-												   ClientSide);
+		                                           ClientSide);
 	else
 		zxdg_toplevel_decoration_v1_send_configure(toplevel->decoration->resource,
-												   ServerSide);
+		                                           ServerSide);
 
 #undef ServerSide
 #undef ClientSide
@@ -419,13 +408,13 @@ SendDecorationConfigure1(XdgToplevel *toplevel)
 
 static void
 SendConfigure(XdgToplevel *toplevel, unsigned int width,
-			  unsigned int height)
+              unsigned int height)
 {
 	uint32_t serial;
 
 	serial = wl_display_next_serial(compositor.wl_display);
 	xdg_toplevel_send_configure(toplevel->resource, width, height,
-								&toplevel->states);
+	                            &toplevel->states);
 
 	/* If a toplevel decoration resource is created and
 	   SetMode/UnsetMode is called before the initial toplevel commit,
@@ -461,6 +450,7 @@ SendDecorationConfigure(XdgToplevel *toplevel)
 /* Forward declaration.  */
 
 static void SendStates(XdgToplevel *);
+
 static void WriteStates(XdgToplevel *);
 
 static void
@@ -486,15 +476,15 @@ NoteConfigureTime(Timer *timer, void *data, struct timespec time)
 		/* toplevel->role->surface should not be NULL here, as the timer
 	   is cancelled upon role detachment.  */
 		TruncateScaleToSurface(toplevel->role->surface,
-							   effective_width, effective_height,
-							   &effective_width, &effective_height);
+		                       effective_width, effective_height,
+		                       &effective_width, &effective_height);
 
 		/* Compute the geometry for the configure event based on the
 	   current size of the toplevel.  */
 		XLXdgRoleCalcNewWindowSize(toplevel->role,
-								   effective_width,
-								   effective_height,
-								   &width, &height);
+		                           effective_width,
+		                           effective_height,
+		                           &width, &height);
 
 		/* Send the configure event.  */
 		SendConfigure(toplevel, width, height);
@@ -556,7 +546,7 @@ MaybePostDelayedConfigure(XdgToplevel *toplevel, int flag)
 	}
 
 	toplevel->configuration_timer = AddTimer(NoteConfigureTime, toplevel,
-											 MakeTimespec(0, DefaultStateDelayNanoseconds));
+	                                         MakeTimespec(0, DefaultStateDelayNanoseconds));
 	return True;
 }
 
@@ -580,18 +570,18 @@ WriteStates(XdgToplevel *toplevel)
 
 static void
 CurrentWindowGeometry(XdgToplevel *toplevel,
-					  int *width, int *height)
+                      int *width, int *height)
 {
 	/* Calculate the current window geometry for sending a configure
 	   event.  */
 
 	TruncateScaleToSurface(toplevel->role->surface,
-						   toplevel->width,
-						   toplevel->height,
-						   width, height);
+	                       toplevel->width,
+	                       toplevel->height,
+	                       width, height);
 
 	XLXdgRoleCalcNewWindowSize(toplevel->role, *width,
-							   *height, width, height);
+	                           *height, width, height);
 }
 
 static void
@@ -631,11 +621,11 @@ RecordStateSize(XdgToplevel *toplevel)
 	   manager will elect to send us the old window geometry instead
 	   upon minimization.  */
 		XLXdgRoleGetCurrentGeometry(toplevel->role, NULL, NULL,
-									&width, &height);
+		                            &width, &height);
 
 		/* Scale the width and height to window dimensions.  */
 		TruncateScaleToWindow(toplevel->role->surface, width, height,
-							  &width, &height);
+		                      &width, &height);
 	}
 	else
 	{
@@ -684,15 +674,15 @@ HandleWmStateChange(XdgToplevel *toplevel)
 	state = &toplevel->toplevel_state;
 
 	rc = XGetWindowProperty(compositor.display, window,
-							_NET_WM_STATE, 0, 65536,
-							False, XA_ATOM, &actual_type,
-							&actual_format, &actual_size,
-							&bytes_remaining, &tmp_data);
+	                        _NET_WM_STATE, 0, 65536,
+	                        False, XA_ATOM, &actual_type,
+	                        &actual_format, &actual_size,
+	                        &bytes_remaining, &tmp_data);
 
 	if (rc != Success || !tmp_data || actual_type != XA_ATOM || actual_format != 32 || bytes_remaining)
 		goto empty_states;
 
-	states = (Atom *)tmp_data;
+	states = (Atom *) tmp_data;
 
 	/* First, reset relevant states.  */
 
@@ -716,7 +706,7 @@ HandleWmStateChange(XdgToplevel *toplevel)
 	}
 
 	if (memcmp(&old, &state, sizeof *state) && !MaybePostDelayedConfigure(toplevel,
-																		  StatePendingConfigureStates))
+	                                                                      StatePendingConfigureStates))
 		/* Finally, send states if they changed.  */
 		SendStates(toplevel);
 
@@ -792,15 +782,15 @@ HandleAllowedActionsChange(XdgToplevel *toplevel)
 	window = XLWindowFromXdgRole(toplevel->role);
 
 	rc = XGetWindowProperty(compositor.display, window,
-							_NET_WM_ALLOWED_ACTIONS, 0, 65536,
-							False, XA_ATOM, &actual_type,
-							&actual_format, &actual_size,
-							&bytes_remaining, &tmp_data);
+	                        _NET_WM_ALLOWED_ACTIONS, 0, 65536,
+	                        False, XA_ATOM, &actual_type,
+	                        &actual_format, &actual_size,
+	                        &bytes_remaining, &tmp_data);
 
 	if (rc != Success || !tmp_data || actual_type != XA_ATOM || actual_format != 32 || bytes_remaining)
 		goto empty_states;
 
-	states = (Atom *)tmp_data;
+	states = (Atom *) tmp_data;
 
 	/* First, reset the actions that we will change.  */
 
@@ -845,7 +835,7 @@ empty_states:
 
 static void
 ApplyGtkFrameExtents(XdgToplevel *toplevel, int x, int y,
-					 int x2, int y2)
+                     int x2, int y2)
 {
 	long cardinals[4];
 	Window window;
@@ -858,9 +848,9 @@ ApplyGtkFrameExtents(XdgToplevel *toplevel, int x, int y,
 	window = XLWindowFromXdgRole(toplevel->role);
 
 	XChangeProperty(compositor.display, window,
-					_GTK_FRAME_EXTENTS, XA_CARDINAL,
-					32, PropModeReplace,
-					(unsigned char *)cardinals, 4);
+	                _GTK_FRAME_EXTENTS, XA_CARDINAL,
+	                32, PropModeReplace,
+	                (unsigned char *) cardinals, 4);
 }
 
 static void
@@ -878,9 +868,9 @@ HandleWindowGeometryChange(XdgToplevel *toplevel)
 	subcompositor = ViewGetSubcompositor(view);
 
 	XLXdgRoleGetCurrentGeometry(toplevel->role, &x, &y,
-								&width, &height);
+	                            &width, &height);
 	TruncateScaleToWindow(toplevel->role->surface, width, height,
-						  &width, &height);
+	                      &width, &height);
 	TruncateSurfaceToWindow(toplevel->role->surface, x, y, &x, &y);
 
 	dx = SubcompositorWidth(subcompositor) - width;
@@ -898,8 +888,8 @@ HandleWindowGeometryChange(XdgToplevel *toplevel)
 	/* First, make hints->min_width and hints->min_height the min width
 	   in terms of the window coordinate system.  Then, add deltas. */
 	TruncateScaleToWindow(toplevel->role->surface, toplevel->min_width,
-						  toplevel->min_height, &hints->min_width,
-						  &hints->min_height);
+	                      toplevel->min_height, &hints->min_width,
+	                      &hints->min_height);
 
 	/* Add deltas.  */
 	hints->min_width += dx;
@@ -909,8 +899,8 @@ HandleWindowGeometryChange(XdgToplevel *toplevel)
 	{
 		/* Do the same with the max width.  */
 		TruncateScaleToWindow(toplevel->role->surface, toplevel->max_width,
-							  toplevel->max_height, &hints->max_width,
-							  &hints->max_height);
+		                      toplevel->max_height, &hints->max_width,
+		                      &hints->max_height);
 
 		hints->max_width += dx;
 		hints->max_height += dy;
@@ -934,8 +924,8 @@ HandleWindowGeometryChange(XdgToplevel *toplevel)
 		hints->flags &= ~PResizeInc;
 
 	XSetWMNormalHints(compositor.display,
-					  XLWindowFromXdgRole(toplevel->role),
-					  hints);
+	                  XLWindowFromXdgRole(toplevel->role),
+	                  hints);
 }
 
 static Bool
@@ -978,7 +968,7 @@ GetClientMachine(XTextProperty *client_machine)
 		return False;
 
 	/* Copy it to the client machine text property.  */
-	client_machine->value = (unsigned char *)XLStrdup(result->ai_canonname);
+	client_machine->value = (unsigned char *) XLStrdup(result->ai_canonname);
 	client_machine->encoding = XA_STRING;
 	client_machine->nitems = strlen(result->ai_canonname);
 	client_machine->format = 8;
@@ -1012,19 +1002,19 @@ WriteCredentialProperties(XdgToplevel *toplevel)
 	window = XLWindowFromXdgRole(toplevel->role);
 	process_id = pid;
 	XChangeProperty(compositor.display, window, _NET_WM_PID,
-					XA_CARDINAL, 32, PropModeReplace,
-					(unsigned char *)&process_id, 1);
+	                XA_CARDINAL, 32, PropModeReplace,
+	                (unsigned char *) &process_id, 1);
 
 	/* First, let Xlib write WM_CLIENT_MACHINE and WM_LOCALE_NAME.  */
 	XSetWMProperties(compositor.display, window, NULL, NULL,
-					 NULL, 0, NULL, NULL, NULL);
+	                 NULL, 0, NULL, NULL, NULL);
 
 	/* Next, write the fully-qualified client machine if it can be
 	   obtained.  */
 	if (GetClientMachine(&client_machine))
 	{
 		XSetWMClientMachine(compositor.display, window,
-							&client_machine);
+		                    &client_machine);
 		XLFree(client_machine.value);
 		return;
 	}
@@ -1057,7 +1047,7 @@ Attach(Role *role, XdgRoleImplementation *impl)
 		protocols[nproto++] = _NET_WM_SYNC_REQUEST;
 
 	XSetWMProtocols(compositor.display,
-					window, protocols, nproto);
+	                window, protocols, nproto);
 
 	WriteHints(toplevel);
 
@@ -1128,8 +1118,8 @@ Detach(Role *role, XdgRoleImplementation *impl)
 	toplevel->role = NULL;
 
 	XSetWMProtocols(compositor.display,
-					XLWindowFromXdgRole(role),
-					NULL, 0);
+	                XLWindowFromXdgRole(role),
+	                NULL, 0);
 
 	DestroyBacking(toplevel);
 }
@@ -1171,7 +1161,7 @@ Unmap(XdgToplevel *toplevel)
 	toplevel->min_height = 0;
 
 	memset(&toplevel->toplevel_state, 0,
-		   sizeof toplevel->toplevel_state);
+	       sizeof toplevel->toplevel_state);
 
 	/* If there is a pending configure timer, remove it.  */
 	if (toplevel->configuration_timer)
@@ -1179,12 +1169,12 @@ Unmap(XdgToplevel *toplevel)
 	toplevel->configuration_timer = NULL;
 
 	XLListFree(toplevel->resize_callbacks,
-			   XLSeatCancelResizeCallback);
+	           XLSeatCancelResizeCallback);
 	toplevel->resize_callbacks = NULL;
 
 	memset(&toplevel->size_hints, 0, sizeof toplevel->size_hints);
 	XSetWMNormalHints(compositor.display, window,
-					  &toplevel->size_hints);
+	                  &toplevel->size_hints);
 
 	/* Clear the parent.  */
 	UpdateParent(toplevel, NULL);
@@ -1215,7 +1205,7 @@ Map(XdgToplevel *toplevel)
 
 	/* Now, map the window.  */
 	XMapWindow(compositor.display,
-			   XLWindowFromXdgRole(toplevel->role));
+	           XLWindowFromXdgRole(toplevel->role));
 
 	/* If any state change was requested before the window was mapped,
 	   apply it now.  Such changes are deferred until the window is
@@ -1224,17 +1214,17 @@ Map(XdgToplevel *toplevel)
 
 	if (toplevel->state & StateMaximizeOnMap)
 		SetWmState(toplevel, _NET_WM_STATE_MAXIMIZED_HORZ,
-				   _NET_WM_STATE_MAXIMIZED_VERT, Add);
+		           _NET_WM_STATE_MAXIMIZED_VERT, Add);
 	else if (toplevel->state & StateUnmaximizeOnMap)
 		SetWmState(toplevel, _NET_WM_STATE_MAXIMIZED_HORZ,
-				   _NET_WM_STATE_MAXIMIZED_VERT, Remove);
+		           _NET_WM_STATE_MAXIMIZED_VERT, Remove);
 
 	if (toplevel->state & StateFullscreenOnMap)
 		SetWmState(toplevel, _NET_WM_STATE_FULLSCREEN, None,
-				   Add);
+		           Add);
 	else if (toplevel->state & StateUnfullscreenOnMap)
 		SetWmState(toplevel, _NET_WM_STATE_FULLSCREEN, None,
-				   Remove);
+		           Remove);
 
 	toplevel->state &= ~(StateMaximizeOnMap | StateUnmaximizeOnMap | StateFullscreenOnMap | StateUnfullscreenOnMap);
 }
@@ -1265,12 +1255,12 @@ SendOutputBounds(XdgToplevel *toplevel)
 	   be converted to the surface ones.  */
 
 	TruncateScaleToSurface(toplevel->role->surface,
-						   x_max - x_min + 1,
-						   y_max - y_min + 1,
-						   &width, &height);
+	                       x_max - x_min + 1,
+	                       y_max - y_min + 1,
+	                       &width, &height);
 
 	xdg_toplevel_send_configure_bounds(toplevel->resource,
-									   width, height);
+	                                   width, height);
 }
 
 static void
@@ -1328,11 +1318,11 @@ Commit(Role *role, Surface *surface, XdgRoleImplementation *impl)
 	}
 
 	if (!surface->current_state.buffer
-		/* Whenever any commit happens without the toplevel being
-	   mapped, send the initial configure event.  This is because
-	   some clients attach an initial 1x1 buffer and expect the
-	   compositor to do its thing.  */
-		|| (toplevel->state & StateWaitingForInitialConfigure))
+	    /* Whenever any commit happens without the toplevel being
+       mapped, send the initial configure event.  This is because
+       some clients attach an initial 1x1 buffer and expect the
+       compositor to do its thing.  */
+	    || (toplevel->state & StateWaitingForInitialConfigure))
 	{
 		/* Stop waiting for initial configure.  */
 		toplevel->state &= ~StateWaitingForInitialConfigure;
@@ -1389,7 +1379,7 @@ AfterCommit(Role *role, Surface *surface, XdgRoleImplementation *impl)
 	if (!toplevel->conf_reply && toplevel->state & StatePendingAckMovement)
 	{
 		XLXdgRoleMoveBy(role, toplevel->ack_west,
-						toplevel->ack_north);
+		                toplevel->ack_north);
 
 		toplevel->ack_west = 0;
 		toplevel->ack_north = 0;
@@ -1399,15 +1389,15 @@ AfterCommit(Role *role, Surface *surface, XdgRoleImplementation *impl)
 	   if there is any.  */
 		if (toplevel->state & StatePendingResize)
 			PostResize1(toplevel, toplevel->resize_west,
-						toplevel->resize_north,
-						toplevel->resize_width,
-						toplevel->resize_height);
+			            toplevel->resize_north,
+			            toplevel->resize_width,
+			            toplevel->resize_height);
 	}
 }
 
 static void
 PostResize1(XdgToplevel *toplevel, int west_motion, int north_motion,
-			int new_width, int new_height)
+            int new_width, int new_height)
 {
 	/* FIXME: the two computations below are still not completely
 	   right.  */
@@ -1535,7 +1525,7 @@ HandleConfigureEvent(XdgToplevel *toplevel, XEvent *event)
 	   continue trying to stay maximized or fullscreen.  */
 
 	if (apply_state_workaround && RestoreStateTo(toplevel, event->xconfigure.width,
-												 event->xconfigure.height))
+	                                             event->xconfigure.height))
 		WriteStates(toplevel);
 
 	/* Set toplevel->width and toplevel->height correctly.  */
@@ -1545,24 +1535,24 @@ HandleConfigureEvent(XdgToplevel *toplevel, XEvent *event)
 	/* Also set the bounds width and height to avoid resizing the
 	   window.  */
 	XLXdgRoleSetBoundsSize(toplevel->role,
-						   toplevel->width,
-						   toplevel->height);
+	                       toplevel->width,
+	                       toplevel->height);
 
 	if (!MaybePostDelayedConfigure(toplevel, StatePendingConfigureSize))
 	{
 		/* Scale the configure event width and height to the
 	   surface.  */
 		TruncateScaleToSurface(toplevel->role->surface,
-							   event->xconfigure.width,
-							   event->xconfigure.height,
-							   &configure_width,
-							   &configure_height);
+		                       event->xconfigure.width,
+		                       event->xconfigure.height,
+		                       &configure_width,
+		                       &configure_height);
 
 		/* Calculate the new window size.  */
 		XLXdgRoleCalcNewWindowSize(toplevel->role,
-								   configure_width,
-								   configure_height,
-								   &width, &height);
+		                           configure_width,
+		                           configure_height,
+		                           &width, &height);
 
 		SendConfigure(toplevel, width, height);
 	}
@@ -1584,7 +1574,7 @@ WindowResizedPredicate(Display *display, XEvent *event, XPointer data)
 	XdgToplevel *toplevel;
 	Window target_window;
 
-	toplevel = (XdgToplevel *)data;
+	toplevel = (XdgToplevel *) data;
 	role = toplevel->role;
 	target_window = XLWindowFromXdgRole(role);
 
@@ -1597,7 +1587,7 @@ WindowResizedPredicate(Display *display, XEvent *event, XPointer data)
 
 static int
 IfEvent(XEvent *event_return, Bool (*predicate)(Display *, XEvent *, XPointer),
-		XPointer arg, struct timespec timeout)
+        XPointer arg, struct timespec timeout)
 {
 	struct timespec current_time, target;
 	int fd;
@@ -1610,7 +1600,7 @@ IfEvent(XEvent *event_return, Bool (*predicate)(Display *, XEvent *, XPointer),
 	/* Check if an event is already in the queue.  If it is, avoid
 	   syncing.  */
 	if (XCheckIfEvent(compositor.display, event_return,
-					  predicate, arg))
+	                  predicate, arg))
 		return 0;
 
 	while (true)
@@ -1620,7 +1610,7 @@ IfEvent(XEvent *event_return, Bool (*predicate)(Display *, XEvent *, XPointer),
 
 		/* Look for an event again.  */
 		if (XCheckIfEvent(compositor.display, event_return,
-						  predicate, arg))
+		                  predicate, arg))
 			return 0;
 
 		/* Calculate the timeout.  */
@@ -1645,7 +1635,7 @@ IfEvent(XEvent *event_return, Bool (*predicate)(Display *, XEvent *, XPointer),
 
 static void
 NoteSize(Role *role, XdgRoleImplementation *impl,
-		 int width, int height)
+         int width, int height)
 {
 	XdgToplevel *toplevel;
 
@@ -1657,7 +1647,7 @@ NoteSize(Role *role, XdgRoleImplementation *impl,
 
 static void
 NoteWindowPreResize(Role *role, XdgRoleImplementation *impl,
-					int width, int height)
+                    int width, int height)
 {
 	int gwidth, gheight, dx, dy, x, y;
 	XdgToplevel *toplevel;
@@ -1671,11 +1661,11 @@ NoteWindowPreResize(Role *role, XdgRoleImplementation *impl,
 	   window manager from constraining us by the old values.  */
 
 	XLXdgRoleGetCurrentGeometry(toplevel->role, &x, &y,
-								&gwidth, &gheight);
+	                            &gwidth, &gheight);
 
 	/* Scale the window geometry to window dimensions.  */
 	TruncateScaleToWindow(toplevel->role->surface, gwidth, gheight,
-						  &gwidth, &gheight);
+	                      &gwidth, &gheight);
 	TruncateSurfaceToWindow(toplevel->role->surface, x, y, &x, &y);
 
 	dx = width - gwidth;
@@ -1686,7 +1676,7 @@ NoteWindowPreResize(Role *role, XdgRoleImplementation *impl,
 
 static void
 NoteWindowResized(Role *role, XdgRoleImplementation *impl,
-				  int width, int height)
+                  int width, int height)
 {
 	XEvent event;
 	int rc;
@@ -1700,10 +1690,10 @@ NoteWindowResized(Role *role, XdgRoleImplementation *impl,
 
 	XFlush(compositor.display);
 
-	rc = IfEvent(&event, WindowResizedPredicate, (XPointer)impl,
-				 /* Wait at most 0.5 ms in case the window system doesn't
-					send a reply.  */
-				 MakeTimespec(0, 500000000));
+	rc = IfEvent(&event, WindowResizedPredicate, (XPointer) impl,
+	             /* Wait at most 0.5 ms in case the window system doesn't
+		            send a reply.  */
+	             MakeTimespec(0, 500000000));
 
 	if (!rc)
 	{
@@ -1724,7 +1714,7 @@ NoteWindowResized(Role *role, XdgRoleImplementation *impl,
 
 static void
 PostResize(Role *role, XdgRoleImplementation *impl, int west_motion,
-		   int north_motion, int new_width, int new_height)
+           int north_motion, int new_width, int new_height)
 {
 	XdgToplevel *toplevel;
 
@@ -1734,11 +1724,11 @@ PostResize(Role *role, XdgRoleImplementation *impl, int west_motion,
 
 	if (toplevel->role->surface)
 		TruncateScaleToSurface(toplevel->role->surface,
-							   new_width, new_height,
-							   &new_width, &new_height);
+		                       new_width, new_height,
+		                       &new_width, &new_height);
 
 	PostResize1(toplevel, west_motion, north_motion,
-				new_width, new_height);
+	            new_width, new_height);
 }
 
 static void
@@ -1774,15 +1764,15 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 	if (toplevel->role)
 		XLXdgRoleDetachImplementation(toplevel->role,
-									  &toplevel->impl);
+		                              &toplevel->impl);
 
 	/* If the resource still has a decoration applied, then this is an
 	   error.  */
 	if (toplevel->decoration)
 		wl_resource_post_error(resource,
-							   ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ORPHANED,
-							   "the attached decoration would be orphaned by"
-							   " the destruction of this resource");
+		                       ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ORPHANED,
+		                       "the attached decoration would be orphaned by"
+		                       " the destruction of this resource");
 	else
 		wl_resource_destroy(resource);
 }
@@ -1820,12 +1810,12 @@ UpdateWmTransientForProperty(XdgToplevel *child)
 
 	if (!child->transient_for)
 		XDeleteProperty(compositor.display, window,
-						WM_TRANSIENT_FOR);
+		                WM_TRANSIENT_FOR);
 	else
 		XChangeProperty(compositor.display, window,
-						WM_TRANSIENT_FOR, XA_WINDOW,
-						32, PropModeReplace,
-						(unsigned char *)&parent, 1);
+		                WM_TRANSIENT_FOR, XA_WINDOW,
+		                32, PropModeReplace,
+		                (unsigned char *) &parent, 1);
 }
 
 static void
@@ -1853,7 +1843,7 @@ UpdateParent(XdgToplevel *child, XdgToplevel *parent)
 
 static void
 SetParent(struct wl_client *client, struct wl_resource *resource,
-		  struct wl_resource *parent_resource)
+          struct wl_resource *parent_resource)
 {
 	XdgToplevel *child, *parent;
 
@@ -1884,7 +1874,7 @@ SetParent(struct wl_client *client, struct wl_resource *resource,
 
 		if (child == parent)
 			wl_resource_post_error(resource, XDG_TOPLEVEL_ERROR_INVALID_PARENT,
-								   "trying to set parent in a circular fashion");
+			                       "trying to set parent in a circular fashion");
 	}
 }
 
@@ -1902,9 +1892,9 @@ SetNetWmName(XdgToplevel *toplevel, const char *title)
 
 	/* Change the toplevel window's _NET_WM_NAME property.  */
 	XChangeProperty(compositor.display,
-					XLWindowFromXdgRole(toplevel->role),
-					_NET_WM_NAME, UTF8_STRING, 8, PropModeReplace,
-					(unsigned char *)title, length);
+	                XLWindowFromXdgRole(toplevel->role),
+	                _NET_WM_NAME, UTF8_STRING, 8, PropModeReplace,
+	                (unsigned char *) title, length);
 }
 
 static void
@@ -1919,7 +1909,7 @@ ConvertWmName(XdgToplevel *toplevel, const char *title)
 	   wants.  */
 	cd = latin_1_cd;
 
-	if (cd == (iconv_t)-1)
+	if (cd == (iconv_t) -1)
 		/* The conversion could not take place for any number of
 		   reasons.  */
 		return;
@@ -1928,7 +1918,7 @@ ConvertWmName(XdgToplevel *toplevel, const char *title)
 	outbytesleft = strlen(title);
 	inbytesleft = outbytesleft;
 	outbuf = XLMalloc(outbytesleft);
-	inbuf = (char *)title;
+	inbuf = (char *) title;
 	inptr = inbuf;
 	outptr = outbuf;
 
@@ -1946,13 +1936,13 @@ ConvertWmName(XdgToplevel *toplevel, const char *title)
 
 	/* Write the converted string.  */
 	XChangeProperty(compositor.display,
-					XLWindowFromXdgRole(toplevel->role),
-					WM_NAME, XA_STRING, 8, PropModeReplace,
-					(unsigned char *)outbuf,
-					/* Limit the size of the title to the amount of
-					   data that can be transferred to the X
-					   server.  */
-					MIN(SelectionQuantum(), outptr - outbuf));
+	                XLWindowFromXdgRole(toplevel->role),
+	                WM_NAME, XA_STRING, 8, PropModeReplace,
+	                (unsigned char *) outbuf,
+	                /* Limit the size of the title to the amount of
+	                   data that can be transferred to the X
+	                   server.  */
+	                MIN(SelectionQuantum(), outptr - outbuf));
 
 	/* Free the output buffer.  */
 	XLFree(outbuf);
@@ -1960,7 +1950,7 @@ ConvertWmName(XdgToplevel *toplevel, const char *title)
 
 static void
 SetTitle(struct wl_client *client, struct wl_resource *resource,
-		 const char *title)
+         const char *title)
 {
 	XdgToplevel *toplevel;
 
@@ -1978,7 +1968,7 @@ SetTitle(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetAppId(struct wl_client *client, struct wl_resource *resource,
-		 const char *app_id)
+         const char *app_id)
 {
 	XClassHint class_hints;
 	XdgToplevel *toplevel;
@@ -1993,18 +1983,18 @@ SetAppId(struct wl_client *client, struct wl_resource *resource,
 		   situation is not possible under X.  */
 		return;
 
-	class_hints.res_name = (char *)app_id;
-	class_hints.res_class = (char *)app_id;
+	class_hints.res_name = (char *) app_id;
+	class_hints.res_class = (char *) app_id;
 
 	XSetClassHint(compositor.display,
-				  XLWindowFromXdgRole(toplevel->role),
-				  &class_hints);
+	              XLWindowFromXdgRole(toplevel->role),
+	              &class_hints);
 }
 
 static void
 ShowWindowMenu(struct wl_client *client, struct wl_resource *resource,
-			   struct wl_resource *seat_resource, uint32_t serial, int32_t x,
-			   int32_t y)
+               struct wl_resource *seat_resource, uint32_t serial, int32_t x,
+               int32_t y)
 {
 	int root_x, root_y;
 	Seat *seat;
@@ -2023,13 +2013,13 @@ ShowWindowMenu(struct wl_client *client, struct wl_resource *resource,
 	XLXdgRoleCurrentRootPosition(toplevel->role, &root_x, &root_y);
 
 	XLSeatShowWindowMenu(seat, toplevel->role->surface,
-						 root_x + x * toplevel->role->surface->factor,
-						 root_y + y * toplevel->role->surface->factor);
+	                     root_x + x * toplevel->role->surface->factor,
+	                     root_y + y * toplevel->role->surface->factor);
 }
 
 static void
 Move(struct wl_client *client, struct wl_resource *resource,
-	 struct wl_resource *seat_resource, uint32_t serial)
+     struct wl_resource *seat_resource, uint32_t serial)
 {
 	XdgToplevel *toplevel;
 	Seat *seat;
@@ -2057,8 +2047,8 @@ HandleResizeDone(void *key, void *data)
 
 static void
 Resize(struct wl_client *client, struct wl_resource *resource,
-	   struct wl_resource *seat_resource, uint32_t serial,
-	   uint32_t edges)
+       struct wl_resource *seat_resource, uint32_t serial,
+       uint32_t edges)
 {
 	XdgToplevel *toplevel;
 	Seat *seat;
@@ -2068,8 +2058,8 @@ Resize(struct wl_client *client, struct wl_resource *resource,
 	if (edges > XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT)
 	{
 		wl_resource_post_error(resource,
-							   XDG_TOPLEVEL_ERROR_INVALID_RESIZE_EDGE,
-							   "not a resize edge");
+		                       XDG_TOPLEVEL_ERROR_INVALID_RESIZE_EDGE,
+		                       "not a resize edge");
 		return;
 	}
 
@@ -2080,16 +2070,16 @@ Resize(struct wl_client *client, struct wl_resource *resource,
 		return;
 
 	ok = XLResizeToplevel(seat, toplevel->role->surface,
-						  serial, edges);
+	                      serial, edges);
 
 	if (!ok)
 		return;
 
 	/* Now set up the special resizing state.  */
 	callback_key = XLSeatRunAfterResize(seat, HandleResizeDone,
-										toplevel);
+	                                    toplevel);
 	toplevel->resize_callbacks = XLListPrepend(toplevel->resize_callbacks,
-											   callback_key);
+	                                           callback_key);
 
 	/* And send it to the client.  */
 	SendStates(toplevel);
@@ -2097,7 +2087,7 @@ Resize(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetMaxSize(struct wl_client *client, struct wl_resource *resource,
-		   int32_t width, int32_t height)
+           int32_t width, int32_t height)
 {
 	XdgToplevel *toplevel;
 
@@ -2106,7 +2096,7 @@ SetMaxSize(struct wl_client *client, struct wl_resource *resource,
 	if (width < 0 || height < 0)
 	{
 		wl_resource_post_error(resource, XDG_TOPLEVEL_ERROR_INVALID_SIZE,
-							   "invalid max size %d %d", width, height);
+		                       "invalid max size %d %d", width, height);
 		return;
 	}
 
@@ -2119,7 +2109,7 @@ SetMaxSize(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetMinSize(struct wl_client *client, struct wl_resource *resource,
-		   int32_t width, int32_t height)
+           int32_t width, int32_t height)
 {
 	XdgToplevel *toplevel;
 
@@ -2128,7 +2118,7 @@ SetMinSize(struct wl_client *client, struct wl_resource *resource,
 	if (width < 0 || height < 0)
 	{
 		wl_resource_post_error(resource, XDG_TOPLEVEL_ERROR_INVALID_SIZE,
-							   "invalid min size %d %d", width, height);
+		                       "invalid min size %d %d", width, height);
 		return;
 	}
 
@@ -2160,10 +2150,10 @@ SetWmState(XdgToplevel *toplevel, Atom what, Atom what1, How how)
 	event.xclient.data.l[3] = 1;
 
 	XSendEvent(compositor.display,
-			   DefaultRootWindow(compositor.display),
-			   False,
-			   SubstructureRedirectMask | SubstructureNotifyMask,
-			   &event);
+	           DefaultRootWindow(compositor.display),
+	           False,
+	           SubstructureRedirectMask | SubstructureNotifyMask,
+	           &event);
 }
 
 static void
@@ -2186,7 +2176,7 @@ SetMaximized(struct wl_client *client, struct wl_resource *resource)
 
 	if (toplevel->state & StateIsMapped)
 		SetWmState(toplevel, _NET_WM_STATE_MAXIMIZED_HORZ,
-				   _NET_WM_STATE_MAXIMIZED_VERT, Add);
+		           _NET_WM_STATE_MAXIMIZED_VERT, Add);
 	else
 	{
 		/* If the toplevel is withdrawn, set a flag.  Then, maximize it
@@ -2222,7 +2212,7 @@ UnsetMaximized(struct wl_client *client, struct wl_resource *resource)
 
 	if (toplevel->state & StateIsMapped)
 		SetWmState(toplevel, _NET_WM_STATE_MAXIMIZED_HORZ,
-				   _NET_WM_STATE_MAXIMIZED_VERT, Remove);
+		           _NET_WM_STATE_MAXIMIZED_VERT, Remove);
 	else
 	{
 		toplevel->state &= ~StateMaximizeOnMap;
@@ -2232,7 +2222,7 @@ UnsetMaximized(struct wl_client *client, struct wl_resource *resource)
 
 static void
 SetFullscreen(struct wl_client *client, struct wl_resource *resource,
-			  struct wl_resource *output_resource)
+              struct wl_resource *output_resource)
 {
 	XdgToplevel *toplevel;
 
@@ -2302,8 +2292,8 @@ SetMinimized(struct wl_client *client, struct wl_resource *resource)
 		return;
 
 	XIconifyWindow(compositor.display,
-				   XLWindowFromXdgRole(toplevel->role),
-				   DefaultScreen(compositor.display));
+	               XLWindowFromXdgRole(toplevel->role),
+	               DefaultScreen(compositor.display));
 }
 
 static void
@@ -2317,7 +2307,7 @@ ReplyToPing(XEvent *event)
 	   manager.  */
 	copy.xclient.window = DefaultRootWindow(compositor.display);
 	XSendEvent(compositor.display, copy.xclient.window,
-			   False, (SubstructureRedirectMask | SubstructureNotifyMask), &copy);
+	           False, (SubstructureRedirectMask | SubstructureNotifyMask), &copy);
 }
 
 static void
@@ -2333,13 +2323,13 @@ NoteFocus(Role *role, XdgRoleImplementation *impl, FocusMode mode)
 	   surface under input focus.  */
 	switch (mode)
 	{
-	case SurfaceFocusIn:
-		toplevel->focus_seat_count++;
-		break;
+		case SurfaceFocusIn:
+			toplevel->focus_seat_count++;
+			break;
 
-	case SurfaceFocusOut:
-		toplevel->focus_seat_count = MAX(toplevel->focus_seat_count - 1, 0);
-		break;
+		case SurfaceFocusOut:
+			toplevel->focus_seat_count = MAX(toplevel->focus_seat_count - 1, 0);
+			break;
 	}
 
 	/* Now, change the toplevel state accordingly.  */
@@ -2384,7 +2374,7 @@ OutputsChanged(Role *role, XdgRoleImplementation *impl)
 
 static void
 Activate(Role *role, XdgRoleImplementation *impl, int deviceid,
-		 Time time, Surface *activator_surface)
+         Time time, Surface *activator_surface)
 {
 	XEvent message;
 	XdgToplevel *toplevel;
@@ -2403,15 +2393,15 @@ Activate(Role *role, XdgRoleImplementation *impl, int deviceid,
 		message.xclient.data.l[0] = 1;
 		message.xclient.data.l[1] = time;
 		message.xclient.data.l[2] = (activator_surface
-										 ? XLWindowFromSurface(activator_surface)
-										 : None);
+			                             ? XLWindowFromSurface(activator_surface)
+			                             : None);
 		message.xclient.data.l[3] = 0;
 		message.xclient.data.l[4] = 0;
 
 		XSendEvent(compositor.display,
-				   DefaultRootWindow(compositor.display),
-				   False, (SubstructureRedirectMask | SubstructureNotifyMask),
-				   &message);
+		           DefaultRootWindow(compositor.display),
+		           False, (SubstructureRedirectMask | SubstructureNotifyMask),
+		           &message);
 	}
 	else
 	{
@@ -2419,7 +2409,7 @@ Activate(Role *role, XdgRoleImplementation *impl, int deviceid,
 	   or that the device still exists.  */
 		CatchXErrors();
 		XISetFocus(compositor.display, deviceid,
-				   window, time);
+		           window, time);
 		UncatchXErrors(NULL);
 	}
 }
@@ -2443,7 +2433,7 @@ static const struct xdg_toplevel_interface xdg_toplevel_impl =
 };
 
 void XLGetXdgToplevel(struct wl_client *client, struct wl_resource *resource,
-					  uint32_t id)
+                      uint32_t id)
 {
 	XdgToplevel *toplevel;
 	Role *role;
@@ -2460,8 +2450,8 @@ void XLGetXdgToplevel(struct wl_client *client, struct wl_resource *resource,
 	memset(toplevel, 0, sizeof *toplevel);
 
 	toplevel->resource = wl_resource_create(client, &xdg_toplevel_interface,
-											wl_resource_get_version(resource),
-											id);
+	                                        wl_resource_get_version(resource),
+	                                        id);
 
 	if (!toplevel->resource)
 	{
@@ -2503,7 +2493,7 @@ void XLGetXdgToplevel(struct wl_client *client, struct wl_resource *resource,
 	wl_array_init(&toplevel->states);
 
 	wl_resource_set_implementation(toplevel->resource, &xdg_toplevel_impl,
-								   toplevel, HandleResourceDestroy);
+	                               toplevel, HandleResourceDestroy);
 	toplevel->refcount++;
 
 	/* Wayland surfaces are by default undecorated.  Removing
@@ -2547,9 +2537,9 @@ Bool XLHandleXEventForXdgToplevels(XEvent *event)
 		}
 
 		return (toplevel->role->surface
-					? XLDndFilterClientMessage(toplevel->role->surface,
-											   event)
-					: False);
+			        ? XLDndFilterClientMessage(toplevel->role->surface,
+			                                   event)
+			        : False);
 	}
 
 	if (event->type == MapNotify)
@@ -2568,8 +2558,8 @@ Bool XLHandleXEventForXdgToplevels(XEvent *event)
 			toplevel->size_hints.flags |= PPosition;
 
 			XSetWMNormalHints(compositor.display,
-							  event->xmap.window,
-							  &toplevel->size_hints);
+			                  event->xmap.window,
+			                  &toplevel->size_hints);
 		}
 
 		return False;
@@ -2616,7 +2606,8 @@ Bool XLHandleXEventForXdgToplevels(XEvent *event)
 
 			toplevel = ToplevelFromRoleImpl(impl);
 
-			if (toplevel && toplevel->role && toplevel->role->surface && (wl_resource_get_version(toplevel->resource) >= 5))
+			if (toplevel && toplevel->role && toplevel->role->surface && (
+				    wl_resource_get_version(toplevel->resource) >= 5))
 				HandleAllowedActionsChange(toplevel);
 
 			return True;
@@ -2651,9 +2642,9 @@ ReadWmProtocolsString(const char **string_return)
 	classlist[2] = NULLQUARK;
 
 	if (XrmQGetResource(rdb, namelist, classlist,
-						&type, &value) &&
-		type == QString)
-		*string_return = (const char *)value.addr;
+	                    &type, &value) &&
+	    type == QString)
+		*string_return = (const char *) value.addr;
 }
 
 static int
@@ -2683,8 +2674,8 @@ ParseWmProtocols(const char *string)
 			wm_protocols |= NetWmPingMask;
 		else
 			fprintf(stderr, "Warning: encountered invalid window manager "
-							"protocol: %s\n",
-					buffer);
+			        "protocol: %s\n",
+			        buffer);
 
 		string = sep + 1;
 	}
@@ -2719,7 +2710,7 @@ DestroyDecoration(struct wl_client *client, struct wl_resource *resource)
 
 static void
 SetMode(struct wl_client *client, struct wl_resource *resource,
-		uint32_t mode)
+        uint32_t mode)
 {
 	XdgDecoration *decoration;
 
@@ -2730,19 +2721,19 @@ SetMode(struct wl_client *client, struct wl_resource *resource,
 
 	switch (mode)
 	{
-	case ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE:
-		decoration->toplevel->decor = DecorationModeClient;
-		break;
+		case ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE:
+			decoration->toplevel->decor = DecorationModeClient;
+			break;
 
-	case ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE:
-		decoration->toplevel->decor = DecorationModeWindowManager;
-		break;
+		case ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE:
+			decoration->toplevel->decor = DecorationModeWindowManager;
+			break;
 
-	default:
-		wl_resource_post_error(resource, WL_DISPLAY_ERROR_IMPLEMENTATION,
-							   "trying to set bogus decoration mode %u",
-							   mode);
-		return;
+		default:
+			wl_resource_post_error(resource, WL_DISPLAY_ERROR_IMPLEMENTATION,
+			                       "trying to set bogus decoration mode %u",
+			                       mode);
+			return;
 	}
 
 	/* According to #wayland the configure event shouldn't be sent for
@@ -2775,10 +2766,10 @@ UnsetMode(struct wl_client *client, struct wl_resource *resource)
 }
 
 static struct zxdg_toplevel_decoration_v1_interface decoration_impl =
-	{
-		.destroy = DestroyDecoration,
-		.set_mode = SetMode,
-		.unset_mode = UnsetMode,
+{
+	.destroy = DestroyDecoration,
+	.set_mode = SetMode,
+	.unset_mode = UnsetMode,
 };
 
 static void
@@ -2805,8 +2796,8 @@ HandleDecorationResourceDestroy(struct wl_resource *resource)
 }
 
 void XLXdgToplevelGetDecoration(XdgRoleImplementation *impl,
-								struct wl_resource *resource,
-								uint32_t id)
+                                struct wl_resource *resource,
+                                uint32_t id)
 {
 	XdgToplevel *toplevel;
 	XdgDecoration *decoration;
@@ -2818,8 +2809,8 @@ void XLXdgToplevelGetDecoration(XdgRoleImplementation *impl,
 	{
 #define AlreadyConstructed ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ALREADY_CONSTRUCTED
 		wl_resource_post_error(resource, AlreadyConstructed,
-							   "the given toplevel already has a decoration"
-							   "object.");
+		                       "the given toplevel already has a decoration"
+		                       "object.");
 #undef AlreadyConstructed
 		return;
 	}
@@ -2829,7 +2820,7 @@ void XLXdgToplevelGetDecoration(XdgRoleImplementation *impl,
 	{
 #define UnconfiguredBuffer ZXDG_TOPLEVEL_DECORATION_V1_ERROR_UNCONFIGURED_BUFFER
 		wl_resource_post_error(resource, UnconfiguredBuffer,
-							   "given toplevel already has attached buffer");
+		                       "given toplevel already has attached buffer");
 #undef UnconfiguredBuffer
 		return;
 	}
@@ -2844,8 +2835,8 @@ void XLXdgToplevelGetDecoration(XdgRoleImplementation *impl,
 
 	memset(decoration, 0, sizeof *decoration);
 	decoration->resource = wl_resource_create(wl_resource_get_client(resource),
-											  &zxdg_toplevel_decoration_v1_interface,
-											  wl_resource_get_version(resource), id);
+	                                          &zxdg_toplevel_decoration_v1_interface,
+	                                          wl_resource_get_version(resource), id);
 
 	if (!decoration->resource)
 	{
@@ -2860,5 +2851,5 @@ void XLXdgToplevelGetDecoration(XdgRoleImplementation *impl,
 
 	/* And set the implementation.  */
 	wl_resource_set_implementation(decoration->resource, &decoration_impl,
-								   decoration, HandleDecorationResourceDestroy);
+	                               decoration, HandleDecorationResourceDestroy);
 }

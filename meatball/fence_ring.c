@@ -29,8 +29,7 @@
 
 #include <xcb/dri3.h>
 
-struct _Fence
-{
+struct _Fence {
 	/* The xshmfence.  */
 	struct xshmfence *fence;
 
@@ -78,7 +77,7 @@ GetFence(void)
 	   immediately.  */
 	XLAddFdFlag(fd, FD_CLOEXEC, False);
 	xcb_dri3_fence_from_fd(compositor.conn, drawable,
-						   fence->fence_id, 0, fd);
+	                       fence->fence_id, 0, fd);
 
 	/* Retain the fence.  */
 	FenceRetain(fence);

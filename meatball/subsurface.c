@@ -24,13 +24,11 @@
 
 #include "compositor.h"
 
-enum
-{
+enum {
 	PendingPosition = 1,
 };
 
-enum _SurfaceActionType
-{
+enum _SurfaceActionType {
 	Sentinel,
 	PlaceAboveOther,
 	PlaceBelowOther,
@@ -44,8 +42,7 @@ typedef struct _SurfaceActionClientData SurfaceActionClientData;
 
 #define SubsurfaceFromRole(role) ((Subsurface *)(role))
 
-struct _SurfaceAction
-{
+struct _SurfaceAction {
 	/* What this action is.  */
 	SurfaceActionType type;
 
@@ -62,8 +59,7 @@ struct _SurfaceAction
 	SurfaceAction *next, *last;
 };
 
-struct _Substate
-{
+struct _Substate {
 	/* The position of the subsurface relative to the parent.  */
 	int x, y;
 
@@ -71,8 +67,7 @@ struct _Substate
 	int flags;
 };
 
-struct _Subsurface
-{
+struct _Subsurface {
 	/* The role object itself.  */
 	Role role;
 
@@ -112,8 +107,7 @@ struct _Subsurface
 	int output_x, output_y, output_width, output_height;
 };
 
-struct _SurfaceActionClientData
-{
+struct _SurfaceActionClientData {
 	/* Any pending subsurface actions.  */
 	SurfaceAction actions;
 };
@@ -154,8 +148,8 @@ CheckSiblingRelationship(Subsurface *subsurface, Surface *other)
 	Subsurface *other_subsurface;
 
 	if (other->role_type != SubsurfaceType
-		/* The role might've been detached from the other surface.  */
-		|| !other->role)
+	    /* The role might've been detached from the other surface.  */
+	    || !other->role)
 		return False;
 
 	other_subsurface = SubsurfaceFromRole(other->role);
@@ -215,11 +209,11 @@ RunOneSurfaceAction(Subsurface *subsurface, SurfaceAction *subaction)
 		if (subaction->other == subsurface->parent)
 			/* Re-insert this view at the beginning of the parent.  */
 			ParentStart(subsurface->parent->view,
-						subsurface->role.surface);
+			            subsurface->role.surface);
 		else
 			/* Re-insert this view in front of the other surface.  */
 			ParentAbove(target, subaction->other->view,
-						subsurface->role.surface);
+			            subsurface->role.surface);
 	}
 	else if (subaction->type == PlaceBelowOther)
 	{
@@ -233,11 +227,11 @@ RunOneSurfaceAction(Subsurface *subsurface, SurfaceAction *subaction)
 		if (subaction->other != subsurface->parent)
 			/* Re-insert this view before the other surface.  */
 			ParentBelow(target, subaction->other->under,
-						subsurface->role.surface);
+			            subsurface->role.surface);
 		else
 			/* Re-insert this view below the parent surface.  */
 			ParentStart(subsurface->parent->under,
-						subsurface->role.surface);
+			            subsurface->role.surface);
 	}
 }
 
@@ -268,7 +262,7 @@ FreeSubsurfaceData(void *data)
 
 static SurfaceAction *
 AddSurfaceAction(Subsurface *subsurface, Surface *other,
-				 SurfaceActionType type)
+                 SurfaceActionType type)
 {
 	SurfaceAction *action;
 	SurfaceActionClientData *client;
@@ -278,12 +272,12 @@ AddSurfaceAction(Subsurface *subsurface, Surface *other,
 	action->type = type;
 	action->other = other;
 	action->destroy_listener = XLSurfaceRunOnFree(other, HandleOtherSurfaceDestroyed,
-												  action);
+	                                              action);
 
 	client = XLSurfaceGetClientData(subsurface->parent,
-									SubsurfaceData,
-									sizeof *client,
-									FreeSubsurfaceData);
+	                                SubsurfaceData,
+	                                sizeof *client,
+	                                FreeSubsurfaceData);
 
 	if (!client->actions.next)
 	{
@@ -334,14 +328,14 @@ DestroySubsurface(struct wl_client *client, struct wl_resource *resource)
 	   future.  */
 	if (subsurface->role.surface)
 		XLSurfaceReleaseRole(subsurface->role.surface,
-							 &subsurface->role);
+		                     &subsurface->role);
 
 	wl_resource_destroy(resource);
 }
 
 static void
 SetPosition(struct wl_client *client, struct wl_resource *resource,
-			int32_t x, int32_t y)
+            int32_t x, int32_t y)
 {
 	Subsurface *subsurface;
 
@@ -354,7 +348,7 @@ SetPosition(struct wl_client *client, struct wl_resource *resource,
 
 static void
 PlaceAbove(struct wl_client *client, struct wl_resource *resource,
-		   struct wl_resource *surface_resource)
+           struct wl_resource *surface_resource)
 {
 	Subsurface *subsurface;
 	Surface *other;
@@ -365,7 +359,7 @@ PlaceAbove(struct wl_client *client, struct wl_resource *resource,
 	if (other != subsurface->parent && !CheckSiblingRelationship(subsurface, other))
 	{
 		wl_resource_post_error(resource, WL_SUBSURFACE_ERROR_BAD_SURFACE,
-							   "surface is not a sibling or the parent");
+		                       "surface is not a sibling or the parent");
 		return;
 	}
 
@@ -374,7 +368,7 @@ PlaceAbove(struct wl_client *client, struct wl_resource *resource,
 
 static void
 PlaceBelow(struct wl_client *client, struct wl_resource *resource,
-		   struct wl_resource *surface_resource)
+           struct wl_resource *surface_resource)
 {
 	Subsurface *subsurface;
 	Surface *other;
@@ -385,7 +379,7 @@ PlaceBelow(struct wl_client *client, struct wl_resource *resource,
 	if (other != subsurface->parent && !CheckSiblingRelationship(subsurface, other))
 	{
 		wl_resource_post_error(resource, WL_SUBSURFACE_ERROR_BAD_SURFACE,
-							   "surface is not a sibling or the parent");
+		                       "surface is not a sibling or the parent");
 		return;
 	}
 
@@ -481,7 +475,7 @@ NoteSubsurfaceDesynchronous(Subsurface *subsurface, Bool apply_state)
 
 			if (child_subsurface->should_be_desync)
 				NoteSubsurfaceDesynchronous(child_subsurface,
-											False);
+				                            False);
 		}
 	}
 }
@@ -631,7 +625,8 @@ MaybeUpdateOutputs(Subsurface *subsurface)
 	height = ViewHeight(subsurface->role.surface->view);
 
 	/* If nothing really changed, return.  */
-	if (x == subsurface->output_x && y == subsurface->output_y && width == subsurface->output_width && height == subsurface->output_height)
+	if (x == subsurface->output_x && y == subsurface->output_y && width == subsurface->output_width && height ==
+	    subsurface->output_height)
 		return;
 
 	/* Otherwise, recompute the outputs this subsurface overlaps and
@@ -643,8 +638,8 @@ MaybeUpdateOutputs(Subsurface *subsurface)
 
 	/* Recompute overlaps.  */
 	XLUpdateSurfaceOutputs(subsurface->role.surface,
-						   x + base_x, y + base_y,
-						   width, height);
+	                       x + base_x, y + base_y,
+	                       width, height);
 }
 
 static void
@@ -658,7 +653,7 @@ MoveFractional(Subsurface *subsurface)
 	   surface at the floor of the coordinates, and then offsetting the
 	   image and input by the remainder during rendering.  */
 	SurfaceToWindow(subsurface->parent, subsurface->current_substate.x,
-					subsurface->current_substate.y, &x, &y);
+	                subsurface->current_substate.y, &x, &y);
 
 	x_int = floor(x);
 	y_int = floor(y);
@@ -669,9 +664,9 @@ MoveFractional(Subsurface *subsurface)
 
 	/* Apply the fractional offset.  */
 	ViewMoveFractional(subsurface->role.surface->view,
-					   x - x_int, y - y_int);
+	                   x - x_int, y - y_int);
 	ViewMoveFractional(subsurface->role.surface->under,
-					   x - x_int, y - y_int);
+	                   x - x_int, y - y_int);
 
 	/* And set the fractional offset on the surface for input handling
 	   purposes.  */
@@ -719,10 +714,10 @@ AfterParentCommit(Surface *surface, void *data)
 	   view.  */
 
 		ViewSetSubcompositor(subsurface->role.surface->under,
-							 ViewGetSubcompositor(surface->view));
+		                     ViewGetSubcompositor(surface->view));
 		ViewInsert(surface->view, subsurface->role.surface->under);
 		ViewSetSubcompositor(subsurface->role.surface->view,
-							 ViewGetSubcompositor(surface->view));
+		                     ViewGetSubcompositor(surface->view));
 		ViewInsert(surface->view, subsurface->role.surface->view);
 		subsurface->pending = False;
 	}
@@ -752,7 +747,7 @@ SubsurfaceUpdate(Surface *surface, Role *role)
 		return;
 
 	subsurface->parent->role->funcs.subsurface_update(subsurface->parent,
-													  subsurface->parent->role);
+	                                                  subsurface->parent->role);
 }
 
 static Window
@@ -766,7 +761,7 @@ GetWindow(Surface *surface, Role *role)
 		return None;
 
 	return subsurface->parent->role->funcs.get_window(subsurface->parent,
-													  subsurface->parent->role);
+	                                                  subsurface->parent->role);
 }
 
 static void
@@ -838,7 +833,7 @@ Setup(Surface *surface, Role *role)
 
 	/* Now add the subsurface to the parent's list of subsurfaces.  */
 	subsurface->parent->subsurfaces = XLListPrepend(subsurface->parent->subsurfaces,
-													surface);
+	                                                surface);
 
 	/* And mark the subsurface as pending.  A pending subsurface is not
 	   inserted into any subcompositor, but will be inserted upon the
@@ -917,7 +912,7 @@ Teardown(Surface *surface, Role *role)
 		}
 
 		client = XLSurfaceFindClientData(subsurface->parent,
-										 SubsurfaceData);
+		                                 SubsurfaceData);
 
 		if (client)
 		{
@@ -966,8 +961,8 @@ ReleaseBuffer(Surface *surface, Role *role, ExtBuffer *buffer)
 	}
 
 	subsurface->parent->role->funcs.release_buffer(subsurface->parent,
-												   subsurface->parent->role,
-												   buffer);
+	                                               subsurface->parent->role,
+	                                               buffer);
 }
 
 static void
@@ -997,8 +992,8 @@ GetRootSurface(Surface *surface)
 
 static void
 GetSubsurface(struct wl_client *client, struct wl_resource *resource,
-			  uint32_t id, struct wl_resource *surface_resource,
-			  struct wl_resource *parent_resource)
+              uint32_t id, struct wl_resource *surface_resource,
+              struct wl_resource *parent_resource)
 {
 	Surface *surface, *parent;
 	Subsurface *subsurface;
@@ -1012,7 +1007,7 @@ GetSubsurface(struct wl_client *client, struct wl_resource *resource,
 	if (surface->role || (surface->role_type != AnythingType && surface->role_type != SubsurfaceType))
 	{
 		wl_resource_post_error(resource, WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE,
-							   "trying to attach subsurface to surface with role");
+		                       "trying to attach subsurface to surface with role");
 		return;
 	}
 
@@ -1021,14 +1016,14 @@ GetSubsurface(struct wl_client *client, struct wl_resource *resource,
 	if (parent == surface)
 	{
 		wl_resource_post_error(resource, WL_SUBCOMPOSITOR_ERROR_BAD_PARENT,
-							   "trying to attach subsurface to itself");
+		                       "trying to attach subsurface to itself");
 		return;
 	}
 
 	if (GetRootSurface(parent) == surface)
 	{
 		wl_resource_post_error(resource, WL_SUBCOMPOSITOR_ERROR_BAD_PARENT,
-							   "specified parent is ancestor of subsurface");
+		                       "specified parent is ancestor of subsurface");
 		return;
 	}
 
@@ -1042,8 +1037,8 @@ GetSubsurface(struct wl_client *client, struct wl_resource *resource,
 
 	memset(subsurface, 0, sizeof *subsurface);
 	subsurface->role.resource = wl_resource_create(client, &wl_subsurface_interface,
-												   wl_resource_get_version(resource),
-												   id);
+	                                               wl_resource_get_version(resource),
+	                                               id);
 
 	if (!subsurface->role.resource)
 	{
@@ -1053,7 +1048,7 @@ GetSubsurface(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(subsurface->role.resource, &wl_subsurface_impl,
-								   subsurface, HandleSubsurfaceResourceDestroy);
+	                               subsurface, HandleSubsurfaceResourceDestroy);
 
 	/* Now the wl_resource holds a reference to the subsurface.  */
 	subsurface->refcount++;
@@ -1093,12 +1088,12 @@ static const struct wl_subcompositor_interface wl_subcompositor_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_subcompositor_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -1107,14 +1102,14 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(resource, &wl_subcompositor_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 void XLInitSubsurfaces(void)
 {
 	global_subcompositor = wl_global_create(compositor.wl_display,
-											&wl_subcompositor_interface,
-											1, NULL, HandleBind);
+	                                        &wl_subcompositor_interface,
+	                                        1, NULL, HandleBind);
 }
 
 void XLSubsurfaceParentDestroyed(Role *role)
@@ -1167,10 +1162,10 @@ void XLUpdateOutputsForChildren(Surface *parent, int base_x, int base_y)
 		output_height = ViewHeight(child->view);
 
 		XLUpdateSurfaceOutputs(child,
-							   base_x + output_x,
-							   base_y + output_y,
-							   output_width,
-							   output_height);
+		                       base_x + output_x,
+		                       base_y + output_y,
+		                       output_width,
+		                       output_height);
 
 		/* Record those values in the child.  */
 		subsurface->output_x = output_x;

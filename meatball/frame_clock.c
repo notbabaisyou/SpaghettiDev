@@ -27,8 +27,7 @@
 typedef struct _FrameClockCallback FrameClockCallback;
 typedef struct _CursorClockCallback CursorClockCallback;
 
-enum
-{
+enum {
 	/* 150ms.  */
 	MaxPresentationAge = 150000,
 };
@@ -42,8 +41,7 @@ static Timer *cursor_clock;
 /* How many cursors want cursor animations.  */
 static int cursor_count;
 
-struct _FrameClockCallback
-{
+struct _FrameClockCallback {
 	/* Function called once a frame is completely written to display.
 	   The last arg is the time at which the frame was written, or
 	   (uint64_t) -1.  */
@@ -56,8 +54,7 @@ struct _FrameClockCallback
 	FrameClockCallback *next, *last;
 };
 
-struct _FrameClock
-{
+struct _FrameClock {
 	/* The value of the frame currently being drawn in this frame clock,
 	   and the value of the last frame that was marked as complete.  */
 	uint64_t next_frame_id, finished_frame_id;
@@ -133,8 +130,7 @@ struct _FrameClock
 	Bool predict_refresh;
 };
 
-struct _CursorClockCallback
-{
+struct _CursorClockCallback {
 	/* Function called every time cursors should animate once.  */
 	void (*frame)(void *, struct timespec);
 
@@ -160,7 +156,7 @@ SetSyncCounter(XSyncCounter counter, uint64_t value)
 
 	XSyncIntsToValue(&sync_value, low, high);
 	XSyncSetCounter(compositor.display, counter,
-					sync_value);
+	                sync_value);
 }
 
 static uint64_t
@@ -168,7 +164,8 @@ HighPrecisionTimestamp(struct timespec *clock)
 {
 	uint64_t timestamp;
 
-	if (IntMultiplyWrapv(clock->tv_sec, 1000000, &timestamp) || IntAddWrapv(timestamp, clock->tv_nsec / 1000, &timestamp))
+	if (IntMultiplyWrapv(clock->tv_sec, 1000000, &timestamp) || IntAddWrapv(timestamp, clock->tv_nsec / 1000,
+	                                                                        &timestamp))
 		/* Overflow.  */
 		return 0;
 
@@ -189,7 +186,7 @@ HighPrecisionTimestamp32(struct timespec *clock)
 	/* Next, the nanosecond portion is also converted to
 	   milliseconds.  */
 	if (IntAddWrapv(milliseconds, clock->tv_nsec / 1000000,
-					&milliseconds))
+	                &milliseconds))
 		return 0;
 
 	/* Then, the milliseconds are truncated to 32 bits.  */
@@ -201,7 +198,7 @@ HighPrecisionTimestamp32(struct timespec *clock)
 
 	/* And add the remaining nsec portion.  */
 	if (IntAddWrapv(timestamp, (clock->tv_nsec % 1000000) / 1000,
-					&timestamp))
+	                &timestamp))
 		/* Overflow.  */
 		return 0;
 
@@ -210,7 +207,7 @@ HighPrecisionTimestamp32(struct timespec *clock)
 
 static Bool
 HighPrecisionTimestampToTimespec(uint64_t timestamp,
-								 struct timespec *timespec)
+                                 struct timespec *timespec)
 {
 	uint64_t remainder, seconds;
 
@@ -248,6 +245,7 @@ HandleEndFrame(Timer *timer, void *data, struct timespec time)
 /* Forward declarations.  */
 
 static void RunFrameCallbacks(FrameClock *, uint64_t);
+
 static Bool StartFrame(FrameClock *, Bool, Bool);
 
 static void
@@ -299,21 +297,21 @@ FreezeForValue(FrameClock *clock, uint64_t counter_value)
 	clock->configure_id = counter_value;
 
 	if (need_empty_frame
-		/* If the surface has not yet ack_configure'd, don't fast
-	   forward the frame.  The sync counter will be set at the next
-	   commit after ack_configure.  */
-		&& clock->can_forward_sync_counter && clock->can_forward_sync_counter(clock->freeze_callback_data))
+	    /* If the surface has not yet ack_configure'd, don't fast
+       forward the frame.  The sync counter will be set at the next
+       commit after ack_configure.  */
+	    && clock->can_forward_sync_counter && clock->can_forward_sync_counter(clock->freeze_callback_data))
 		/* If this event is already out of date, just fast forward the
 		   sync counter.  */
 		BumpFrame(clock);
 
 	clock->freeze_callback(clock->freeze_callback_data,
-						   /* Only run the freeze callback if this
-							  freeze is up to date.  If it is not,
-							  frame callbacks still have to be run,
-							  which is what the following parameter
-							  means.  */
-						   need_empty_frame);
+	                       /* Only run the freeze callback if this
+		                      freeze is up to date.  If it is not,
+		                      frame callbacks still have to be run,
+		                      which is what the following parameter
+		                      means.  */
+	                       need_empty_frame);
 
 	return;
 }
@@ -410,12 +408,12 @@ PostEndFrame(FrameClock *clock)
 	/* Schedule the timer marking the end of this frame for the target
 	   time.  */
 	clock->end_frame_timer = AddTimerWithBaseTime(HandleEndFrame,
-												  clock,
-												  /* Use no delay; this
-													 timer will only
-													 run once.  */
-												  MakeTimespec(0, 0),
-												  timespec);
+	                                              clock,
+	                                              /* Use no delay; this
+		                                             timer will only
+		                                             run once.  */
+	                                              MakeTimespec(0, 0),
+	                                              timespec);
 }
 
 static Bool
@@ -424,10 +422,10 @@ StartFrame(FrameClock *clock, Bool urgent, Bool predict)
 	if (clock->in_frame)
 	{
 		if (clock->end_frame_timer
-			/* If the end of the frame is still pending but EndFrame has
-			   been called, then treat the frame as if it has just been
-			   started.  */
-			&& clock->end_frame_called)
+		    /* If the end of the frame is still pending but EndFrame has
+		       been called, then treat the frame as if it has just been
+		       started.  */
+		    && clock->end_frame_called)
 		{
 			/* In addition, require another EndFrame for the frame to
 			   end.  */
@@ -480,7 +478,7 @@ StartFrame(FrameClock *clock, Bool urgent, Bool predict)
 		return True;
 
 	SetSyncCounter(clock->secondary_counter,
-				   clock->next_frame_id);
+	               clock->next_frame_id);
 
 	if (clock->predict_refresh && predict)
 		PostEndFrame(clock);
@@ -497,10 +495,10 @@ EndFrame(FrameClock *clock)
 	clock->end_frame_called = True;
 
 	if (!clock->in_frame
-		/* If the end of the frame has already been signalled, this
-	   function should just return instead of increasing the counter
-	   to an odd value.  */
-		|| clock->finished_frame_id == clock->next_frame_id)
+	    /* If the end of the frame has already been signalled, this
+       function should just return instead of increasing the counter
+       to an odd value.  */
+	    || clock->finished_frame_id == clock->next_frame_id)
 		return;
 
 	if (clock->end_frame_timer)
@@ -562,7 +560,7 @@ RunFrameCallbacks(FrameClock *clock, uint64_t frame_drawn_time)
 	while (callback != &clock->callbacks)
 	{
 		callback->frame(clock, callback->data,
-						frame_drawn_time);
+		                frame_drawn_time);
 		callback = callback->next;
 	}
 }
@@ -577,14 +575,14 @@ NoteFakeFrame(Timer *timer, void *data, struct timespec time)
 	if (clock->in_frame && (clock->finished_frame_id == clock->next_frame_id))
 	{
 		clock->in_frame = False;
-		RunFrameCallbacks(clock, (uint64_t)-1);
+		RunFrameCallbacks(clock, (uint64_t) -1);
 	}
 }
 
 void XLFrameClockAfterFrame(FrameClock *clock,
-							void (*frame_func)(FrameClock *, void *,
-											   uint64_t),
-							void *data)
+                            void (*frame_func)(FrameClock *, void *,
+                                               uint64_t),
+                            void *data)
 {
 	FrameClockCallback *callback;
 
@@ -629,10 +627,10 @@ void XLFrameClockHandleFrameEvent(FrameClock *clock, XEvent *event)
 		value = low | (high << 32);
 
 		if (value == clock->finished_frame_id && clock->in_frame
-			/* If this means the frame has been completely drawn, then
-			   clear in_frame and run frame callbacks to i.e. draw any
-			   late frame.  */
-			&& (clock->finished_frame_id == clock->next_frame_id))
+		    /* If this means the frame has been completely drawn, then
+		       clear in_frame and run frame callbacks to i.e. draw any
+		       late frame.  */
+		    && (clock->finished_frame_id == clock->next_frame_id))
 		{
 			/* Record the time at which the frame was drawn.  */
 			low = event->xclient.data.l[2] & 0xffffffff;
@@ -693,7 +691,8 @@ void XLFrameClockHandleFrameEvent(FrameClock *clock, XEvent *event)
 		}
 	}
 
-	if (event->xclient.message_type == WM_PROTOCOLS && event->xclient.data.l[0] == _NET_WM_SYNC_REQUEST && event->xclient.data.l[4] == 1)
+	if (event->xclient.message_type == WM_PROTOCOLS && event->xclient.data.l[0] == _NET_WM_SYNC_REQUEST && event->
+	    xclient.data.l[4] == 1)
 	{
 		low = event->xclient.data.l[2];
 		high = event->xclient.data.l[3];
@@ -724,9 +723,9 @@ void XLFreeFrameClock(FrameClock *clock)
 	if (frame_sync_supported)
 	{
 		XSyncDestroyCounter(compositor.display,
-							clock->primary_counter);
+		                    clock->primary_counter);
 		XSyncDestroyCounter(compositor.display,
-							clock->secondary_counter);
+		                    clock->secondary_counter);
 	}
 	else
 		RemoveTimer(clock->static_frame_timer);
@@ -757,13 +756,13 @@ XLMakeFrameClockForWindow(Window window)
 	if (frame_sync_supported)
 	{
 		clock->primary_counter = XSyncCreateCounter(compositor.display,
-													initial_value);
+		                                            initial_value);
 		clock->secondary_counter = XSyncCreateCounter(compositor.display,
-													  initial_value);
+		                                              initial_value);
 	}
 	else
 		clock->static_frame_timer = AddTimer(NoteFakeFrame, clock,
-											 default_refresh_rate);
+		                                     default_refresh_rate);
 
 	/* Initialize sentinel link.  */
 	clock->callbacks.next = &clock->callbacks;
@@ -771,9 +770,9 @@ XLMakeFrameClockForWindow(Window window)
 
 	if (frame_sync_supported)
 		XChangeProperty(compositor.display, window,
-						_NET_WM_SYNC_REQUEST_COUNTER, XA_CARDINAL, 32,
-						PropModeReplace,
-						(unsigned char *)&clock->primary_counter, 2);
+		                _NET_WM_SYNC_REQUEST_COUNTER, XA_CARDINAL, 32,
+		                PropModeReplace,
+		                (unsigned char *) &clock->primary_counter, 2);
 
 	if (getenv("MEATBALL_DEBUG_REFRESH_PREDICTION"))
 		clock->predict_refresh = True;
@@ -822,8 +821,8 @@ void XLFrameClockDisablePredictRefresh(FrameClock *clock)
 }
 
 void XLFrameClockSetFreezeCallback(FrameClock *clock, void (*callback)(void *, Bool),
-								   Bool (*fast_forward_callback)(void *),
-								   void *data)
+                                   Bool (*fast_forward_callback)(void *),
+                                   void *data)
 {
 	clock->freeze_callback = callback;
 	clock->freeze_callback_data = data;
@@ -854,7 +853,7 @@ NoteCursorFrame(Timer *timer, void *data, struct timespec time)
 
 void *
 XLAddCursorClockCallback(void (*frame_func)(void *, struct timespec),
-						 void *data)
+                         void *data)
 {
 	CursorClockCallback *callback;
 
@@ -896,7 +895,7 @@ void XLStartCursorClock(void)
 	cursor_refresh_rate.tv_sec = 0;
 	cursor_refresh_rate.tv_nsec = 60000000;
 	cursor_clock = AddTimer(NoteCursorFrame, NULL,
-							cursor_refresh_rate);
+	                        cursor_refresh_rate);
 }
 
 void XLStopCursorClock(void)

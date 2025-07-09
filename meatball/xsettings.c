@@ -27,15 +27,13 @@
 typedef struct _IntegerValueListener IntegerValueListener;
 typedef enum _SettingType SettingType;
 
-enum _SettingType
-{
-	Integer = 0,
-	String = 1,
+enum _SettingType {
+	Integer  = 0,
+	String   = 1,
 	RgbColor = 2,
 };
 
-struct _IntegerValueListener
-{
+struct _IntegerValueListener {
 	/* Function called when the value of the setting changes.  */
 	void (*new_value)(int);
 
@@ -144,10 +142,10 @@ ReadSettingsData(void)
 	/* Now read the actual property data.  */
 	CatchXErrors();
 	rc = XGetWindowProperty(compositor.display, xsettings_window,
-							_XSETTINGS_SETTINGS, 0, LONG_MAX, False,
-							_XSETTINGS_SETTINGS, &actual_type,
-							&actual_format, &nitems_return, &bytes_after,
-							&prop_data);
+	                        _XSETTINGS_SETTINGS, 0, LONG_MAX, False,
+	                        _XSETTINGS_SETTINGS, &actual_type,
+	                        &actual_format, &nitems_return, &bytes_after,
+	                        &prop_data);
 	if (UncatchXErrors(NULL))
 	{
 		/* An error occured while reading property data.  This means
@@ -185,12 +183,12 @@ ReadSettingsData(void)
 	prop_data += 3;
 
 	/* CARD32, serial.  */
-	serial = ((uint32_t *)prop_data)[0];
+	serial = ((uint32_t *) prop_data)[0];
 	prop_data += 4;
 	Swap32(byteorder, &serial);
 
 	/* CARD32, number of settings in the property.  */
-	n_settings = ((uint32_t *)prop_data)[0];
+	n_settings = ((uint32_t *) prop_data)[0];
 	prop_data += 4;
 	Swap32(byteorder, &n_settings);
 
@@ -209,7 +207,7 @@ ReadSettingsData(void)
 		prop_data++;
 
 		/* CARD16, name length.  */
-		name_length = ((uint16_t *)prop_data)[0];
+		name_length = ((uint16_t *) prop_data)[0];
 		prop_data += 2;
 		Swap16(byteorder, &name_length);
 
@@ -222,78 +220,78 @@ ReadSettingsData(void)
 		prop_data += PadValue(name_length, 4);
 
 		/* CARD32, last-change-serial.  */
-		last_change_serial = ((uint32_t *)prop_data)[0];
+		last_change_serial = ((uint32_t *) prop_data)[0];
 		prop_data += 4;
 
 		switch (type)
 		{
-		case String:
-			if (nitems < 4)
-				goto end;
-			nitems -= 4;
+			case String:
+				if (nitems < 4)
+					goto end;
+				nitems -= 4;
 
-			/* CARD32, value length.  */
-			value_length = ((uint32_t *)prop_data)[0];
-			prop_data += 4;
-			Swap32(byteorder, &value_length);
+				/* CARD32, value length.  */
+				value_length = ((uint32_t *) prop_data)[0];
+				prop_data += 4;
+				Swap32(byteorder, &value_length);
 
-			if (nitems < PadValue(value_length, 4))
-				goto end;
-			nitems -= PadValue(value_length, 4);
+				if (nitems < PadValue(value_length, 4))
+					goto end;
+				nitems -= PadValue(value_length, 4);
 
-			/* VALUE_LENGTH + padding, property value.  */
-			value_start = prop_data;
-			prop_data += PadValue(value_length, 4);
+				/* VALUE_LENGTH + padding, property value.  */
+				value_start = prop_data;
+				prop_data += PadValue(value_length, 4);
 
-			/* Note that string values are not yet handled.  */
-			(void)value_start;
-			break;
+				/* Note that string values are not yet handled.  */
+				(void) value_start;
+				break;
 
-		case Integer:
-			if (nitems < 4)
-				goto end;
-			nitems -= 4;
+			case Integer:
+				if (nitems < 4)
+					goto end;
+				nitems -= 4;
 
-			/* INT32, value.  */
-			value = ((int32_t *)prop_data)[0];
-			prop_data += 4;
-			SwapI32(byteorder, &value);
+				/* INT32, value.  */
+				value = ((int32_t *) prop_data)[0];
+				prop_data += 4;
+				SwapI32(byteorder, &value);
 
-			/* Now, write the name to the name buffer, with NULL
-			   termination.  */
-			name_buffer = XLRealloc(name_buffer, name_length + 1);
-			memcpy(name_buffer, name_start, name_length);
-			name_buffer[name_length] = '\0';
+				/* Now, write the name to the name buffer, with NULL
+				   termination.  */
+				name_buffer = XLRealloc(name_buffer, name_length + 1);
+				memcpy(name_buffer, name_start, name_length);
+				name_buffer[name_length] = '\0';
 
-			/* And run any change handlers.  */
-			HandleIntegerValue(name_buffer, value, last_change_serial);
-			break;
+				/* And run any change handlers.  */
+				HandleIntegerValue(name_buffer, value, last_change_serial);
+				break;
 
-		case RgbColor:
-			if (nitems < 8)
-				goto end;
-			nitems -= 8;
+			case RgbColor:
+				if (nitems < 8)
+					goto end;
+				nitems -= 8;
 
-			/* CARD16, red.  */
-			color.red = ((uint16_t *)prop_data)[0];
-			prop_data += 2;
-			Swap16(byteorder, &color.red);
+				/* CARD16, red.  */
+				color.red = ((uint16_t *) prop_data)[0];
+				prop_data += 2;
+				Swap16(byteorder, &color.red);
 
-			/* CARD16, green.  */
-			color.green = ((uint16_t *)prop_data)[0];
-			prop_data += 2;
-			Swap16(byteorder, &color.green);
+				/* CARD16, green.  */
+				color.green = ((uint16_t *) prop_data)[0];
+				prop_data += 2;
+				Swap16(byteorder, &color.green);
 
-			/* CARD16, blue.  */
-			color.blue = ((uint16_t *)prop_data)[0];
-			prop_data += 2;
-			Swap16(byteorder, &color.blue);
+				/* CARD16, blue.  */
+				color.blue = ((uint16_t *) prop_data)[0];
+				prop_data += 2;
+				Swap16(byteorder, &color.blue);
 
-			/* CARD16, alpha.  */
-			color.alpha = ((uint16_t *)prop_data)[0];
-			prop_data += 2;
-			Swap16(byteorder, &color.alpha);
-			break;
+				/* CARD16, alpha.  */
+				color.alpha = ((uint16_t *) prop_data)[0];
+				prop_data += 2;
+				Swap16(byteorder, &color.alpha);
+				break;
 		}
 
 		i++;
@@ -308,7 +306,8 @@ end:
 
 Bool XLHandleOneXEventForXSettings(XEvent *event)
 {
-	if (event->type == ClientMessage && event->xclient.message_type == MANAGER && event->xclient.data.l[1] == xsettings_atom)
+	if (event->type == ClientMessage && event->xclient.message_type == MANAGER && event->xclient.data.l[1] ==
+	    xsettings_atom)
 	{
 		/* Set the settings manager window, deselect for StructureNotify
 	   on the root window, and read the new settings data.  */
@@ -322,7 +321,7 @@ Bool XLHandleOneXEventForXSettings(XEvent *event)
 		/* Also select for PropertyNotify on the settings window, so we
 	   can get notifications once properties change.  */
 		XSelectInput(compositor.display, xsettings_window,
-					 PropertyChangeMask);
+		             PropertyChangeMask);
 		if (UncatchXErrors(NULL))
 			/* The settings window vanished; select for manager events
 			   again until we obtain the new settings window.  */
@@ -333,13 +332,14 @@ Bool XLHandleOneXEventForXSettings(XEvent *event)
 
 		return True;
 	}
-	else if (event->type == PropertyNotify && event->xproperty.window == xsettings_window && event->xproperty.atom == _XSETTINGS_SETTINGS)
+	else if (event->type == PropertyNotify && event->xproperty.window == xsettings_window && event->xproperty.atom ==
+	         _XSETTINGS_SETTINGS)
 	{
 		CatchXErrors();
 		/* Also select for PropertyNotify on the settings window, so we
 	   can get notifications once properties change.  */
 		XSelectInput(compositor.display, xsettings_window,
-					 PropertyChangeMask);
+		             PropertyChangeMask);
 		if (UncatchXErrors(NULL))
 			/* The settings window vanished; select for manager events
 			   again until we obtain the new settings window.  */
@@ -384,9 +384,9 @@ void XLInitXSettings(void)
 		/* Intern the manager selection atom, if it doesn't already
 	   exist.  */
 		sprintf(buffer, "_XSETTINGS_S%d",
-				DefaultScreen(compositor.display));
+		        DefaultScreen(compositor.display));
 		xsettings_atom = XInternAtom(compositor.display, buffer,
-									 False);
+		                             False);
 	}
 
 	/* Reset the last change serial of all listeners, since the settings
@@ -398,7 +398,7 @@ void XLInitXSettings(void)
 	XGrabServer(compositor.display);
 
 	xsettings_window = XGetSelectionOwner(compositor.display,
-										  xsettings_atom);
+	                                      xsettings_atom);
 
 	/* If the settings window doesn't exist yet, select for MANAGER
 	   messages on the root window.  */
@@ -412,7 +412,7 @@ void XLInitXSettings(void)
 	{
 		/* Also select for PropertyNotify events.  */
 		XSelectInput(compositor.display, xsettings_window,
-					 PropertyChangeMask);
+		             PropertyChangeMask);
 
 		ReadSettingsData();
 	}

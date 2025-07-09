@@ -32,14 +32,12 @@
    _NET_WM_FRAME_DRAWN protocols, and is only present when there is a
    compositing manager.  The second is not yet implemented.  */
 
-enum _SynchronizationType
-{
+enum _SynchronizationType {
 	SyncTypeFrameClock,
 	SyncTypePresent,
 };
 
-struct _SyncHelper
-{
+struct _SyncHelper {
 	/* The pending frame ID.  */
 	uint64_t pending_frame;
 
@@ -91,12 +89,11 @@ struct _SyncHelper
 	int flags;
 };
 
-enum
-{
-	FrameStarted = 1,
-	FramePending = 1 << 1,
+enum {
+	FrameStarted      = 1,
+	FramePending      = 1 << 1,
 	FrameSynchronized = 1 << 2,
-	FrameResize = 1 << 3,
+	FrameResize       = 1 << 3,
 };
 
 static SynchronizationType
@@ -131,7 +128,8 @@ ServerTimeFromTimespec(struct timespec *clock)
 {
 	uint64_t timestamp;
 
-	if (IntMultiplyWrapv(clock->tv_sec, 1000000, &timestamp) || IntAddWrapv(timestamp, clock->tv_nsec / 1000, &timestamp))
+	if (IntMultiplyWrapv(clock->tv_sec, 1000000, &timestamp) || IntAddWrapv(timestamp, clock->tv_nsec / 1000,
+	                                                                        &timestamp))
 		/* Overflow.  */
 		return 0;
 
@@ -147,7 +145,7 @@ ConfineTime(uint64_t time)
 	   CARD32.  */
 	milliseconds = time / 1000;
 
-	return (milliseconds * (uint64_t)1000 + time % 1000);
+	return (milliseconds * (uint64_t) 1000 + time % 1000);
 }
 
 static Bool
@@ -183,16 +181,16 @@ ConsiderFrameTime(SyncHelper *helper, uint64_t frame_time_us)
 	clock_gettime(CLOCK_MONOTONIC, &current_time);
 	helper->arrival_time = ServerTimeFromTimespec(&current_time);
 
-	if (frame_time_us == (uint64_t)-1)
+	if (frame_time_us == (uint64_t) -1)
 	{
 	use_future_time:
 		/* Some frame time in the future should be computed and
 	   used.  */
 
 		if (IntAddWrapv(helper->server_time,
-						helper->arrival_time - old_arrival_time,
-						&helper->server_time))
-			return (uint64_t)-1;
+		                helper->arrival_time - old_arrival_time,
+		                &helper->server_time))
+			return (uint64_t) -1;
 
 		helper->server_time = ConfineTime(helper->server_time);
 		return helper->server_time;
@@ -230,7 +228,7 @@ FrameCompleted(SyncHelper *helper, uint64_t frame_time_us)
 		SubcompositorUpdate(helper->subcompositor);
 	}
 	else
-		/* Run the frame callback.  */
+	/* Run the frame callback.  */
 		helper->frame_callback(helper->role, time / 1000);
 }
 
@@ -254,7 +252,7 @@ UpdateFrameRefreshPrediction(SyncHelper *helper)
 	{
 		desync_children = 0;
 		XLUpdateDesynchronousChildren(helper->role->surface,
-									  &desync_children);
+		                              &desync_children);
 
 		if (desync_children)
 			XLFrameClockSetPredictRefresh(helper->clock);
@@ -269,7 +267,7 @@ UpdateFrameRefreshPrediction(SyncHelper *helper)
 
 static void
 NoteFrame(FrameMode mode, uint64_t id, void *data,
-		  uint64_t msc, uint64_t ust)
+          uint64_t msc, uint64_t ust)
 {
 	SyncHelper *helper;
 	Bool success;
@@ -279,87 +277,89 @@ NoteFrame(FrameMode mode, uint64_t id, void *data,
 
 	switch (mode)
 	{
-	case ModeStarted:
-		/* Record this frame counter as the pending frame.  */
-		helper->pending_frame = id;
+		case ModeStarted:
+			/* Record this frame counter as the pending frame.  */
+			helper->pending_frame = id;
 
-		if (helper->flags & FrameStarted)
-			break;
+			if (helper->flags & FrameStarted)
+				break;
 
-		helper->flags |= FrameStarted;
+			helper->flags |= FrameStarted;
 
-		wanted = GetWantedSynchronizationType(helper);
+			wanted = GetWantedSynchronizationType(helper);
 
-		if (wanted == SyncTypeFrameClock)
-		{
-		frame_clock:
-			/* Check whether or not frame refresh prediction should be
-			   used.  */
-			UpdateFrameRefreshPrediction(helper);
-
-			/* Use async presentation.  */
-			RenderSetRenderMode(helper->target, RenderModeAsync,
-								helper->last_msc + 1);
-
-			/* Start frame clock-based synchronization.  If I were more
-			   confident in this code, then the call would be allowed to
-			   fail, but as it stands I'm not.  */
-			success = XLFrameClockStartFrame(helper->clock, False);
-			XLAssert(success);
-
-			helper->flags |= FrameSynchronized;
-		}
-		else if (wanted == SyncTypePresent)
-		{
-			/* Since presentation is wanted (which can currently only be
-			   due to the client having requested a presentation hint of
-			   "async"), switch the renderer to vsync-async mode.  */
-
-			if (!RenderSetRenderMode(helper->target, RenderModeVsyncAsync,
-									 helper->last_msc + 1))
+			if (wanted == SyncTypeFrameClock)
 			{
-				wanted = SyncTypeFrameClock;
-				goto frame_clock;
+			frame_clock:
+				/* Check whether or not frame refresh prediction should be
+				   used.  */
+				UpdateFrameRefreshPrediction(helper);
+
+				/* Use async presentation.  */
+				RenderSetRenderMode(helper->target, RenderModeAsync,
+				                    helper->last_msc + 1);
+
+				/* Start frame clock-based synchronization.  If I were more
+				   confident in this code, then the call would be allowed to
+				   fail, but as it stands I'm not.  */
+				success = XLFrameClockStartFrame(helper->clock, False);
+				XLAssert(success);
+
+				helper->flags |= FrameSynchronized;
+			}
+			else if (wanted == SyncTypePresent)
+			{
+				/* Since presentation is wanted (which can currently only be
+				   due to the client having requested a presentation hint of
+				   "async"), switch the renderer to vsync-async mode.  */
+
+				if (!RenderSetRenderMode(helper->target, RenderModeVsyncAsync,
+				                         helper->last_msc + 1))
+				{
+					wanted = SyncTypeFrameClock;
+					goto frame_clock;
+				}
+
+				/* Now, presentation will implicitly be synchronized.  */
 			}
 
-			/* Now, presentation will implicitly be synchronized.  */
-		}
+			helper->used = wanted;
+			break;
 
-		helper->used = wanted;
-		break;
+		case ModePresented:
+			helper->last_msc = msc;
+			helper->last_ust = ust;
+			Fallthrough;
 
-	case ModePresented:
-		helper->last_msc = msc;
-		helper->last_ust = ust;
-		Fallthrough;
+		case ModeComplete:
 
-	case ModeComplete:
+			/* The frame was completed.  */
+			if (id == helper->pending_frame)
+			{
+				/* End the frame if a frame clock was used for
+				   synchronization.  */
+				if (helper->used == SyncTypeFrameClock)
+					EndFrame(helper);
 
-		/* The frame was completed.  */
-		if (id == helper->pending_frame)
-		{
-			/* End the frame if a frame clock was used for
-			   synchronization.  */
-			if (helper->used == SyncTypeFrameClock)
-				EndFrame(helper);
+				/* Clear the frame completed flag.  FrameSynchronized will
+				   still be set, until AfterFrame is called.  */
+				helper->flags &= ~FrameStarted;
 
-			/* Clear the frame completed flag.  FrameSynchronized will
-			   still be set, until AfterFrame is called.  */
-			helper->flags &= ~FrameStarted;
+				if (!(helper->flags & FrameSynchronized))
+					/* But this means the frame was not synchronized.  Run
+					   frame callbacks or start a new update now.  */
+					FrameCompleted(helper, (uint64_t) -1);
 
-			if (!(helper->flags & FrameSynchronized))
-				/* But this means the frame was not synchronized.  Run
-				   frame callbacks or start a new update now.  */
-				FrameCompleted(helper, (uint64_t)-1);
+				/* This value means that there is no frame currently being
+				   displayed.  */
+				helper->pending_frame = (uint64_t) -1;
+			}
 
-			/* This value means that there is no frame currently being
-			   displayed.  */
-			helper->pending_frame = (uint64_t)-1;
-		}
+			break;
 
-		break;
+		default:
 
-	default:
+	
 	}
 }
 
@@ -404,7 +404,8 @@ CheckFrame(SyncHelper *helper)
 	   not ok when frame-clock synchronization is being used, and the
 	   compositing manager is reading from the contents of the back
 	   buffer.  */
-	rc = (helper->used != SyncTypeFrameClock || !XLFrameClockFrameInProgress(helper->clock) || XLFrameClockCanBatch(helper->clock));
+	rc = (helper->used != SyncTypeFrameClock || !XLFrameClockFrameInProgress(helper->clock) ||
+	      XLFrameClockCanBatch(helper->clock));
 
 	return rc;
 }
@@ -424,9 +425,9 @@ QueryFastForward(void *data)
 
 SyncHelper *
 MakeSyncHelper(Subcompositor *subcompositor, Window window,
-			   RenderTarget target,
-			   void (*frame_callback)(void *, uint32_t),
-			   Role *role)
+               RenderTarget target,
+               void (*frame_callback)(void *, uint32_t),
+               Role *role)
 {
 	SyncHelper *helper;
 	struct timespec current_time;
@@ -443,12 +444,12 @@ MakeSyncHelper(Subcompositor *subcompositor, Window window,
 
 	/* Set the note frame callback.  */
 	SubcompositorSetNoteFrameCallback(helper->subcompositor,
-									  NoteFrame, helper);
+	                                  NoteFrame, helper);
 
 	/* Set the frame clock callbacks.  */
 	XLFrameClockAfterFrame(helper->clock, AfterFrame, helper);
 	XLFrameClockSetFreezeCallback(helper->clock, HandleFreeze,
-								  QueryFastForward, helper);
+	                              QueryFastForward, helper);
 
 	/* Initialize the sync helper time.  */
 
@@ -481,7 +482,7 @@ void FreeSyncHelper(SyncHelper *helper)
 {
 	XLFreeFrameClock(helper->clock);
 	SubcompositorSetNoteFrameCallback(helper->subcompositor,
-									  NULL, NULL);
+	                                  NULL, NULL);
 	XLFree(helper);
 }
 
@@ -494,8 +495,8 @@ void SyncHelperHandleFrameEvent(SyncHelper *helper, XEvent *event)
    role.  */
 
 void SyncHelperSetResizeCallback(SyncHelper *helper,
-								 void (*resize_start)(void *, Bool),
-								 Bool (*check_fast_forward)(void *))
+                                 void (*resize_start)(void *, Bool),
+                                 Bool (*check_fast_forward)(void *))
 {
 	/* Set a resize callback.  It is called to begin a resize.  Upon
 	   being called, the sync helper becomes "frozen", and will not

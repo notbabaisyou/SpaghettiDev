@@ -56,8 +56,13 @@ srcs_meatball = [
     'sync_source.c',
     'xdg_system_bell.c',
     'picture_renderer.c',
-    'egl_renderer.c'
 ]
+
+# Only compile this if the user
+# has the required dependencies.
+if conf_data.get('HAVE_EGL_SUPPORT').to_int() == 1
+    srcs_meatball += 'egl_renderer.c'
+endif
 
 # Do the dependency check first.
 meatball_dep = [

@@ -27,8 +27,7 @@
 
 typedef struct _XdgActivationToken XdgActivationToken;
 
-struct _XdgActivationToken
-{
+struct _XdgActivationToken {
 	/* The wl_resource associated with this activation token.  */
 	struct wl_resource *resource;
 
@@ -81,7 +80,7 @@ HandleSeatDestroyed(void *data)
 
 static void
 SetSerial(struct wl_client *client, struct wl_resource *resource,
-		  uint32_t serial, struct wl_resource *seat_resource)
+          uint32_t serial, struct wl_resource *seat_resource)
 {
 	XdgActivationToken *token;
 	Seat *seat;
@@ -113,14 +112,14 @@ SetSerial(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetAppId(struct wl_client *client, struct wl_resource *resource,
-		 const char *app_id)
+         const char *app_id)
 {
 	/* This information is not useful.  */
 }
 
 static void
 SetSurface(struct wl_client *client, struct wl_resource *resource,
-		   struct wl_resource *surface_resource)
+           struct wl_resource *surface_resource)
 {
 	XdgActivationToken *token;
 	Surface *surface;
@@ -137,7 +136,7 @@ SetSurface(struct wl_client *client, struct wl_resource *resource,
 
 	token->surface = surface;
 	token->destroy_callback = XLSurfaceRunOnFree(surface, HandleSurfaceDestroyed,
-												 token);
+	                                             token);
 }
 
 static unsigned int
@@ -148,7 +147,7 @@ GetIdForSurface(Surface *surface)
 
 	/* Given a surface, return a unique identifier for that surface.  */
 	data = XLSurfaceGetClientData(surface, XdgActivationData,
-								  sizeof *data, NULL);
+	                              sizeof *data, NULL);
 
 	/* If data is 0, then initialize it with a unique id.  */
 
@@ -177,21 +176,21 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 	if (!token)
 	{
 		wl_resource_post_error(resource,
-							   XDG_ACTIVATION_TOKEN_V1_ERROR_ALREADY_USED,
-							   "the specified activation token has been passed"
-							   " to a previous commit request and is no longer"
-							   " valid");
+		                       XDG_ACTIVATION_TOKEN_V1_ERROR_ALREADY_USED,
+		                       "the specified activation token has been passed"
+		                       " to a previous commit request and is no longer"
+		                       " valid");
 		return;
 	}
 
 	wl_resource_set_user_data(resource, NULL);
 
 	if (!token->seat || !XLSeatCheckActivationSerial(token->seat,
-													 token->serial))
+	                                                 token->serial))
 	{
 		/* Send an invalid serial.  */
 		xdg_activation_token_v1_send_done(token->resource,
-										  "activation_rejected");
+		                                  "activation_rejected");
 		goto finish;
 	}
 
@@ -206,11 +205,11 @@ Commit(struct wl_client *client, struct wl_resource *resource)
 		id = 0;
 
 	sprintf(buffer, "%" PRIu32 ".%" PRIu32 ".%d.%u",
-			last_user_time.months,
-			last_user_time.milliseconds,
-			XLSeatGetPointerDevice(token->seat),
-			/* If id is 0, then a surface was not specified.  */
-			id);
+	        last_user_time.months,
+	        last_user_time.milliseconds,
+	        XLSeatGetPointerDevice(token->seat),
+	        /* If id is 0, then a surface was not specified.  */
+	        id);
 	xdg_activation_token_v1_send_done(token->resource, buffer);
 
 	/* Free the token.  */
@@ -226,7 +225,7 @@ finish:
 
 static void
 DestroyActivationToken(struct wl_client *client,
-					   struct wl_resource *resource)
+                       struct wl_resource *resource)
 {
 	wl_resource_destroy(resource);
 }
@@ -267,7 +266,7 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 static void
 GetActivationToken(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t id)
+                   uint32_t id)
 {
 	XdgActivationToken *token;
 
@@ -281,7 +280,7 @@ GetActivationToken(struct wl_client *client, struct wl_resource *resource,
 
 	memset(token, 0, sizeof *token);
 	token->resource = wl_resource_create(client, &xdg_activation_token_v1_interface,
-										 wl_resource_get_version(resource), id);
+	                                     wl_resource_get_version(resource), id);
 
 	if (!token->resource)
 	{
@@ -291,8 +290,8 @@ GetActivationToken(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(token->resource,
-								   &xdg_activation_token_impl,
-								   token, HandleResourceDestroy);
+	                               &xdg_activation_token_impl,
+	                               token, HandleResourceDestroy);
 }
 
 static Surface *
@@ -317,7 +316,7 @@ GetSurfaceForId(unsigned int id)
 
 static void
 Activate(struct wl_client *client, struct wl_resource *resource,
-		 const char *token, struct wl_resource *surface_resource)
+         const char *token, struct wl_resource *surface_resource)
 {
 	Timestamp timestamp;
 	Surface *surface, *activator_surface;
@@ -325,7 +324,7 @@ Activate(struct wl_client *client, struct wl_resource *resource,
 	unsigned int surface_id;
 
 	if (sscanf(token, "%" SCNu32 ".%" SCNu32 ".%d.%u", &timestamp.months,
-			   &timestamp.milliseconds, &deviceid, &surface_id) != 4)
+	           &timestamp.milliseconds, &deviceid, &surface_id) != 4)
 		/* The activation token is invalid.  */
 		return;
 
@@ -344,8 +343,8 @@ Activate(struct wl_client *client, struct wl_resource *resource,
 
 	if (surface->role->funcs.activate)
 		surface->role->funcs.activate(surface, surface->role,
-									  deviceid, timestamp,
-									  activator_surface);
+		                              deviceid, timestamp,
+		                              activator_surface);
 }
 
 static const struct xdg_activation_v1_interface xdg_activation_impl =
@@ -357,14 +356,14 @@ static const struct xdg_activation_v1_interface xdg_activation_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	/* Create an xdg_activation_v1 resource.  This resource is then used
 	   to create activation tokens and activate surfaces.  */
 	resource = wl_resource_create(client, &xdg_activation_v1_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -373,12 +372,12 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &xdg_activation_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 }
 
 void XLInitXdgActivation(void)
 {
 	xdg_activation_global = wl_global_create(compositor.wl_display,
-											 &xdg_activation_v1_interface,
-											 1, NULL, HandleBind);
+	                                         &xdg_activation_v1_interface,
+	                                         1, NULL, HandleBind);
 }

@@ -47,8 +47,7 @@ typedef struct _ConversionWriteInfo ConversionWriteInfo;
 typedef struct _DataConversion DataConversion;
 typedef struct _TargetMappingTable TargetMappingTable;
 
-struct _ReadTargetsData
-{
+struct _ReadTargetsData {
 	/* Array of atoms read from the selection.  */
 	Atom *atoms;
 
@@ -59,8 +58,7 @@ struct _ReadTargetsData
 	int n_atoms;
 };
 
-struct _TargetMapping
-{
+struct _TargetMapping {
 	/* The atom of the X target.  The top 3 bits of an XID are
 	   guaranteed to be 0, so the 31st bit is used to store a flag
 	   meaning that the next entry is a duplicate of this one, and the
@@ -82,8 +80,7 @@ struct _TargetMapping
 #define MappingUnsetFlag(mapping) ((mapping)->atom_flag &= ~(1 << 29))
 #define MappingIs(mapping, atom) (MappingAtom(mapping) == (atom))
 
-struct _DataConversion
-{
+struct _DataConversion {
 	/* The MIME type of the Wayland offer.  */
 	const char *mime_type;
 
@@ -95,20 +92,18 @@ struct _DataConversion
 
 	/* An alternative GetClipboardCallback, if any.  */
 	GetDataFunc (*clipboard_callback)(WriteTransfer *, Atom, Atom *,
-									  struct wl_resource *,
-									  void (*)(struct wl_resource *,
-											   const char *, int),
-									  Bool);
+	                                  struct wl_resource *,
+	                                  void (*)(struct wl_resource *,
+	                                           const char *, int),
+	                                  Bool);
 };
 
-enum
-{
-	NeedNewChunk = 1,
+enum {
+	NeedNewChunk      = 1,
 	NeedDelayedFinish = (1 << 2),
 };
 
-struct _TransferInfo
-{
+struct _TransferInfo {
 	/* The file descriptor being written to.  -1 if it was closed.  */
 	int fd;
 
@@ -127,8 +122,7 @@ struct _TransferInfo
 	WriteFd *write_callback;
 };
 
-struct _ConversionTransferInfo
-{
+struct _ConversionTransferInfo {
 	/* The file descriptor being written to.  -1 if it was closed.  */
 	int fd;
 
@@ -154,13 +148,11 @@ struct _ConversionTransferInfo
 	iconv_t cd;
 };
 
-enum
-{
+enum {
 	IsDragAndDrop = (1 << 16),
 };
 
-struct _WriteInfo
-{
+struct _WriteInfo {
 	/* The file descriptor being read from.  */
 	int fd;
 
@@ -171,13 +163,11 @@ struct _WriteInfo
 	ReadFd *read_callback;
 };
 
-enum
-{
+enum {
 	ReachedEndOfFile = 1,
 };
 
-struct _ConversionWriteInfo
-{
+struct _ConversionWriteInfo {
 	/* The file descriptor being read from.  -1 if it was closed.  */
 	int fd;
 
@@ -201,8 +191,7 @@ struct _ConversionWriteInfo
 	iconv_t cd;
 };
 
-struct _TargetMappingTable
-{
+struct _TargetMappingTable {
 	/* Array of indices into direct_transfer.  */
 	unsigned short *atom_buckets[16];
 
@@ -298,7 +287,7 @@ DebugPrint(const char *format, ...)
 
 static void
 Accept(struct wl_client *client, struct wl_resource *resource,
-	   uint32_t serial, const char *mime_type)
+       uint32_t serial, const char *mime_type)
 {
 	/* Nothing has to be done here yet.  */
 }
@@ -333,7 +322,7 @@ SetupMappingTable(void)
 
 		nelements = ++mapping_table.n_elements[idx];
 		mapping_table.buckets[idx] = XLRealloc(mapping_table.buckets[idx],
-											   nelements * sizeof(unsigned short));
+		                                       nelements * sizeof(unsigned short));
 		mapping_table.buckets[idx][nelements - 1] = i;
 
 		/* Now, set up the lookup table indexed by atoms.  It is faster
@@ -343,7 +332,7 @@ SetupMappingTable(void)
 
 		nelements = ++mapping_table.n_atom_elements[idx];
 		mapping_table.atom_buckets[idx] = XLRealloc(mapping_table.atom_buckets[idx],
-													nelements * sizeof(unsigned short));
+		                                            nelements * sizeof(unsigned short));
 		mapping_table.atom_buckets[idx][nelements - 1] = i;
 	}
 }
@@ -385,17 +374,17 @@ FindTranslationForMimeType(const char *mime_type, Bool is_primary)
 	buckets = mapping_table.buckets[idx];
 
 	DebugPrint("Looking for translation of MIME type %s\n",
-			   mime_type);
+	           mime_type);
 
 	for (i = 0; i < mapping_table.n_elements[idx]; ++i)
 	{
 		if (!strcmp(direct_transfer[buckets[i]].mime_type,
-					mime_type) &&
-			HasSelectionTarget(MappingAtom(&direct_transfer[buckets[i]]),
-							   is_primary))
+		            mime_type) &&
+		    HasSelectionTarget(MappingAtom(&direct_transfer[buckets[i]]),
+		                       is_primary))
 		{
 			DebugPrint("Found translation for MIME type %s\n",
-					   mime_type);
+			           mime_type);
 
 			return &direct_transfer[buckets[i]];
 		}
@@ -421,7 +410,7 @@ FinishTransfer(TransferInfo *info)
 
 static void
 MaybeFinishDelayedTransfer(ReadTransfer *transfer,
-						   TransferInfo *info)
+                           TransferInfo *info)
 {
 	if (info->flags & NeedDelayedFinish)
 	{
@@ -454,9 +443,9 @@ NoticeTransferWritable(int fd, void *data, WriteFd *writefd)
 	read_chunk:
 		info->flags &= ~NeedNewChunk;
 		chunk = ReadChunk(transfer, quantum / 4,
-						  &chunk_size, &bytes_after);
+		                  &chunk_size, &bytes_after);
 		DebugPrint("Reading a piece of the property of size %ld\n",
-				   quantum);
+		           quantum);
 
 		/* If chunk is NULL, close fd.  The failure callback will also be
 	   run soon.  */
@@ -479,24 +468,24 @@ NoticeTransferWritable(int fd, void *data, WriteFd *writefd)
 		info->bytes_into = 0;
 
 		DebugPrint("Read actually got: %td, with %td after\n",
-				   chunk_size, bytes_after);
+		           chunk_size, bytes_after);
 	}
 
 	DebugPrint("Writing %td bytes of chunk at offset %td\n",
-			   info->chunk_size - info->bytes_into,
-			   info->bytes_into);
+	           info->chunk_size - info->bytes_into,
+	           info->bytes_into);
 
 	/* Try to write the chunk into the fd.  */
 	written = write(fd, info->chunk + info->bytes_into,
-					info->chunk_size - info->bytes_into);
+	                info->chunk_size - info->bytes_into);
 
 	DebugPrint("%zd bytes were really written; offset is now %td\n",
-			   written, info->bytes_into + written);
+	           written, info->bytes_into + written);
 
 	if (written < 0)
 	{
 		DebugPrint("Some bytes could not be written: %s\n",
-				   strerror(errno));
+		           strerror(errno));
 
 		/* Write failed with EAGAIN.  This might cause us to spin.  */
 		if (errno == EAGAIN)
@@ -531,9 +520,9 @@ NoticeTransferWritable(int fd, void *data, WriteFd *writefd)
 	if (info->bytes_into == info->chunk_size)
 	{
 		DebugPrint("Chunk of %td completely written; bytes left "
-				   "in property: %td\n",
-				   info->chunk_size,
-				   info->bytes_after);
+		           "in property: %td\n",
+		           info->chunk_size,
+		           info->bytes_after);
 
 		/* The entire read part of the chunk has been written; read a
 	   new chunk, or cancel the write callback if the chunk was
@@ -543,8 +532,8 @@ NoticeTransferWritable(int fd, void *data, WriteFd *writefd)
 		info->chunk = NULL;
 
 		if (info->bytes_after)
-			/* There are still bytes in the property waiting to be
-			   read.  */
+		/* There are still bytes in the property waiting to be
+		   read.  */
 			goto read_chunk;
 		else
 		{
@@ -570,7 +559,7 @@ NoticeTransferWritable(int fd, void *data, WriteFd *writefd)
 
 static void
 DirectReadCallback(ReadTransfer *transfer, Atom type, int format,
-				   ptrdiff_t size)
+                   ptrdiff_t size)
 {
 	TransferInfo *info;
 
@@ -583,7 +572,7 @@ DirectReadCallback(ReadTransfer *transfer, Atom type, int format,
 		SkipChunk(transfer);
 
 		DebugPrint("DirectReadCallback skipped a chunk due to the"
-				   " fd being closed\n");
+			" fd being closed\n");
 		return;
 	}
 
@@ -593,7 +582,7 @@ DirectReadCallback(ReadTransfer *transfer, Atom type, int format,
 		XLAssert(!(info->flags & NeedNewChunk));
 
 		DebugPrint("DirectReadCallback received a new chunk, but the"
-				   " current chunk is still being read from\n");
+			" current chunk is still being read from\n");
 
 		info->flags |= NeedNewChunk;
 		return;
@@ -606,7 +595,7 @@ DirectReadCallback(ReadTransfer *transfer, Atom type, int format,
 	DebugPrint("DirectReadCallback is starting the write callback\n");
 
 	info->write_callback = XLAddWriteFd(info->fd, transfer,
-										NoticeTransferWritable);
+	                                    NoticeTransferWritable);
 }
 
 static Bool
@@ -626,14 +615,14 @@ DirectFinishCallback(ReadTransfer *transfer, Bool success)
 		XLAssert(info->write_callback != NULL);
 
 		DebugPrint("The transfer finished, but the chunk was not yet"
-				   " completely written; the finish is being delayed.\n");
+			" completely written; the finish is being delayed.\n");
 		info->flags |= NeedDelayedFinish;
 
 		return False;
 	}
 	else
 		DebugPrint("The transfer finished %s\n",
-				   success ? "successfully" : "with failure");
+	           success ? "successfully" : "with failure");
 
 	FinishTransfer(info);
 	return True;
@@ -649,8 +638,8 @@ MakeFdNonblocking(int fd)
 	if (rc < 0)
 	{
 		DebugPrint("Failed to make selection file descriptor"
-				   " %d non-blocking.  Writing to it might hang.\n",
-				   fd);
+		           " %d non-blocking.  Writing to it might hang.\n",
+		           fd);
 		return;
 	}
 
@@ -659,8 +648,8 @@ MakeFdNonblocking(int fd)
 	if (rc < 0)
 	{
 		DebugPrint("Failed to make selection file descriptor"
-				   " %d non-blocking.  Writing to it might hang.\n",
-				   fd);
+		           " %d non-blocking.  Writing to it might hang.\n",
+		           fd);
 		return;
 	}
 }
@@ -680,8 +669,8 @@ PostReceiveDirect(Time time, Atom selection, Atom target, int fd)
 	DebugPrint("Converting selection at %lu for fd %d\n", time, fd);
 
 	ConvertSelectionFuncs(selection, target, time,
-						  info, NULL, DirectReadCallback,
-						  DirectFinishCallback);
+	                      info, NULL, DirectReadCallback,
+	                      DirectFinishCallback);
 }
 
 /* Forward declaration.  */
@@ -719,7 +708,7 @@ static void PostReceiveConversion(Time, Atom, Atom, int);
 
 static void
 Receive(struct wl_client *client, struct wl_resource *resource,
-		const char *mime_type, int fd)
+        const char *mime_type, int fd)
 {
 	ReceiveBody(CLIPBOARD, False);
 }
@@ -734,15 +723,15 @@ static void
 Finish(struct wl_client *client, struct wl_resource *resource)
 {
 	wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_FINISH,
-						   "trying to finish foreign data offer");
+	                       "trying to finish foreign data offer");
 }
 
 static void
 SetActions(struct wl_client *client, struct wl_resource *resource,
-		   uint32_t dnd_actions, uint32_t preferred_action)
+           uint32_t dnd_actions, uint32_t preferred_action)
 {
 	wl_resource_post_error(resource, WL_DATA_OFFER_ERROR_INVALID_OFFER,
-						   "trying to finish non-drag-and-drop data offer");
+	                       "trying to finish non-drag-and-drop data offer");
 }
 
 static const struct wl_data_offer_interface wl_data_offer_impl =
@@ -781,7 +770,7 @@ CreateOffer(struct wl_client *client, Timestamp time)
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wl_data_offer_interface,
-								  3, 0);
+	                              3, 0);
 
 	if (!resource)
 		/* If allocating the resource failed, return NULL.  */
@@ -790,14 +779,14 @@ CreateOffer(struct wl_client *client, Timestamp time)
 	/* Otherwise, set the user_data to the time of the selection
 	   change.  */
 	wl_resource_set_implementation(resource, &wl_data_offer_impl,
-								   AllocateTimestamp(time),
-								   HandleOfferResourceDestroy);
+	                               AllocateTimestamp(time),
+	                               HandleOfferResourceDestroy);
 	return resource;
 }
 
 static void
 ReceivePrimary(struct wl_client *client, struct wl_resource *resource,
-			   const char *mime_type, int fd)
+               const char *mime_type, int fd)
 {
 	ReceiveBody(XA_PRIMARY, True);
 }
@@ -814,8 +803,8 @@ CreatePrimaryOffer(struct wl_client *client, Timestamp time)
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &zwp_primary_selection_offer_v1_interface,
-								  1, 0);
+	                              &zwp_primary_selection_offer_v1_interface,
+	                              1, 0);
 	if (!resource)
 		/* If allocating the resource failed, return NULL.  */
 		return NULL;
@@ -823,8 +812,8 @@ CreatePrimaryOffer(struct wl_client *client, Timestamp time)
 	/* Otherwise, set the user_data to the time of the selection
 	   change.  */
 	wl_resource_set_implementation(resource, &primary_offer_impl,
-								   AllocateTimestamp(time),
-								   HandleOfferResourceDestroy);
+	                               AllocateTimestamp(time),
+	                               HandleOfferResourceDestroy);
 	return resource;
 }
 
@@ -873,7 +862,7 @@ CheckDuplicate(unsigned short index, Atom a)
 
 static void
 SendOffers1(struct wl_resource *resource, int ntargets, Atom *targets,
-			void (*send_offer_func)(struct wl_resource *, const char *))
+            void (*send_offer_func)(struct wl_resource *, const char *))
 {
 	int i, j;
 	unsigned int idx;
@@ -891,12 +880,12 @@ SendOffers1(struct wl_resource *resource, int ntargets, Atom *targets,
 		for (j = 0; j < mapping_table.n_atom_elements[idx]; ++j)
 		{
 			if (MappingIs(&direct_transfer[buckets[j]],
-						  targets[i]) &&
-				CheckDuplicate(buckets[j], targets[i]))
+			              targets[i]) &&
+			    CheckDuplicate(buckets[j], targets[i]))
 				/* If it exists and was not previously offered, offer it
 				   to the client.  */
 				send_offer_func(resource,
-								direct_transfer[buckets[j]].mime_type);
+				                direct_transfer[buckets[j]].mime_type);
 		}
 	}
 
@@ -914,7 +903,7 @@ SendOffers(struct wl_resource *resource, Timestamp time)
 		return;
 
 	SendOffers1(resource, num_x_selection_targets,
-				x_selection_targets, wl_data_offer_send_offer);
+	            x_selection_targets, wl_data_offer_send_offer);
 }
 
 static void
@@ -925,13 +914,13 @@ SendPrimaryOffers(struct wl_resource *resource, Timestamp time)
 		return;
 
 	SendOffers1(resource, num_x_primary_targets,
-				x_primary_targets,
-				zwp_primary_selection_offer_v1_send_offer);
+	            x_primary_targets,
+	            zwp_primary_selection_offer_v1_send_offer);
 }
 
 static void
 HandleNewSelection(Time time, Atom selection, Atom *targets,
-				   int ntargets)
+                   int ntargets)
 {
 	CreateOfferFuncs funcs;
 
@@ -990,7 +979,7 @@ HandleNewSelection(Time time, Atom selection, Atom *targets,
 
 static void
 TargetsReadCallback(ReadTransfer *transfer, Atom type, int format,
-					ptrdiff_t size)
+                    ptrdiff_t size)
 {
 	Atom *atoms;
 	ptrdiff_t n_atoms, old, i;
@@ -1003,8 +992,8 @@ TargetsReadCallback(ReadTransfer *transfer, Atom type, int format,
 	}
 
 	/* Since format is 32, size must be a multiple of sizeof (long).  */
-	atoms = (Atom *)ReadChunk(transfer, size / sizeof(long), &size,
-							  NULL);
+	atoms = (Atom *) ReadChunk(transfer, size / sizeof(long), &size,
+	                           NULL);
 
 	/* Reading the property data failed.  The finish function will be
 	   run with success set to False soon.  */
@@ -1018,7 +1007,7 @@ TargetsReadCallback(ReadTransfer *transfer, Atom type, int format,
 	/* Copy the atoms to data->atoms.  */
 
 	if (IntAddWrapv(n_atoms, data->n_atoms,
-					&data->n_atoms))
+	                &data->n_atoms))
 	{
 		/* Overflow.  Something is definitely wrong with the selection
 	   data.  */
@@ -1027,7 +1016,7 @@ TargetsReadCallback(ReadTransfer *transfer, Atom type, int format,
 	}
 
 	data->atoms = XLRealloc(data->atoms,
-							data->n_atoms * sizeof *atoms);
+	                        data->n_atoms * sizeof *atoms);
 	for (i = 0; i < n_atoms; ++i)
 		data->atoms[old + i] = atoms[i];
 
@@ -1049,8 +1038,8 @@ TargetsFinishCallback(ReadTransfer *transfer, Bool success)
 
 	if (success)
 		HandleNewSelection(GetTransferTime(transfer),
-						   data->selection, data->atoms,
-						   data->n_atoms);
+		                   data->selection, data->atoms,
+		                   data->n_atoms);
 	else
 		/* HandleNewSelection keeps data->atoms around for a while.  */
 		XLFree(data->atoms);
@@ -1072,8 +1061,8 @@ NoticeClipboardChanged(Time time)
 	data->selection = CLIPBOARD;
 
 	ConvertSelectionFuncs(CLIPBOARD, TARGETS, time, data,
-						  NULL, TargetsReadCallback,
-						  TargetsFinishCallback);
+	                      NULL, TargetsReadCallback,
+	                      TargetsFinishCallback);
 }
 
 /* The same, but for the primary selection.  */
@@ -1087,8 +1076,8 @@ NoticePrimaryChanged(Time time)
 	data->selection = XA_PRIMARY;
 
 	ConvertSelectionFuncs(XA_PRIMARY, TARGETS, time, data,
-						  NULL, TargetsReadCallback,
-						  TargetsFinishCallback);
+	                      NULL, TargetsReadCallback,
+	                      TargetsFinishCallback);
 }
 
 static void
@@ -1183,7 +1172,7 @@ Bool XLHandleOneXEventForXData(XEvent *event)
 {
 	if (event->type == fixes_event_base + XFixesSelectionNotify)
 	{
-		HandleSelectionNotify((XFixesSelectionNotifyEvent *)event);
+		HandleSelectionNotify((XFixesSelectionNotifyEvent *) event);
 
 		return True;
 	}
@@ -1213,8 +1202,8 @@ SelectSelectionInput(Atom selection)
 	mask |= XFixesSelectionClientCloseNotifyMask;
 
 	XFixesSelectSelectionInput(compositor.display,
-							   selection_transfer_window,
-							   selection, mask);
+	                           selection_transfer_window,
+	                           selection, mask);
 }
 
 static DataConversion *
@@ -1245,10 +1234,10 @@ MimeTypeFromTarget(Atom target, Bool primary)
 
 	if (!primary)
 		missing_type = !XLDataSourceHasAtomTarget(selection_data_source,
-												  target);
+		                                          target);
 	else
 		missing_type = !XLPDataSourceHasAtomTarget(primary_data_source,
-												   target);
+		                                           target);
 
 	if (missing_type)
 	{
@@ -1261,7 +1250,7 @@ MimeTypeFromTarget(Atom target, Bool primary)
 			abort();
 
 		DebugPrint("Converting X type %lu to MIME type %s...\n",
-				   conversion->type, conversion->mime_type);
+		           conversion->type, conversion->mime_type);
 
 		return conversion->mime_type;
 	}
@@ -1278,10 +1267,10 @@ TypeFromTarget(Atom target, Bool primary)
 
 	if (!primary)
 		missing_type = !XLDataSourceHasAtomTarget(selection_data_source,
-												  target);
+		                                          target);
 	else
 		missing_type = !XLPDataSourceHasAtomTarget(primary_data_source,
-												   target);
+		                                           target);
 
 	if (missing_type)
 	{
@@ -1329,7 +1318,7 @@ NoticeTransferReadable(int fd, void *data, ReadFd *readfd)
 
 static ReadStatus
 ClipboardReadFunc(WriteTransfer *transfer, unsigned char *buffer,
-				  ptrdiff_t buffer_size, ptrdiff_t *nbytes)
+                  ptrdiff_t buffer_size, ptrdiff_t *nbytes)
 {
 	WriteInfo *info;
 	ssize_t size;
@@ -1365,7 +1354,7 @@ ClipboardReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 	XLAssert(info->read_callback == NULL);
 
 	DebugPrint("ClipboardReadFunc called to read %td bytes\n",
-			   buffer_size);
+	           buffer_size);
 
 	/* Try to read buffer_size bytes into buffer.  */
 	size = read(info->fd, buffer, buffer_size);
@@ -1404,7 +1393,7 @@ ClipboardReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 			*nbytes = 0;
 
 			info->read_callback = XLAddReadFd(info->fd, transfer,
-											  NoticeTransferReadable);
+			                                  NoticeTransferReadable);
 			return ReadOk;
 		}
 
@@ -1413,19 +1402,19 @@ ClipboardReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 	}
 
 	DebugPrint("Read %zd bytes, starting the read callback again\n",
-			   size);
+	           size);
 
 	/* Otherwise, set nbytes to the number of bytes read, and start the
 	   write callback again.  */
 	*nbytes = size;
 	info->read_callback = XLAddReadFd(info->fd, transfer,
-									  NoticeTransferReadable);
+	                                  NoticeTransferReadable);
 	return ReadOk;
 }
 
 static GetDataFunc
 GetClipboardCallback(WriteTransfer *transfer, Atom target,
-					 Atom *type)
+                     Atom *type)
 {
 	WriteInfo *info;
 	int pipe[2], rc;
@@ -1452,17 +1441,17 @@ GetClipboardCallback(WriteTransfer *transfer, Atom target,
 
 		if (conversion->clipboard_callback)
 			return conversion->clipboard_callback(transfer, target,
-												  type, resource,
-												  wl_data_source_send_send,
-												  False);
+			                                      type, resource,
+			                                      wl_data_source_send_send,
+			                                      False);
 
 		/* Otherwise, use the default callback.  */
 		DebugPrint("Conversion to type %lu specified with default callback\n",
-				   target);
+		           target);
 	}
 
 	DebugPrint("Entered GetClipboardCallback; target is %lu\n",
-			   target);
+	           target);
 
 	/* First, create a non-blocking pipe.  We will give the write end to
 	   the client.  */
@@ -1476,8 +1465,8 @@ GetClipboardCallback(WriteTransfer *transfer, Atom target,
 
 	/* Send the write end of the pipe to the source.  */
 	wl_data_source_send_send(resource,
-							 MimeTypeFromTarget(target, False),
-							 pipe[1]);
+	                         MimeTypeFromTarget(target, False),
+	                         pipe[1]);
 	close(pipe[1]);
 
 	/* And set the prop type appropriately.  */
@@ -1492,7 +1481,7 @@ GetClipboardCallback(WriteTransfer *transfer, Atom target,
 
 	/* Wait for info to become readable.  */
 	info->read_callback = XLAddReadFd(info->fd, transfer,
-									  NoticeTransferReadable);
+	                                  NoticeTransferReadable);
 
 	/* Set info as the transfer data.  */
 	SetWriteTransferData(transfer, info);
@@ -1519,7 +1508,7 @@ NoticeConversionTransferReadable(int fd, void *data, ReadFd *readfd)
 
 	/* Now try to fill the conversion buffer.  */
 	nbytes = read(info->fd, info->inbuf + info->inread,
-				  BUFSIZ - info->inread);
+	              BUFSIZ - info->inread);
 
 	if (nbytes <= 0)
 	{
@@ -1560,7 +1549,7 @@ NoticeConversionTransferReadable(int fd, void *data, ReadFd *readfd)
 
 static ReadStatus
 ConversionReadFunc(WriteTransfer *transfer, unsigned char *buffer,
-				   ptrdiff_t buffer_size, ptrdiff_t *nbytes)
+                   ptrdiff_t buffer_size, ptrdiff_t *nbytes)
 {
 	ConversionWriteInfo *info;
 	size_t nconv, outsize;
@@ -1569,7 +1558,7 @@ ConversionReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 	info = GetWriteTransferData(transfer);
 
 	DebugPrint("ClipboardReadFunc called to read %zd bytes\n",
-			   buffer_size);
+	           buffer_size);
 
 	if (buffer_size == -1)
 	{
@@ -1604,11 +1593,11 @@ ConversionReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 	   buffer.  */
 	outsize = buffer_size;
 	nconv = iconv(info->cd, &info->inptr, &info->inread,
-				  (char **)&buffer, &outsize);
+	              (char **) &buffer, &outsize);
 
 	DebugPrint("iconv returned: %tu\n", nconv);
 
-	if (nconv == (size_t)-1 && errno != EINVAL)
+	if (nconv == (size_t) -1 && errno != EINVAL)
 	{
 		if (errno == E2BIG)
 		{
@@ -1618,7 +1607,7 @@ ConversionReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 			if (*nbytes < 1)
 			{
 				DebugPrint("iconv failed with a buffer as large as the"
-						   "max-request-size!\n");
+					"max-request-size!\n");
 
 				goto eof;
 			}
@@ -1629,7 +1618,7 @@ ConversionReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 		}
 
 		DebugPrint("iconv failed with: %s; bytes written: %tu\n",
-				   strerror(errno), buffer_size - outsize);
+		           strerror(errno), buffer_size - outsize);
 
 	eof:
 		if (info->read_callback)
@@ -1662,24 +1651,24 @@ ConversionReadFunc(WriteTransfer *transfer, unsigned char *buffer,
 	   read.  */
 	*nbytes = buffer_size - outsize;
 	info->read_callback = XLAddReadFd(info->fd, transfer,
-									  NoticeConversionTransferReadable);
+	                                  NoticeConversionTransferReadable);
 
 	return ReadOk;
 }
 
 static GetDataFunc
 GetConversionCallback(WriteTransfer *transfer, Atom target, Atom *type,
-					  struct wl_resource *source,
-					  void (*send_send)(struct wl_resource *, const char *,
-										int),
-					  Bool is_primary)
+                      struct wl_resource *source,
+                      void (*send_send)(struct wl_resource *, const char *,
+                                        int),
+                      Bool is_primary)
 {
 	ConversionWriteInfo *info;
 	int pipe[2], rc;
 	iconv_t cd;
 
 	DebugPrint("Performing data conversion of UTF-8 string to %lu\n",
-			   target);
+	           target);
 
 	cd = iconv_open("ISO-8859-1", "UTF-8");
 
@@ -1688,7 +1677,7 @@ GetConversionCallback(WriteTransfer *transfer, Atom target, Atom *type,
 #pragma GCC diagnostic ignored "-Wanalyzer-malloc-leak"
 #endif
 
-	if (cd == (iconv_t)-1)
+	if (cd == (iconv_t) -1)
 		/* The conversion context couldn't be initialized, so fail this
 		   transfer.  */
 		return NULL;
@@ -1723,7 +1712,7 @@ GetConversionCallback(WriteTransfer *transfer, Atom target, Atom *type,
 
 	/* Wait for info to become readable.  */
 	info->read_callback = XLAddReadFd(info->fd, transfer,
-									  NoticeConversionTransferReadable);
+	                                  NoticeConversionTransferReadable);
 
 	/* Set info as the transfer data.  */
 	SetWriteTransferData(transfer, info);
@@ -1733,7 +1722,7 @@ GetConversionCallback(WriteTransfer *transfer, Atom target, Atom *type,
 
 static void
 ConversionReadCallback(ReadTransfer *transfer, Atom type, int format,
-					   ptrdiff_t size)
+                       ptrdiff_t size)
 {
 	ConversionTransferInfo *info;
 	unsigned char *data;
@@ -1741,7 +1730,7 @@ ConversionReadCallback(ReadTransfer *transfer, Atom type, int format,
 	/* Read all the data from the chunk now.  */
 
 	data = ReadChunk(transfer, (format == 32 ? size / sizeof(long) : (size + 3) / 4),
-					 &size, NULL);
+	                 &size, NULL);
 
 	if (!data)
 		return;
@@ -1794,7 +1783,7 @@ NoticeConversionTransferWritable(int fd, void *data, WriteFd *writefd)
 	if (info->outsize)
 	{
 		written = write(info->fd, info->output_buffer,
-						info->outsize);
+		                info->outsize);
 
 		if (written == -1)
 		{
@@ -1820,7 +1809,7 @@ NoticeConversionTransferWritable(int fd, void *data, WriteFd *writefd)
 		/* Writing the data was successful.  Move the written part back to
 	   the start.  */
 		memmove(info->output_buffer, info->output_buffer + written,
-				info->outsize - written);
+		        info->outsize - written);
 		info->outsize -= written;
 	}
 
@@ -1830,9 +1819,9 @@ NoticeConversionTransferWritable(int fd, void *data, WriteFd *writefd)
 		outbuf = info->output_buffer + info->outsize;
 		start = outsize = BUFSIZ - info->outsize;
 		nconv = iconv(info->cd, &info->position, &info->buffer_size,
-					  &outbuf, &outsize);
+		              &outbuf, &outsize);
 
-		if (nconv == (size_t)-1 && errno != EINVAL)
+		if (nconv == (size_t) -1 && errno != EINVAL)
 		{
 			/* iconv failed for various reasons.  */
 
@@ -1870,7 +1859,7 @@ ConversionFinishCallback(ReadTransfer *transfer, Bool success)
 	info->position = info->buffer;
 
 	info->write_callback = XLAddWriteFd(info->fd, transfer,
-										NoticeConversionTransferWritable);
+	                                    NoticeConversionTransferWritable);
 	return False;
 }
 
@@ -1882,7 +1871,7 @@ PostReceiveConversion(Time time, Atom selection, Atom target, int fd)
 
 	cd = iconv_open("UTF-8", "ISO-8859-1");
 
-	if (cd == (iconv_t)-1)
+	if (cd == (iconv_t) -1)
 	{
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -1907,7 +1896,7 @@ PostReceiveConversion(Time time, Atom selection, Atom target, int fd)
 
 	DebugPrint("Converting selection to UTF-8 at %lu for fd %d\n", time, fd);
 	ConvertSelectionFuncs(selection, target, time, info, NULL,
-						  ConversionReadCallback, ConversionFinishCallback);
+	                      ConversionReadCallback, ConversionFinishCallback);
 }
 
 /* Drag-and-drop support functions.  */
@@ -1935,7 +1924,7 @@ DragTypeFromTarget(Atom target)
 
 static GetDataFunc
 GetDragCallback(WriteTransfer *transfer, Atom target,
-				Atom *type)
+                Atom *type)
 {
 	WriteInfo *info;
 	int pipe[2], rc;
@@ -1945,7 +1934,7 @@ GetDragCallback(WriteTransfer *transfer, Atom target,
 	XLAssert(drag_data_source != NULL);
 
 	DebugPrint("Entered GetDragCallback; target is %lu\n",
-			   target);
+	           target);
 
 	/* First, create a non-blocking pipe.  We will give the write end to
 	   the client.  */
@@ -1959,7 +1948,7 @@ GetDragCallback(WriteTransfer *transfer, Atom target,
 
 	/* Send the write end of the pipe to the source.  */
 	wl_data_source_send_send(XLResourceFromDataSource(drag_data_source),
-							 DragMimeTypeFromTarget(target), pipe[1]);
+	                         DragMimeTypeFromTarget(target), pipe[1]);
 	close(pipe[1]);
 
 	/* And set the prop type appropriately.  */
@@ -1974,7 +1963,7 @@ GetDragCallback(WriteTransfer *transfer, Atom target,
 
 	/* Wait for info to become readable.  */
 	info->read_callback = XLAddReadFd(info->fd, transfer,
-									  NoticeTransferReadable);
+	                                  NoticeTransferReadable);
 
 	/* Set info as the transfer data.  */
 	SetWriteTransferData(transfer, info);
@@ -1999,8 +1988,8 @@ Bool XLOwnDragSelection(Time time, DataSource *source)
 	drag_data_source = source;
 
 	rc = OwnSelection(TimestampFromClientTime(time),
-					  XdndSelection, GetDragCallback,
-					  targets, ntargets);
+	                  XdndSelection, GetDragCallback,
+	                  targets, ntargets);
 	XLFree(targets);
 
 	return rc;
@@ -2011,9 +2000,9 @@ void XLNoteSourceDestroyed(DataSource *source)
 	if (source == selection_data_source)
 	{
 		DebugPrint("Disowning CLIPBOARD at %u (vs. last change %u)\n"
-				   "This is being done in response to the source being destroyed.\n",
-				   last_clipboard_time.milliseconds,
-				   last_x_selection_change.milliseconds);
+		           "This is being done in response to the source being destroyed.\n",
+		           last_clipboard_time.milliseconds,
+		           last_x_selection_change.milliseconds);
 
 		/* Disown the selection.  */
 		DisownSelection(CLIPBOARD);
@@ -2022,7 +2011,7 @@ void XLNoteSourceDestroyed(DataSource *source)
 	if (source == drag_data_source)
 	{
 		DebugPrint("Disowning XdndSelection\nThis is being done in response"
-				   " to the data source being destroyed.\n");
+			" to the data source being destroyed.\n");
 
 		/* Disown the selection.  */
 		DisownSelection(XdndSelection);
@@ -2034,7 +2023,7 @@ void XLNotePrimaryDestroyed(PDataSource *source)
 	if (source == primary_data_source)
 	{
 		DebugPrint("Disowning PRIMARY\nThis is being done in response"
-				   " to the data source being destroyed.\n");
+			" to the data source being destroyed.\n");
 
 		/* Disown the selection.  */
 		DisownSelection(XA_PRIMARY);
@@ -2140,9 +2129,9 @@ FindTargetInArray(Atom *targets, int ntargets, Atom atom)
 Bool XLNoteLocalSelection(Seat *seat, DataSource *source)
 {
 	NoteLocalSelectionBody(GetClipboardCallback, last_clipboard_time,
-						   last_x_selection_change, CLIPBOARD,
-						   selection_data_source, x_selection_targets,
-						   num_x_selection_targets);
+	                       last_x_selection_change, CLIPBOARD,
+	                       selection_data_source, x_selection_targets,
+	                       num_x_selection_targets);
 
 	/* And copy the targets from the data source.  */
 	ntargets = XLDataSourceTargetCount(source);
@@ -2151,13 +2140,13 @@ Bool XLNoteLocalSelection(Seat *seat, DataSource *source)
 	XLDataSourceGetTargets(source, targets);
 
 	NoteLocalSelectionFooter(GetClipboardCallback, CLIPBOARD,
-							 selection_data_source,
-							 XLDataSourceHasTarget);
+	                         selection_data_source,
+	                         XLDataSourceHasTarget);
 }
 
 static GetDataFunc
 GetPrimaryCallback(WriteTransfer *transfer, Atom target,
-				   Atom *type)
+                   Atom *type)
 {
 	WriteInfo *info;
 	int pipe[2], rc;
@@ -2189,18 +2178,18 @@ GetPrimaryCallback(WriteTransfer *transfer, Atom target,
 
 		if (conversion->clipboard_callback)
 			return conversion->clipboard_callback(transfer, target,
-												  type, resource,
-												  Function, True);
+			                                      type, resource,
+			                                      Function, True);
 
 #undef Function
 
 		/* Otherwise, use the default callback.  */
 		DebugPrint("Conversion to type %lu specified with default callback\n",
-				   target);
+		           target);
 	}
 
 	DebugPrint("Entered GetPrimaryCallback; target is %lu\n",
-			   target);
+	           target);
 
 	/* First, create a non-blocking pipe.  We will give the write end to
 	   the client.  */
@@ -2214,8 +2203,8 @@ GetPrimaryCallback(WriteTransfer *transfer, Atom target,
 
 	/* Send the write end of the pipe to the source.  */
 	zwp_primary_selection_source_v1_send_send(resource,
-											  MimeTypeFromTarget(target, True),
-											  pipe[1]);
+	                                          MimeTypeFromTarget(target, True),
+	                                          pipe[1]);
 	close(pipe[1]);
 
 	/* And set the prop type appropriately.  */
@@ -2230,7 +2219,7 @@ GetPrimaryCallback(WriteTransfer *transfer, Atom target,
 
 	/* Wait for info to become readable.  */
 	info->read_callback = XLAddReadFd(info->fd, transfer,
-									  NoticeTransferReadable);
+	                                  NoticeTransferReadable);
 
 	/* Set info as the transfer data.  */
 	SetWriteTransferData(transfer, info);
@@ -2243,9 +2232,9 @@ Bool XLNoteLocalPrimary(Seat *seat, PDataSource *source)
 	/* I forgot why there are two variables for tracking the clipboard
 	   time, so just use one here.  */
 	NoteLocalSelectionBody(GetPrimaryCallback, last_primary_time,
-						   last_primary_time, XA_PRIMARY,
-						   primary_data_source, x_primary_targets,
-						   num_x_primary_targets);
+	                       last_primary_time, XA_PRIMARY,
+	                       primary_data_source, x_primary_targets,
+	                       num_x_primary_targets);
 
 	/* And copy the targets from the data source.  */
 	ntargets = XLPDataSourceTargetCount(source);
@@ -2254,8 +2243,8 @@ Bool XLNoteLocalPrimary(Seat *seat, PDataSource *source)
 	XLPDataSourceGetTargets(source, targets);
 
 	NoteLocalSelectionFooter(GetPrimaryCallback, XA_PRIMARY,
-							 primary_data_source,
-							 XLPDataSourceHasTarget);
+	                         primary_data_source,
+	                         XLPDataSourceHasTarget);
 }
 
 void XLInitXData(void)
@@ -2264,23 +2253,25 @@ void XLInitXData(void)
 	int rc, fixes_error_base, major, minor;
 
 	rc = XFixesQueryExtension(compositor.display,
-							  &fixes_event_base,
-							  &fixes_error_base);
+	                          &fixes_event_base,
+	                          &fixes_error_base);
 
 	if (!rc)
 	{
-		fprintf(stderr, "The X server does not support the "
-						"XFixes protocol extension\n");
+		MBLog(MB_LOG_ERROR,
+		      "The X server does not support the "
+		      "XFixes protocol extension\n");
 		exit(1);
 	}
 
 	rc = XFixesQueryVersion(compositor.display,
-							&major, &minor);
+	                        &major, &minor);
 
 	if (!rc || major < 5)
 	{
-		fprintf(stderr, "The X server does not support the "
-						"right version of the XFixes protocol extension\n");
+		MBLog(MB_LOG_ERROR,
+		      "The X server does not support the "
+		      "right version of the XFixes protocol extension\n");
 		exit(1);
 	}
 
@@ -2315,7 +2306,7 @@ void XLInitXData(void)
 }
 
 void XLReceiveDataFromSelection(Time time, Atom selection, Atom target,
-								int fd)
+                                int fd)
 {
 	PostReceiveDirect(time, selection, target, fd);
 }

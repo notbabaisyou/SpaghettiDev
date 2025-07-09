@@ -29,21 +29,21 @@ static struct wl_global *global_xdg_wm_base;
 
 static void
 CreatePositioner(struct wl_client *client, struct wl_resource *resource,
-				 uint32_t id)
+                 uint32_t id)
 {
 	XLCreateXdgPositioner(client, resource, id);
 }
 
 static void
 GetXdgSurface(struct wl_client *client, struct wl_resource *resource,
-			  uint32_t id, struct wl_resource *surface_resource)
+              uint32_t id, struct wl_resource *surface_resource)
 {
 	XLGetXdgSurface(client, resource, id, surface_resource);
 }
 
 static void
 Pong(struct wl_client *client, struct wl_resource *resource,
-	 uint32_t serial)
+     uint32_t serial)
 {
 	XdgWmBase *wm_base;
 	XdgRoleList *role;
@@ -80,8 +80,8 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 	if (wm_base->list.next != &wm_base->list)
 		wl_resource_post_error(resource, XDG_WM_BASE_ERROR_DEFUNCT_SURFACES,
-							   "surfaces created by this xdg_wm_base still"
-							   " exist, yet it is being destroyed");
+		                       "surfaces created by this xdg_wm_base still"
+		                       " exist, yet it is being destroyed");
 
 	wl_resource_destroy(resource);
 }
@@ -123,7 +123,7 @@ HandleResourceDestroy(struct wl_resource *resource)
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	XdgWmBase *wm_base;
 
@@ -137,7 +137,7 @@ HandleBind(struct wl_client *client, void *data,
 
 	memset(wm_base, 0, sizeof *wm_base);
 	wm_base->resource = wl_resource_create(client, &xdg_wm_base_interface,
-										   version, id);
+	                                       version, id);
 
 	if (!wm_base->resource)
 	{
@@ -147,7 +147,7 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(wm_base->resource, &xdg_wm_base_impl,
-								   wm_base, HandleResourceDestroy);
+	                               wm_base, HandleResourceDestroy);
 	wm_base->list.next = &wm_base->list;
 	wm_base->list.last = &wm_base->list;
 }
@@ -155,12 +155,12 @@ HandleBind(struct wl_client *client, void *data,
 void XLInitXdgWM(void)
 {
 	global_xdg_wm_base = wl_global_create(compositor.wl_display,
-										  &xdg_wm_base_interface,
-										  5, NULL, HandleBind);
+	                                      &xdg_wm_base_interface,
+	                                      5, NULL, HandleBind);
 }
 
 void XLXdgWmBaseSendPing(XdgWmBase *wm_base)
 {
 	xdg_wm_base_send_ping(wm_base->resource,
-						  ++wm_base->last_ping);
+	                      ++wm_base->last_ping);
 }

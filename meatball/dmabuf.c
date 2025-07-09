@@ -42,14 +42,12 @@ typedef struct _Buffer Buffer;
 typedef struct _TemporarySetEntry TemporarySetEntry;
 typedef struct _FormatModifierPair FormatModifierPair;
 
-enum
-{
-	IsUsed = 1,
+enum {
+	IsUsed         = 1,
 	IsCallbackData = (1 << 2),
 };
 
-struct _TemporarySetEntry
-{
+struct _TemporarySetEntry {
 	/* These fields mean the same as they do in the args to
 	   zwp_linux_buffer_params_v1_add.  */
 
@@ -58,8 +56,7 @@ struct _TemporarySetEntry
 	uint32_t modifier_hi, modifier_lo;
 };
 
-struct _BufferParams
-{
+struct _BufferParams {
 	/* Entries for each plane.  DRI3 only supports up to 4 planes.  */
 	TemporarySetEntry entries[4];
 
@@ -73,8 +70,7 @@ struct _BufferParams
 	int width, height;
 };
 
-struct _Buffer
-{
+struct _Buffer {
 	/* The ExtBuffer associated with this buffer.  */
 	ExtBuffer buffer;
 
@@ -94,8 +90,7 @@ struct _Buffer
 	Bool is_fallback;
 };
 
-struct _FormatModifierPair
-{
+struct _FormatModifierPair {
 	/* See the documentation of
 	   zwp_linux_dmabuf_feedback_v1::format_table for more details. */
 	uint32_t format;
@@ -181,7 +176,7 @@ DestroyBufferParams(struct wl_client *client, struct wl_resource *resource)
 
 static int
 ExistingModifier(BufferParams *params, uint32_t *current_hi,
-				 uint32_t *current_lo)
+                 uint32_t *current_lo)
 {
 	int i, count;
 
@@ -207,8 +202,8 @@ ExistingModifier(BufferParams *params, uint32_t *current_hi,
 
 static void
 Add(struct wl_client *client, struct wl_resource *resource, int32_t fd,
-	uint32_t plane_idx, uint32_t offset, uint32_t stride, uint32_t modifier_hi,
-	uint32_t modifier_lo)
+    uint32_t plane_idx, uint32_t offset, uint32_t stride, uint32_t modifier_hi,
+    uint32_t modifier_lo)
 {
 	BufferParams *params;
 	uint32_t current_hi, current_lo;
@@ -218,8 +213,8 @@ Add(struct wl_client *client, struct wl_resource *resource, int32_t fd,
 	if (params->flags & IsUsed)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
-							   "the given params resource has already been used");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
+		                       "the given params resource has already been used");
 		close(fd);
 
 		return;
@@ -228,8 +223,8 @@ Add(struct wl_client *client, struct wl_resource *resource, int32_t fd,
 	if (plane_idx >= ArrayElements(params->entries))
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX,
-							   "maximum number of planes exceeded");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX,
+		                       "maximum number of planes exceeded");
 		close(fd);
 
 		return;
@@ -238,8 +233,8 @@ Add(struct wl_client *client, struct wl_resource *resource, int32_t fd,
 	if (params->entries[plane_idx].fd != -1)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_SET,
-							   "the plane has already been added in the temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_SET,
+		                       "the plane has already been added in the temporary set");
 		close(fd);
 
 		return;
@@ -248,7 +243,7 @@ Add(struct wl_client *client, struct wl_resource *resource, int32_t fd,
 	if (ExistingModifier(params, &current_hi, &current_lo) && (current_hi != modifier_hi || current_lo != modifier_lo))
 	{
 		wl_resource_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
-							   "modifier does not match other planes in the temporary set");
+		                       "modifier does not match other planes in the temporary set");
 		close(fd);
 
 		return;
@@ -307,7 +302,7 @@ RetainBufferFunc(ExtBuffer *buffer)
 {
 	Buffer *dmabuf_buffer;
 
-	dmabuf_buffer = (Buffer *)buffer;
+	dmabuf_buffer = (Buffer *) buffer;
 	dmabuf_buffer->refcount++;
 }
 
@@ -316,7 +311,7 @@ DereferenceBufferFunc(ExtBuffer *buffer)
 {
 	Buffer *dmabuf_buffer;
 
-	dmabuf_buffer = (Buffer *)buffer;
+	dmabuf_buffer = (Buffer *) buffer;
 	DestroyBacking(dmabuf_buffer);
 }
 
@@ -325,7 +320,7 @@ WidthFunc(ExtBuffer *buffer)
 {
 	Buffer *dmabuf_buffer;
 
-	dmabuf_buffer = (Buffer *)buffer;
+	dmabuf_buffer = (Buffer *) buffer;
 	return dmabuf_buffer->width;
 }
 
@@ -334,15 +329,15 @@ HeightFunc(ExtBuffer *buffer)
 {
 	Buffer *dmabuf_buffer;
 
-	dmabuf_buffer = (Buffer *)buffer;
+	dmabuf_buffer = (Buffer *) buffer;
 	return dmabuf_buffer->height;
 }
 
 static void
 ReleaseBufferFunc(ExtBuffer *buffer)
 {
-	if (((Buffer *)buffer)->resource)
-		wl_buffer_send_release(((Buffer *)buffer)->resource);
+	if (((Buffer *) buffer)->resource)
+		wl_buffer_send_release(((Buffer *) buffer)->resource);
 }
 
 static RenderBuffer
@@ -350,13 +345,13 @@ GetBufferFunc(ExtBuffer *buffer)
 {
 	Buffer *dmabuf_buffer;
 
-	dmabuf_buffer = (Buffer *)buffer;
+	dmabuf_buffer = (Buffer *) buffer;
 	return dmabuf_buffer->render_buffer;
 }
 
 static Buffer *
 CreateBufferFor(BufferParams *params, RenderBuffer render_buffer,
-				uint32_t id)
+                uint32_t id)
 {
 	Buffer *buffer;
 	struct wl_client *client;
@@ -399,8 +394,8 @@ CreateBufferFor(BufferParams *params, RenderBuffer render_buffer,
 	buffer->refcount++;
 
 	wl_resource_set_implementation(buffer->resource,
-								   &zwp_linux_dmabuf_v1_buffer_impl,
-								   buffer, HandleBufferResourceDestroy);
+	                               &zwp_linux_dmabuf_v1_buffer_impl,
+	                               buffer, HandleBufferResourceDestroy);
 
 	return buffer;
 }
@@ -416,9 +411,10 @@ IsFormatSupported(uint32_t format, uint32_t mod_hi, uint32_t mod_low)
 	for (i = 0; i < n_drm_formats; ++i)
 	{
 		if (format == supported_formats[i].drm_format
-			/* Also check that the modifiers have been announced as
-			   supported.  */
-			&& ModifierHigh(supported_formats[i].drm_modifier) == mod_hi && ModifierLow(supported_formats[i].drm_modifier) == mod_low)
+		    /* Also check that the modifiers have been announced as
+		       supported.  */
+		    && ModifierHigh(supported_formats[i].drm_modifier) == mod_hi && ModifierLow(
+			    supported_formats[i].drm_modifier) == mod_low)
 			/* A match was found, so this format is supported.  */
 			return True;
 	}
@@ -466,7 +462,7 @@ CreateSucceeded(RenderBuffer render_buffer, void *data)
 
 	/* Send the buffer to the client.  */
 	zwp_linux_buffer_params_v1_send_created(params->resource,
-											buffer->resource);
+	                                        buffer->resource);
 }
 
 static void
@@ -488,7 +484,7 @@ CreateFailed(void *data)
 
 static void
 Create(struct wl_client *client, struct wl_resource *resource, int32_t width,
-	   int32_t height, uint32_t format, uint32_t flags)
+       int32_t height, uint32_t format, uint32_t flags)
 {
 	BufferParams *params;
 	DmaBufAttributes attributes;
@@ -501,8 +497,8 @@ Create(struct wl_client *client, struct wl_resource *resource, int32_t width,
 	if (params->flags & IsUsed)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
-							   "the given params resource has already been used.");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
+		                       "the given params resource has already been used.");
 		return;
 	}
 
@@ -516,44 +512,46 @@ Create(struct wl_client *client, struct wl_resource *resource, int32_t width,
 	if (!num_buffers)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
-							   "no fds were attached to this resource's temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+		                       "no fds were attached to this resource's temporary set");
 		goto inert_error;
 	}
 
 	if (params->entries[0].fd == -1)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
-							   "no fd attached for plane 0 in the temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+		                       "no fd attached for plane 0 in the temporary set");
 		goto inert_error;
 	}
 
-	if ((params->entries[3].fd >= 0 || params->entries[2].fd >= 0) && (params->entries[2].fd == -1 || params->entries[1].fd == -1))
+	if ((params->entries[3].fd >= 0 || params->entries[2].fd >= 0) && (
+		    params->entries[2].fd == -1 || params->entries[1].fd == -1))
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
-							   "gap in planes attached to temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+		                       "gap in planes attached to temporary set");
 		goto inert_error;
 	}
 
 	if (width < 0 || height < 0 || width > 65535 || height > 65535)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_OUT_OF_BOUNDS,
-							   "size out of bounds for X server");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_OUT_OF_BOUNDS,
+		                       "size out of bounds for X server");
 		goto inert_error;
 	}
 
 	/* Check that the client did not define any invalid flags.  */
 
-	all_flags = (ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST);
+	all_flags = (ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED |
+	             ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST);
 
 	if (flags & ~all_flags)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
-							   "invalid dmabuf flags: %u", flags);
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
+		                       "invalid dmabuf flags: %u", flags);
 		goto inert_error;
 	}
 
@@ -564,9 +562,9 @@ Create(struct wl_client *client, struct wl_resource *resource, int32_t width,
 	{
 		if (wl_resource_get_version(resource) >= 4)
 			wl_resource_post_error(resource,
-								   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
-								   "invalid format/modifiers specified for version 4"
-								   " resource");
+			                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
+			                       "invalid format/modifiers specified for version 4"
+			                       " resource");
 		else
 			zwp_linux_buffer_params_v1_send_failed(resource);
 
@@ -592,7 +590,7 @@ Create(struct wl_client *client, struct wl_resource *resource, int32_t width,
 
 	/* Provide the specified modifier in the buffer attributes
 	   structure.  */
-	attributes.modifier = ((uint64_t)mod_high << 32) | mod_low;
+	attributes.modifier = ((uint64_t) mod_high << 32) | mod_low;
 
 	/* Set the number of planes specified.  */
 	attributes.n_planes = num_buffers;
@@ -619,7 +617,7 @@ Create(struct wl_client *client, struct wl_resource *resource, int32_t width,
 
 	/* Post asynchronous creation and return.  */
 	RenderBufferFromDmaBufAsync(&attributes, CreateSucceeded,
-								CreateFailed, params);
+	                            CreateFailed, params);
 	return;
 
 inert_error:
@@ -630,7 +628,7 @@ inert_error:
 
 static void
 CreatePlaceholderBuffer(struct wl_client *client, uint32_t id,
-						int width, int height)
+                        int width, int height)
 {
 	Buffer *buffer;
 	Bool error;
@@ -644,7 +642,7 @@ CreatePlaceholderBuffer(struct wl_client *client, uint32_t id,
 
 	buffer = XLCalloc(1, sizeof *buffer);
 	buffer->resource = wl_resource_create(client, &wl_buffer_interface,
-										  1, id);
+	                                      1, id);
 	buffer->is_fallback = True;
 
 	if (!buffer->resource)
@@ -658,7 +656,7 @@ CreatePlaceholderBuffer(struct wl_client *client, uint32_t id,
 	   them.  */
 	error = False;
 	buffer->render_buffer = RenderBufferFromSinglePixel(0, 0, 0, 0,
-														&error);
+	                                                    &error);
 
 	if (error)
 	{
@@ -685,13 +683,13 @@ CreatePlaceholderBuffer(struct wl_client *client, uint32_t id,
 	buffer->buffer.funcs.release = ReleaseBufferFunc;
 
 	wl_resource_set_implementation(buffer->resource,
-								   &zwp_linux_dmabuf_v1_buffer_impl,
-								   buffer, HandleBufferResourceDestroy);
+	                               &zwp_linux_dmabuf_v1_buffer_impl,
+	                               buffer, HandleBufferResourceDestroy);
 }
 
 static void
 CreateImmed(struct wl_client *client, struct wl_resource *resource, uint32_t id,
-			int32_t width, int32_t height, uint32_t format, uint32_t flags)
+            int32_t width, int32_t height, uint32_t format, uint32_t flags)
 {
 	BufferParams *params;
 	DmaBufAttributes attributes;
@@ -706,8 +704,8 @@ CreateImmed(struct wl_client *client, struct wl_resource *resource, uint32_t id,
 	if (params->flags & IsUsed)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
-							   "the given params resource has already been used.");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_ALREADY_USED,
+		                       "the given params resource has already been used.");
 		return;
 	}
 
@@ -721,44 +719,46 @@ CreateImmed(struct wl_client *client, struct wl_resource *resource, uint32_t id,
 	if (!num_buffers)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
-							   "no fds were attached to this resource's temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+		                       "no fds were attached to this resource's temporary set");
 		goto inert_error;
 	}
 
 	if (params->entries[0].fd == -1)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
-							   "no fd attached for plane 0 in the temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+		                       "no fd attached for plane 0 in the temporary set");
 		goto inert_error;
 	}
 
-	if ((params->entries[3].fd >= 0 || params->entries[2].fd >= 0) && (params->entries[2].fd == -1 || params->entries[1].fd == -1))
+	if ((params->entries[3].fd >= 0 || params->entries[2].fd >= 0) && (
+		    params->entries[2].fd == -1 || params->entries[1].fd == -1))
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
-							   "gap in planes attached to temporary set");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
+		                       "gap in planes attached to temporary set");
 		goto inert_error;
 	}
 
 	if (width < 0 || height < 0 || width > 65535 || height > 65535)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_OUT_OF_BOUNDS,
-							   "size out of bounds for X server");
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_OUT_OF_BOUNDS,
+		                       "size out of bounds for X server");
 		goto inert_error;
 	}
 
 	/* Check that the client did not define any invalid flags.  */
 
-	all_flags = (ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST);
+	all_flags = (ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED |
+	             ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST);
 
 	if (flags & ~all_flags)
 	{
 		wl_resource_post_error(resource,
-							   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
-							   "invalid dmabuf flags: %u", flags);
+		                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
+		                       "invalid dmabuf flags: %u", flags);
 		goto inert_error;
 	}
 
@@ -769,9 +769,9 @@ CreateImmed(struct wl_client *client, struct wl_resource *resource, uint32_t id,
 	{
 		if (wl_resource_get_version(resource) >= 4)
 			wl_resource_post_error(resource,
-								   ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
-								   "invalid format/modifiers specified for version 4"
-								   " resource");
+			                       ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT,
+			                       "invalid format/modifiers specified for version 4"
+			                       " resource");
 		else
 		{
 			zwp_linux_buffer_params_v1_send_failed(resource);
@@ -800,7 +800,7 @@ CreateImmed(struct wl_client *client, struct wl_resource *resource, uint32_t id,
 
 	/* Provide the specified modifier in the buffer attributes
 	   structure.  */
-	attributes.modifier = ((uint64_t)mod_high << 32) | mod_low;
+	attributes.modifier = ((uint64_t) mod_high << 32) | mod_low;
 
 	/* Set the number of planes specified.  */
 	attributes.n_planes = num_buffers;
@@ -832,8 +832,8 @@ CreateImmed(struct wl_client *client, struct wl_resource *resource, uint32_t id,
 		CreatePlaceholderBuffer(client, id, width, height);
 	}
 	else
-		/* Otherwise, buffer creation was successful.  Create the buffer
-		   for the id.  */
+	/* Otherwise, buffer creation was successful.  Create the buffer
+	   for the id.  */
 		CreateBufferFor(params, buffer, id);
 
 	return;
@@ -854,7 +854,7 @@ static struct zwp_linux_buffer_params_v1_interface zwp_linux_buffer_params_v1_im
 
 static void
 CreateParams(struct wl_client *client, struct wl_resource *resource,
-			 uint32_t id)
+             uint32_t id)
 {
 	BufferParams *params;
 	int i;
@@ -869,7 +869,7 @@ CreateParams(struct wl_client *client, struct wl_resource *resource,
 
 	memset(params, 0, sizeof *params);
 	params->resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface,
-										  wl_resource_get_version(resource), id);
+	                                      wl_resource_get_version(resource), id);
 
 	if (!params->resource)
 	{
@@ -879,8 +879,8 @@ CreateParams(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(params->resource,
-								   &zwp_linux_buffer_params_v1_impl,
-								   params, HandleParamsResourceDestroy);
+	                               &zwp_linux_buffer_params_v1_impl,
+	                               params, HandleParamsResourceDestroy);
 
 	/* Initialize all fds to -1.  */
 	for (i = 0; i < ArrayElements(params->entries); ++i)
@@ -900,7 +900,7 @@ static struct zwp_linux_dmabuf_feedback_v1_interface zld_feedback_v1_impl =
 
 static void
 MakeFeedback(struct wl_client *client, struct wl_resource *resource,
-			 uint32_t id)
+             uint32_t id)
 {
 	struct wl_resource *feedback;
 	struct wl_array main_device_array, format_array, array;
@@ -909,8 +909,8 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 	uint16_t *format_array_data;
 
 	feedback = wl_resource_create(client,
-								  &zwp_linux_dmabuf_feedback_v1_interface,
-								  wl_resource_get_version(resource), id);
+	                              &zwp_linux_dmabuf_feedback_v1_interface,
+	                              wl_resource_get_version(resource), id);
 
 	if (!feedback)
 	{
@@ -919,7 +919,7 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 	}
 
 	wl_resource_set_implementation(feedback, &zld_feedback_v1_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 
 	/* Now, send the relevant information.  This should eventually be
 	   dynamically updated, but we don't support that yet.  */
@@ -927,8 +927,8 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 	/* First, send the format table.  */
 
 	zwp_linux_dmabuf_feedback_v1_send_format_table(feedback,
-												   format_table_fd,
-												   format_table_size);
+	                                               format_table_fd,
+	                                               format_table_size);
 
 	/* Next, send the main device.  The first provider returned by
 	   RRGetProviders is considered to be the main device.  */
@@ -938,7 +938,7 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 	main_device_array.alloc = main_device_array.size;
 
 	zwp_linux_dmabuf_feedback_v1_send_main_device(feedback,
-												  &main_device_array);
+	                                              &main_device_array);
 
 	/* Then, send the one tranche for each device.  */
 	for (provider = 0; provider < num_device_nodes; ++provider)
@@ -948,7 +948,7 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 		array.alloc = array.size;
 
 		zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(feedback,
-																&array);
+		                                                        &array);
 
 		/* Populate the formats array with the contents of the format
 	   table, and send it to the client.  */
@@ -965,7 +965,7 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 			format_array_data[i] = i;
 
 		zwp_linux_dmabuf_feedback_v1_send_tranche_formats(feedback,
-														  &format_array);
+		                                                  &format_array);
 
 		/* Send flags.  We don't currently support direct scanout, so send
 	   nothing.  */
@@ -980,14 +980,14 @@ MakeFeedback(struct wl_client *client, struct wl_resource *resource,
 
 static void
 GetDefaultFeedback(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t id)
+                   uint32_t id)
 {
 	MakeFeedback(client, resource, id);
 }
 
 static void
 GetSurfaceFeedback(struct wl_client *client, struct wl_resource *resource,
-				   uint32_t id, struct wl_resource *surface_resource)
+                   uint32_t id, struct wl_resource *surface_resource)
 {
 	MakeFeedback(client, resource, id);
 }
@@ -1015,7 +1015,7 @@ SendSupportedFormats(struct wl_resource *resource)
 
 			if (supported_formats[i].drm_modifier == DRM_FORMAT_MOD_INVALID)
 				zwp_linux_dmabuf_v1_send_format(resource,
-												supported_formats[i].drm_format);
+				                                supported_formats[i].drm_format);
 		}
 		else
 		{
@@ -1024,21 +1024,21 @@ SendSupportedFormats(struct wl_resource *resource)
 			modifier = supported_formats[i].drm_modifier;
 
 			zwp_linux_dmabuf_v1_send_modifier(resource,
-											  supported_formats[i].drm_format,
-											  ModifierHigh(modifier),
-											  ModifierLow(modifier));
+			                                  supported_formats[i].drm_format,
+			                                  ModifierHigh(modifier),
+			                                  ModifierLow(modifier));
 		}
 	}
 }
 
 static void
 HandleBind(struct wl_client *client, void *data,
-		   uint32_t version, uint32_t id)
+           uint32_t version, uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface,
-								  version, id);
+	                              version, id);
 
 	if (!resource)
 	{
@@ -1047,7 +1047,7 @@ HandleBind(struct wl_client *client, void *data,
 	}
 
 	wl_resource_set_implementation(resource, &zwp_linux_dmabuf_v1_impl,
-								   NULL, NULL);
+	                               NULL, NULL);
 
 	if (version < 4)
 		/* Versions later than 4 use the format table.  */
@@ -1066,7 +1066,6 @@ InitDrmDevices(void)
 static ssize_t
 WriteFormatTable(void)
 {
-	int fd, i;
 	ssize_t written;
 	FormatModifierPair pair;
 
@@ -1074,35 +1073,37 @@ WriteFormatTable(void)
 	   can be obtained.  */
 	if (!InitDrmDevices())
 	{
-		fprintf(stderr, "Failed to get direct rendering device node. "
-						"Hardware acceleration will probably be unavailable.\n");
+		MBLog(MB_LOG_ERROR,
+		      "Failed to get direct rendering device node. "
+		      "Hardware acceleration will probably be unavailable.\n");
 		return -1;
 	}
 
-	fd = XLOpenShm();
+	int fd = XLOpenShm();
 
 	if (fd < 0)
 	{
-		fprintf(stderr, "Failed to allocate format table fd. "
-						"Hardware acceleration will probably be unavailable.\n");
+		MBLog(MB_LOG_ERROR,
+		      "Failed to allocate format table fd. "
+		      "Hardware acceleration will probably be unavailable.\n");
 		return -1;
 	}
 
 	written = 0;
 
 	/* Write each format-modifier pair.  */
-	for (i = 0; i < n_drm_formats; ++i)
+	for (int i = 0; i < n_drm_formats; ++i)
 	{
 		pair.format = supported_formats[i].drm_format;
 		pair.padding = 0;
 		pair.modifier = supported_formats[i].drm_modifier;
 
-		if (write(fd, &pair, sizeof pair) != sizeof pair)
+		if (write(fd, &pair, sizeof (pair)) != sizeof (pair))
 			/* Writing the modifier pair failed.  Punt.  */
 			goto cancel;
 
 		/* Now tell the caller how much was written.  */
-		written += sizeof pair;
+		written += sizeof(pair);
 	}
 
 	format_table_fd = fd;
@@ -1135,11 +1136,11 @@ void XLInitDmabuf(void)
 	size = WriteFormatTable();
 
 	global_dmabuf = wl_global_create(compositor.wl_display,
-									 &zwp_linux_dmabuf_v1_interface,
-									 /* If writing the format table
-										failed, don't announce support
-										for version 4.  */
-									 size >= 0 ? 4 : 3, NULL, HandleBind);
+	                                 &zwp_linux_dmabuf_v1_interface,
+	                                 /* If writing the format table
+		                                failed, don't announce support
+		                                for version 4.  */
+	                                 size >= 0 ? 4 : 3, NULL, HandleBind);
 
 	/* If the format table was successfully created, set its size.  */
 	format_table_size = size;

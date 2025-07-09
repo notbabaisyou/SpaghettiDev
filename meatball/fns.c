@@ -33,8 +33,7 @@
 
 typedef struct _Busfault Busfault;
 
-struct _RootWindowSelection
-{
+struct _RootWindowSelection {
 	/* The next and last event selection records in this chain.  */
 	RootWindowSelection *next, *last;
 
@@ -42,8 +41,7 @@ struct _RootWindowSelection
 	unsigned long event_mask;
 };
 
-struct _Busfault
-{
+struct _Busfault {
 	/* Nodes to the left and right.  */
 	Busfault *left, *right;
 
@@ -319,7 +317,7 @@ void XLDestroyAssocTable(XLAssocTable *table)
 		bucket = &table->buckets[i];
 
 		for (entry = bucket->next; entry != bucket;
-			 entry = entry_next)
+		     entry = entry_next)
 		{
 			entry_next = entry->next;
 			XLFree(entry);
@@ -331,7 +329,7 @@ void XLDestroyAssocTable(XLAssocTable *table)
 }
 
 void XLScaleRegion(pixman_region32_t *dst, pixman_region32_t *src,
-				   float scale_x, float scale_y)
+                   float scale_x, float scale_y)
 {
 	int nrects, i;
 	pixman_box32_t *src_rects;
@@ -366,7 +364,7 @@ void XLScaleRegion(pixman_region32_t *dst, pixman_region32_t *src,
 }
 
 void XLExtendRegion(pixman_region32_t *dst, pixman_region32_t *src,
-					int extend_x, int extend_y)
+                    int extend_x, int extend_y)
 {
 	int nrects, i;
 	pixman_box32_t *src_rects;
@@ -395,7 +393,7 @@ void XLExtendRegion(pixman_region32_t *dst, pixman_region32_t *src,
 }
 
 void XLTransformRegion(pixman_region32_t *dst, pixman_region32_t *src,
-					   BufferTransform transform, int width, int height)
+                       BufferTransform transform, int width, int height)
 {
 	int nrects, i;
 	pixman_box32_t *src_rects;
@@ -457,7 +455,8 @@ int XLOpenShm(void)
 static Bool
 ServerTimePredicate(Display *display, XEvent *event, XPointer arg)
 {
-	return (event->type == PropertyNotify && event->xproperty.window == selection_transfer_window && event->xproperty.atom == _XL_SERVER_TIME_ATOM);
+	return (event->type == PropertyNotify && event->xproperty.window == selection_transfer_window && event->xproperty.
+	        atom == _XL_SERVER_TIME_ATOM);
 }
 
 Time XLGetServerTimeRoundtrip(void)
@@ -465,8 +464,8 @@ Time XLGetServerTimeRoundtrip(void)
 	XEvent event;
 
 	XChangeProperty(compositor.display, selection_transfer_window,
-					_XL_SERVER_TIME_ATOM, XA_ATOM, 32, PropModeReplace,
-					(unsigned char *)&_XL_SERVER_TIME_ATOM, 1);
+	                _XL_SERVER_TIME_ATOM, XA_ATOM, 32, PropModeReplace,
+	                (unsigned char *) &_XL_SERVER_TIME_ATOM, 1);
 	XIfEvent(compositor.display, &event, ServerTimePredicate, NULL);
 
 	return event.xproperty.time;
@@ -491,8 +490,8 @@ ReselectRootWindowInput(void)
 	}
 
 	XSelectInput(compositor.display,
-				 DefaultRootWindow(compositor.display),
-				 effective);
+	             DefaultRootWindow(compositor.display),
+	             effective);
 }
 
 RootWindowSelection *
@@ -552,7 +551,7 @@ FixHeights(Busfault *busfault)
 	XLAssert(busfault != NULL);
 
 	busfault->height = 1 + MAX(GetHeight(busfault->left),
-							   GetHeight(busfault->right));
+	                           GetHeight(busfault->right));
 }
 
 static void
@@ -701,7 +700,7 @@ DeleteMin(Busfault **tree, Busfault *out)
 		XLFree(old_root);
 	}
 	else
-		/* Keep looking to the left.  */
+	/* Keep looking to the left.  */
 		DeleteMin(&(*tree)->left, out);
 
 	RebalanceBusfault(tree);
@@ -718,7 +717,7 @@ RemoveBusfault(Busfault **tree, char *data)
 	else if ((*tree)->data == data)
 	{
 		if ((*tree)->right)
-			/* Replace with min value of right subtree.  */
+		/* Replace with min value of right subtree.  */
 			DeleteMin(&(*tree)->right, *tree);
 		else
 		{

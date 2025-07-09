@@ -41,7 +41,7 @@
 static void
 MatrixPrint (Matrix *matrix)
 {
-  fprintf (stderr,
+	MBLog(MB_LOG_DEBUG,
 	   "%4f %4f %4f\n"
 	   "%4f %4f %4f\n"
 	   "%4f %4f %4f\n\n",
@@ -60,17 +60,26 @@ MatrixPrint (Matrix *matrix)
 
 void MatrixMultiply(Matrix a, Matrix b, Matrix *product)
 {
-	Index(*product, 0, 0) = (MultiplySub(a, b, 0, 0, 0, 0) + MultiplySub(a, b, 0, 1, 1, 0) + MultiplySub(a, b, 0, 2, 2, 0));
-	Index(*product, 0, 1) = (MultiplySub(a, b, 0, 0, 0, 1) + MultiplySub(a, b, 0, 1, 1, 1) + MultiplySub(a, b, 0, 2, 2, 1));
-	Index(*product, 0, 2) = (MultiplySub(a, b, 0, 0, 0, 2) + MultiplySub(a, b, 0, 1, 1, 2) + MultiplySub(a, b, 0, 2, 2, 2));
+	Index(*product, 0, 0) = (
+		MultiplySub(a, b, 0, 0, 0, 0) + MultiplySub(a, b, 0, 1, 1, 0) + MultiplySub(a, b, 0, 2, 2, 0));
+	Index(*product, 0, 1) = (
+		MultiplySub(a, b, 0, 0, 0, 1) + MultiplySub(a, b, 0, 1, 1, 1) + MultiplySub(a, b, 0, 2, 2, 1));
+	Index(*product, 0, 2) = (
+		MultiplySub(a, b, 0, 0, 0, 2) + MultiplySub(a, b, 0, 1, 1, 2) + MultiplySub(a, b, 0, 2, 2, 2));
 
-	Index(*product, 1, 0) = (MultiplySub(a, b, 1, 0, 0, 0) + MultiplySub(a, b, 1, 1, 1, 0) + MultiplySub(a, b, 1, 2, 2, 0));
-	Index(*product, 1, 1) = (MultiplySub(a, b, 1, 0, 0, 1) + MultiplySub(a, b, 1, 1, 1, 1) + MultiplySub(a, b, 1, 2, 2, 1));
-	Index(*product, 1, 2) = (MultiplySub(a, b, 1, 0, 0, 2) + MultiplySub(a, b, 1, 1, 1, 2) + MultiplySub(a, b, 1, 2, 2, 2));
+	Index(*product, 1, 0) = (
+		MultiplySub(a, b, 1, 0, 0, 0) + MultiplySub(a, b, 1, 1, 1, 0) + MultiplySub(a, b, 1, 2, 2, 0));
+	Index(*product, 1, 1) = (
+		MultiplySub(a, b, 1, 0, 0, 1) + MultiplySub(a, b, 1, 1, 1, 1) + MultiplySub(a, b, 1, 2, 2, 1));
+	Index(*product, 1, 2) = (
+		MultiplySub(a, b, 1, 0, 0, 2) + MultiplySub(a, b, 1, 1, 1, 2) + MultiplySub(a, b, 1, 2, 2, 2));
 
-	Index(*product, 2, 0) = (MultiplySub(a, b, 2, 0, 0, 0) + MultiplySub(a, b, 2, 1, 1, 0) + MultiplySub(a, b, 2, 2, 2, 0));
-	Index(*product, 2, 1) = (MultiplySub(a, b, 2, 0, 0, 1) + MultiplySub(a, b, 2, 1, 1, 1) + MultiplySub(a, b, 2, 2, 2, 1));
-	Index(*product, 2, 2) = (MultiplySub(a, b, 2, 0, 0, 2) + MultiplySub(a, b, 2, 1, 1, 2) + MultiplySub(a, b, 2, 2, 2, 2));
+	Index(*product, 2, 0) = (
+		MultiplySub(a, b, 2, 0, 0, 0) + MultiplySub(a, b, 2, 1, 1, 0) + MultiplySub(a, b, 2, 2, 2, 0));
+	Index(*product, 2, 1) = (
+		MultiplySub(a, b, 2, 0, 0, 1) + MultiplySub(a, b, 2, 1, 1, 1) + MultiplySub(a, b, 2, 2, 2, 1));
+	Index(*product, 2, 2) = (
+		MultiplySub(a, b, 2, 0, 0, 2) + MultiplySub(a, b, 2, 1, 1, 2) + MultiplySub(a, b, 2, 2, 2, 2));
 }
 
 void MatrixIdentity(Matrix *matrix)
@@ -207,7 +216,7 @@ void MatrixExport(Matrix *transform, XTransform *xtransform)
 /* Various routines shared between renderers.  */
 
 void ApplyInverseTransform(int buffer_width, int buffer_height, Matrix *matrix,
-						   BufferTransform transform)
+                           BufferTransform transform)
 {
 	float width, height;
 
@@ -225,123 +234,123 @@ void ApplyInverseTransform(int buffer_width, int buffer_height, Matrix *matrix,
 
 	switch (transform)
 	{
-	case Normal:
-		break;
+		case Normal:
+			break;
 
-	case CounterClockwise90:
-		/* CounterClockwise90.  Rotate the buffer contents 90 degrees
-	   clockwise.  IOW, rotate the destination by 90 degrees
-	   counterclockwise, which is 270 degrees clockwise.  */
-		MatrixRotate(matrix, M_PI * 1.5, 0, 0);
-		MatrixTranslate(matrix, -height, 0);
-		break;
+		case CounterClockwise90:
+			/* CounterClockwise90.  Rotate the buffer contents 90 degrees
+		   clockwise.  IOW, rotate the destination by 90 degrees
+		   counterclockwise, which is 270 degrees clockwise.  */
+			MatrixRotate(matrix, M_PI * 1.5, 0, 0);
+			MatrixTranslate(matrix, -height, 0);
+			break;
 
-	case CounterClockwise180:
-		/* CounterClockwise180.  It's 180 degrees.  Apply clockwise 180
-	   degree rotation around the center.  */
-		MatrixRotate(matrix, M_PI, width / 2.0f, height / 2.0f);
-		break;
+		case CounterClockwise180:
+			/* CounterClockwise180.  It's 180 degrees.  Apply clockwise 180
+		   degree rotation around the center.  */
+			MatrixRotate(matrix, M_PI, width / 2.0f, height / 2.0f);
+			break;
 
-	case CounterClockwise270:
-		/* CounterClockwise270.  Rotate the buffer contents 270 degrees
-	   clockwise.  IOW, rotate the destination by 270 degrees
-	   counterclockwise, which is 90 degrees clockwise.  */
-		MatrixRotate(matrix, M_PI * 0.5, 0, 0);
-		MatrixTranslate(matrix, 0, -width);
-		break;
+		case CounterClockwise270:
+			/* CounterClockwise270.  Rotate the buffer contents 270 degrees
+		   clockwise.  IOW, rotate the destination by 270 degrees
+		   counterclockwise, which is 90 degrees clockwise.  */
+			MatrixRotate(matrix, M_PI * 0.5, 0, 0);
+			MatrixTranslate(matrix, 0, -width);
+			break;
 
-	case Flipped:
-		/* Flipped.  Apply horizontal flip.  */
-		MatrixMirrorHorizontal(matrix, width);
-		break;
+		case Flipped:
+			/* Flipped.  Apply horizontal flip.  */
+			MatrixMirrorHorizontal(matrix, width);
+			break;
 
-	case Flipped90:
-		/* Flipped90.  Apply a flip but otherwise treat this the same as
-	   CounterClockwise90.  */
-		MatrixRotate(matrix, M_PI * 1.5, 0, 0);
-		MatrixTranslate(matrix, -height, 0);
-		MatrixMirrorHorizontal(matrix, height);
-		break;
+		case Flipped90:
+			/* Flipped90.  Apply a flip but otherwise treat this the same as
+		   CounterClockwise90.  */
+			MatrixRotate(matrix, M_PI * 1.5, 0, 0);
+			MatrixTranslate(matrix, -height, 0);
+			MatrixMirrorHorizontal(matrix, height);
+			break;
 
-	case Flipped180:
-		/* Flipped180.  Apply a flip and treat this the same as
-	   CounterClockwise180.  */
-		MatrixRotate(matrix, M_PI, width / 2.0f, height / 2.0f);
-		MatrixMirrorHorizontal(matrix, width);
-		break;
+		case Flipped180:
+			/* Flipped180.  Apply a flip and treat this the same as
+		   CounterClockwise180.  */
+			MatrixRotate(matrix, M_PI, width / 2.0f, height / 2.0f);
+			MatrixMirrorHorizontal(matrix, width);
+			break;
 
-	case Flipped270:
-		/* Flipped270.  Apply a flip and treat this the same as
-	   CounterClockwise270.  */
-		MatrixRotate(matrix, M_PI * 0.5, 0, 0);
-		MatrixTranslate(matrix, 0, -width);
-		MatrixMirrorHorizontal(matrix, height);
-		break;
+		case Flipped270:
+			/* Flipped270.  Apply a flip and treat this the same as
+		   CounterClockwise270.  */
+			MatrixRotate(matrix, M_PI * 0.5, 0, 0);
+			MatrixTranslate(matrix, 0, -width);
+			MatrixMirrorHorizontal(matrix, height);
+			break;
 	}
 
 	return;
 }
 
 void TransformBox(pixman_box32_t *box, BufferTransform transform,
-				  int width, int height)
+                  int width, int height)
 {
 	pixman_box32_t work;
 
 	switch (transform)
 	{
-	case Normal:
-	default:
-		work = *box;
-		break;
+		case Normal:
+		default:
+			work = *box;
+			break;
 
-	case CounterClockwise90:
-		work.x1 = height - box->y2;
-		work.y1 = box->x1;
-		work.x2 = height - box->y1;
-		work.y2 = box->x2;
-		break;
+		case CounterClockwise90:
+			work.x1 = height - box->y2;
+			work.y1 = box->x1;
+			work.x2 = height - box->y1;
+			work.y2 = box->x2;
+			break;
 
-	case CounterClockwise180:
-		work.x1 = width - box->x2;
-		work.y1 = height - box->y2;
-		work.x2 = width - box->x1;
-		work.y2 = height - box->y1;
-		break;
+		case CounterClockwise180:
+			work.x1 = width - box->x2;
+			work.y1 = height - box->y2;
+			work.x2 = width - box->x1;
+			work.y2 = height - box->y1;
+			break;
 
-	case CounterClockwise270:
-		work.x1 = box->y1;
-		work.y1 = width - box->x2;
-		work.x2 = box->y2;
-		work.y2 = width - box->x1;
-		break;
+		case CounterClockwise270:
+			work.x1 = box->y1;
+			work.y1 = width - box->x2;
+			work.x2 = box->y2;
+			work.y2 = width - box->x1;
+			break;
 
-	case Flipped:
-		work.x1 = width - box->x2;
-		work.y1 = box->y1;
-		work.x2 = width - box->x1;
-		work.y2 = box->y2;
-		break;
+		case Flipped:
+			work.x1 = width - box->x2;
+			work.y1 = box->y1;
+			work.x2 = width - box->x1;
+			work.y2 = box->y2;
+			break;
 
-	case Flipped90:
-		work.x1 = box->y1;
-		work.y1 = box->x1;
-		work.x2 = box->y2;
-		work.y2 = box->x2;
-		break;
+		case Flipped90:
+			work.x1 = box->y1;
+			work.y1 = box->x1;
+			work.x2 = box->y2;
+			work.y2 = box->x2;
+			break;
 
-	case Flipped180:
-		work.x1 = box->x1;
-		work.y1 = height - box->y2;
-		work.x2 = box->x2;
-		work.y2 = height - box->y1;
-		break;
+		case Flipped180:
+			work.x1 = box->x1;
+			work.y1 = height - box->y2;
+			work.x2 = box->x2;
+			work.y2 = height - box->y1;
+			break;
 
-	case Flipped270:
-		work.x1 = height - box->y2;
-		work.y1 = width - box->x2;
-		work.x2 = height - box->y1;
-		work.y2 = width - box->x1;
-		break;
+		case Flipped270:
+			work.x1 = height - box->y2;
+			work.y1 = width - box->x2;
+			work.x2 = height - box->y1;
+			work.y2 = width - box->x1;
+			break;
 	}
 
 	*box = work;
@@ -352,13 +361,13 @@ InvertTransform(BufferTransform transform)
 {
 	switch (transform)
 	{
-	case CounterClockwise270:
-		return CounterClockwise90;
+		case CounterClockwise270:
+			return CounterClockwise90;
 
-	case CounterClockwise90:
-		return CounterClockwise270;
+		case CounterClockwise90:
+			return CounterClockwise270;
 
-	default:
-		return transform;
+		default:
+			return transform;
 	}
 }

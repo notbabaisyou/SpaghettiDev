@@ -123,7 +123,7 @@ struct _IdleCallback {
 
 enum {
 	CanPresent = 1,
-	IsOpaque = (1 << 1),
+	IsOpaque   = (1 << 1),
 };
 
 struct _PictureBuffer {
@@ -156,7 +156,7 @@ struct _PictureBuffer {
 };
 
 enum {
-	JustPresented = 1,
+	JustPresented  = 1,
 	NoPresentation = 2,
 };
 
@@ -335,16 +335,16 @@ static XTransform identity_transform;
 
 static ShmFormat default_formats[] =
 {
-	{ WL_SHM_FORMAT_ARGB8888 },
-	{ WL_SHM_FORMAT_XRGB8888 },
+	{WL_SHM_FORMAT_ARGB8888},
+	{WL_SHM_FORMAT_XRGB8888},
 };
 
 static ShmFormat full_formats[] =
 {
-	{ WL_SHM_FORMAT_ARGB8888 },
-	{ WL_SHM_FORMAT_XRGB8888 },
-	{ WL_SHM_FORMAT_XBGR8888 },
-	{ WL_SHM_FORMAT_ABGR8888 },
+	{WL_SHM_FORMAT_ARGB8888},
+	{WL_SHM_FORMAT_XRGB8888},
+	{WL_SHM_FORMAT_XBGR8888},
+	{WL_SHM_FORMAT_ABGR8888},
 };
 
 /* List of all supported DRM formats.  */
@@ -509,7 +509,8 @@ static int num_render_devices;
    too.  */
 
 static uint64_t
-SendRoundtripMessage(void) {
+SendRoundtripMessage(void)
+{
 	XEvent event;
 	static uint64_t id;
 
@@ -539,13 +540,15 @@ SendRoundtripMessage(void) {
    and target.  */
 
 static BufferActivityRecord *
-FindBufferActivityRecord(PictureBuffer *buffer, PictureTarget *target) {
+FindBufferActivityRecord(PictureBuffer *buffer, PictureTarget *target)
+{
 	BufferActivityRecord *record;
 
 	/* Look through the global activity list for a record matching
 	   the given values.  */
 	record = all_activity.global_next;
-	while (record != &all_activity) {
+	while (record != &all_activity)
+	{
 		if (record->buffer == buffer && record->target == target)
 			return record;
 
@@ -559,13 +562,15 @@ FindBufferActivityRecord(PictureBuffer *buffer, PictureTarget *target) {
 
 static void
 RecordBufferActivity(PictureBuffer *buffer, PictureTarget *target,
-                     uint64_t roundtrip_id) {
+                     uint64_t roundtrip_id)
+{
 	BufferActivityRecord *record;
 
 	/* Try to find an existing record.  */
 	record = FindBufferActivityRecord(buffer, target);
 
-	if (!record) {
+	if (!record)
+	{
 		record = XLMalloc(sizeof *record);
 
 		/* Buffer activity is actually linked on 3 different lists:
@@ -602,12 +607,15 @@ RecordBufferActivity(PictureBuffer *buffer, PictureTarget *target,
 }
 
 static void
-RunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
+RunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target)
+{
 	IdleCallback *callback, *last;
 
 	callback = buffer->idle_callbacks.buffer_next;
-	while (callback != &buffer->idle_callbacks) {
-		if (callback->target == target) {
+	while (callback != &buffer->idle_callbacks)
+	{
+		if (callback->target == target)
+		{
 			/* Run the callback and then free it.  */
 			callback->function((RenderBuffer) (void *) buffer,
 			                   callback->data);
@@ -618,7 +626,8 @@ RunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
 			last = callback;
 			callback = callback->buffer_next;
 			XLFree(last);
-		} else
+		}
+		else
 			callback = callback->buffer_next;
 	}
 
@@ -626,7 +635,8 @@ RunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
 }
 
 static void
-MaybeRunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
+MaybeRunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target)
+{
 	BufferActivityRecord *record;
 	PresentRecord *presentation;
 
@@ -634,7 +644,8 @@ MaybeRunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
 	   If there is nothing left pertaining to TARGET, then run idle
 	   callbacks.  */
 	record = buffer->activity.buffer_next;
-	while (record != &buffer->activity) {
+	while (record != &buffer->activity)
+	{
 		if (record->target == target)
 			/* There is still pending activity.  */
 			return;
@@ -645,7 +656,8 @@ MaybeRunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
 	/* Next, loop through BUFFER's list of presentation records.  If the
 	   buffer is still busy on TARGET, then return.  */
 	presentation = buffer->pending.buffer_next;
-	while (presentation != &buffer->pending) {
+	while (presentation != &buffer->pending)
+	{
 		if (presentation->target == target)
 			/* There is still pending activity.  */
 			return;
@@ -658,7 +670,8 @@ MaybeRunIdleCallbacks(PictureBuffer *buffer, PictureTarget *target) {
 }
 
 static void
-UnlinkActivityRecord(BufferActivityRecord *record) {
+UnlinkActivityRecord(BufferActivityRecord *record)
+{
 	record->buffer_last->buffer_next = record->buffer_next;
 	record->buffer_next->buffer_last = record->buffer_last;
 	record->target_last->target_next = record->target_next;
@@ -671,17 +684,20 @@ UnlinkActivityRecord(BufferActivityRecord *record) {
    up to ID.  */
 
 static void
-HandleActivityEvent(uint64_t counter) {
+HandleActivityEvent(uint64_t counter)
+{
 	BufferActivityRecord *record, *last;
 
 	/* Look through the global activity list for a record matching
 	   counter.  */
 	record = all_activity.global_next;
-	while (record != &all_activity) {
+	while (record != &all_activity)
+	{
 		last = record;
 		record = record->global_next;
 
-		if (last->id == counter) {
+		if (last->id == counter)
+		{
 			/* Remove the record.  Then, run any callbacks pertaining to
 			   it.  This code mandates that there only be a single
 			   activity record for each buffer-target combination on the
@@ -696,7 +712,8 @@ HandleActivityEvent(uint64_t counter) {
 }
 
 static void
-FreeBackBuffer(PictureTarget *target, BackBuffer *buffer) {
+FreeBackBuffer(PictureTarget *target, BackBuffer *buffer)
+{
 	XRenderFreePicture(compositor.display, (buffer->picture & ~BufferSync & ~BufferBusy));
 	XFreePixmap(compositor.display, (buffer->pixmap & ~BufferSync));
 	FenceRelease(buffer->idle_fence);
@@ -712,10 +729,12 @@ FreeBackBuffer(PictureTarget *target, BackBuffer *buffer) {
 }
 
 static void
-FreeBackBuffers(PictureTarget *target) {
+FreeBackBuffers(PictureTarget *target)
+{
 	int i;
 
-	for (i = 0; i < ArrayElements(target->back_buffers); ++i) {
+	for (i = 0; i < ArrayElements(target->back_buffers); ++i)
+	{
 		if (target->back_buffers[i])
 			FreeBackBuffer(target, target->back_buffers[i]);
 	}
@@ -730,7 +749,8 @@ FreeBackBuffers(PictureTarget *target) {
 }
 
 static BackBuffer *
-CreateBackBuffer(PictureTarget *target) {
+CreateBackBuffer(PictureTarget *target)
+{
 	BackBuffer *buffer;
 	XRenderPictureAttributes attrs;
 	Window root_window;
@@ -767,7 +787,8 @@ CreateBackBuffer(PictureTarget *target) {
 static XserverRegion ServerRegionFromRegion(pixman_region32_t *);
 
 static PresentCompletionCallback *
-MakePresentationCallback(void) {
+MakePresentationCallback(void)
+{
 	PresentCompletionCallback *callback_rec;
 
 	callback_rec = XLMalloc(sizeof *callback_rec);
@@ -781,7 +802,8 @@ MakePresentationCallback(void) {
 }
 
 static PresentCompletionCallback *
-SwapBackBuffers(PictureTarget *target, pixman_region32_t *damage) {
+SwapBackBuffers(PictureTarget *target, pixman_region32_t *damage)
+{
 	XserverRegion region;
 	XSyncFence fence;
 	BackBuffer *back_buffer;
@@ -809,25 +831,30 @@ SwapBackBuffers(PictureTarget *target, pixman_region32_t *damage) {
 	if (!present_serial)
 		present_serial++;
 
-	if (target->render_mode == RenderModeAsync) {
+	if (target->render_mode == RenderModeAsync)
+	{
 		XPresentPixmap(compositor.display, target->window,
-					   back_buffer->pixmap, present_serial,
-					   None, region, 0, 0, None, None, fence,
-					   PresentOptionAsync, 0, 0, 0, NULL, 0);
-	} else if (target->render_mode == RenderModeVsyncAsync) {
+		               back_buffer->pixmap, present_serial,
+		               None, region, 0, 0, None, None, fence,
+		               PresentOptionAsync, 0, 0, 0, NULL, 0);
+	}
+	else if (target->render_mode == RenderModeVsyncAsync)
+	{
 		/* Present the pixmap asynchronously at the next frame.  */
 		XPresentPixmap(compositor.display, target->window,
-					   back_buffer->pixmap, present_serial,
-					   None, region, 0, 0, None, None, fence,
-					   PresentOptionAsync, target->next_msc,
-					   1, 0, NULL, 0);
-	} else {
+		               back_buffer->pixmap, present_serial,
+		               None, region, 0, 0, None, None, fence,
+		               PresentOptionAsync, target->next_msc,
+		               1, 0, NULL, 0);
+	}
+	else
+	{
 		/* Present the pixmap synchronously at the next frame.  */
 		XPresentPixmap(compositor.display, target->window,
-					   back_buffer->pixmap, present_serial,
-					   None, region, 0, 0, None, None, fence,
-					   PresentOptionNone, target->next_msc,
-					   1, 0, NULL, 0);
+		               back_buffer->pixmap, present_serial,
+		               None, region, 0, 0, None, None, fence,
+		               PresentOptionNone, target->next_msc,
+		               1, 0, NULL, 0);
 	}
 
 	/* Mark the back buffer as busy, and the other back buffer as having
@@ -842,7 +869,8 @@ SwapBackBuffers(PictureTarget *target, pixman_region32_t *damage) {
 	/* Find the other back buffer and clear its busy flag if set.  */
 	other = (target->current_back_buffer ? 0 : 1);
 
-	if (target->back_buffers[other]) {
+	if (target->back_buffers[other])
+	{
 		target->back_buffers[other]->picture |= BufferSync;
 		ClearBufferBusy(target->back_buffers[other]);
 
@@ -865,7 +893,8 @@ SwapBackBuffers(PictureTarget *target, pixman_region32_t *damage) {
 }
 
 static void
-SwapBackBuffersWithCopy(PictureTarget *target, pixman_region32_t *damage) {
+SwapBackBuffersWithCopy(PictureTarget *target, pixman_region32_t *damage)
+{
 	pixman_box32_t *boxes;
 	int nboxes, i, other;
 	BackBuffer *back_buffer;
@@ -901,7 +930,8 @@ SwapBackBuffersWithCopy(PictureTarget *target, pixman_region32_t *damage) {
 }
 
 static void
-MaybeAwaitBuffer(BackBuffer *buffer) {
+MaybeAwaitBuffer(BackBuffer *buffer)
+{
 	if (!(buffer->picture & BufferSync))
 		return;
 
@@ -920,7 +950,8 @@ MaybeAwaitBuffer(BackBuffer *buffer) {
 }
 
 static BackBuffer *
-GetNextBackBuffer(PictureTarget *target) {
+GetNextBackBuffer(PictureTarget *target)
+{
 	/* Return the next back buffer that will be used, but do not create
 	   any if none exists.  */
 
@@ -931,27 +962,33 @@ GetNextBackBuffer(PictureTarget *target) {
 }
 
 static void
-EnsurePicture(PictureTarget *target) {
+EnsurePicture(PictureTarget *target)
+{
 	BackBuffer *buffer;
 
 	if (target->picture)
 		return;
 
 	/* Find a back buffer that isn't busy.  */
-	if (!target->back_buffers[0] || !IsBufferBusy(target->back_buffers[0])) {
+	if (!target->back_buffers[0] || !IsBufferBusy(target->back_buffers[0]))
+	{
 		buffer = target->back_buffers[0];
 		target->current_back_buffer = 0;
 
-		if (!buffer) {
+		if (!buffer)
+		{
 			/* Create the first back buffer.  */
 			buffer = CreateBackBuffer(target);
 			target->back_buffers[0] = buffer;
 		}
-	} else {
+	}
+	else
+	{
 		buffer = target->back_buffers[1];
 		target->current_back_buffer = 1;
 
-		if (!buffer) {
+		if (!buffer)
+		{
 			/* Create the second back buffer.  */
 			buffer = CreateBackBuffer(target);
 			target->back_buffers[1] = buffer;
@@ -969,7 +1006,8 @@ EnsurePicture(PictureTarget *target) {
 }
 
 static Visual *
-PickVisual(int *depth) {
+PickVisual(int *depth)
+{
 	int n_visuals;
 	XVisualInfo vinfo, *visuals;
 	Visual *selection;
@@ -981,7 +1019,8 @@ PickVisual(int *depth) {
 	visuals = XGetVisualInfo(compositor.display, (VisualScreenMask | VisualClassMask | VisualDepthMask),
 	                         &vinfo, &n_visuals);
 
-	if (n_visuals) {
+	if (n_visuals)
+	{
 		selection = visuals[0].visual;
 		*depth = visuals[0].depth;
 		XFree(visuals);
@@ -993,13 +1032,17 @@ PickVisual(int *depth) {
 }
 
 static void
-AddAdditionalModifier(const char *name) {
+AddAdditionalModifier(const char *name)
+{
 	int i, j;
 
-	for (i = 0; i < ArrayElements(known_modifiers) - 1; ++i) {
-		if (!strcmp(known_modifiers[i].name, name)) {
+	for (i = 0; i < ArrayElements(known_modifiers) - 1; ++i)
+	{
+		if (!strcmp(known_modifiers[i].name, name))
+		{
 			/* The modifier was found.  See if it already exists.  */
-			for (j = 0; j < num_specified_modifiers; ++j) {
+			for (j = 0; j < num_specified_modifiers; ++j)
+			{
 				if (user_specified_modifiers[j] == known_modifiers[i].modifier)
 					/* The modifier was already specified.  */
 					return;
@@ -1022,13 +1065,15 @@ AddAdditionalModifier(const char *name) {
 }
 
 static void
-ParseAdditionalModifiers(const char *string) {
+ParseAdditionalModifiers(const char *string)
+{
 	const char *end, *sep;
 	char *buffer;
 
 	end = string + strlen(string);
 
-	while (string < end) {
+	while (string < end)
+	{
 		/* Find the next comma.  */
 		sep = strchr(string, ',');
 
@@ -1048,7 +1093,8 @@ ParseAdditionalModifiers(const char *string) {
 }
 
 static void
-InitAdditionalModifiers(void) {
+InitAdditionalModifiers(void)
+{
 	XrmDatabase rdb;
 	XrmName namelist[3];
 	XrmClass classlist[3];
@@ -1085,7 +1131,8 @@ InitAdditionalModifiers(void) {
 static void AddRenderFlag(int);
 
 static Bool
-InitRenderFuncs(void) {
+InitRenderFuncs(void)
+{
 	int major, minor, error_base, event_base;
 	XSetWindowAttributes attrs;
 
@@ -1097,7 +1144,8 @@ InitRenderFuncs(void) {
 	                            &present_opcode,
 	                            &error_base, &event_base) ||
 	    !XPresentQueryVersion(compositor.display,
-	                          &major, &minor)) {
+	                          &major, &minor))
+	{
 		fprintf(stderr, "The X presentation extension is not supported"
 		        " by this X server\n");
 		return False;
@@ -1128,7 +1176,8 @@ InitRenderFuncs(void) {
 
 static RenderTarget
 TargetFromDrawable(Drawable drawable, Window window,
-                   unsigned long standard_event_mask) {
+                   unsigned long standard_event_mask)
+{
 	XRenderPictureAttributes picture_attrs;
 	PictureTarget *target;
 	XGCValues gcvalues;
@@ -1169,7 +1218,8 @@ TargetFromDrawable(Drawable drawable, Window window,
 	/* And the event mask.  */
 	target->standard_event_mask = standard_event_mask;
 
-	if (window) {
+	if (window)
+	{
 		/* Add the window to the assoc table.  */
 		XLMakeAssoc(xid_table, window, target);
 
@@ -1182,18 +1232,21 @@ TargetFromDrawable(Drawable drawable, Window window,
 }
 
 static RenderTarget
-TargetFromWindow(Window window, unsigned long event_mask) {
+TargetFromWindow(Window window, unsigned long event_mask)
+{
 	return TargetFromDrawable(window, window, event_mask);
 }
 
 static RenderTarget
-TargetFromPixmap(Pixmap pixmap) {
+TargetFromPixmap(Pixmap pixmap)
+{
 	return TargetFromDrawable(pixmap, None, NoEventMask);
 }
 
 static Bool
 SetRenderMode(RenderTarget target, RenderMode mode,
-              uint64_t target_msc) {
+              uint64_t target_msc)
+{
 	PictureTarget *pict_target;
 
 	pict_target = target.pointer;
@@ -1207,7 +1260,8 @@ SetRenderMode(RenderTarget target, RenderMode mode,
 }
 
 static void
-SetClient(RenderTarget target, struct wl_client *client) {
+SetClient(RenderTarget target, struct wl_client *client)
+{
 	PictureTarget *picture_target;
 	ClientErrorData *data;
 	uint64_t pixels;
@@ -1215,7 +1269,8 @@ SetClient(RenderTarget target, struct wl_client *client) {
 	picture_target = target.pointer;
 
 	/* Release the client data if some is already attached.  */
-	if (picture_target->client) {
+	if (picture_target->client)
+	{
 		if (picture_target->client && IntMultiplyWrapv(picture_target->width, picture_target->height, &pixels) &&
 		    IntSubtractWrapv(picture_target->client->n_pixels, pixels, &picture_target->client->n_pixels))
 			picture_target->client->n_pixels = 0;
@@ -1234,7 +1289,8 @@ SetClient(RenderTarget target, struct wl_client *client) {
 }
 
 static void
-SetStandardEventMask(RenderTarget target, unsigned long standard_event_mask) {
+SetStandardEventMask(RenderTarget target, unsigned long standard_event_mask)
+{
 	PictureTarget *pict_target;
 
 	pict_target = target.pointer;
@@ -1245,13 +1301,15 @@ SetStandardEventMask(RenderTarget target, unsigned long standard_event_mask) {
 }
 
 static void
-NoteTargetSize(RenderTarget target, int width, int height) {
+NoteTargetSize(RenderTarget target, int width, int height)
+{
 	PictureTarget *pict_target;
 	uint64_t pixels;
 
 	pict_target = target.pointer;
 
-	if (width != pict_target->width || height != pict_target->height) {
+	if (width != pict_target->width || height != pict_target->height)
+	{
 		/* Recreate all the back buffers for the new target size.  */
 		FreeBackBuffers(pict_target);
 
@@ -1271,7 +1329,8 @@ NoteTargetSize(RenderTarget target, int width, int height) {
 }
 
 static Picture
-PictureFromTarget(RenderTarget target) {
+PictureFromTarget(RenderTarget target)
+{
 	PictureTarget *pict_target;
 
 	pict_target = target.pointer;
@@ -1279,12 +1338,14 @@ PictureFromTarget(RenderTarget target) {
 }
 
 static void
-FreePictureFromTarget(Picture picture) {
+FreePictureFromTarget(Picture picture)
+{
 	/* There is no need to free these pictures.  */
 }
 
 static void
-RemovePresentRecord(PresentRecord *record) {
+RemovePresentRecord(PresentRecord *record)
+{
 	record->target_next->target_last = record->target_last;
 	record->target_last->target_next = record->target_next;
 	record->buffer_next->buffer_last = record->buffer_last;
@@ -1294,7 +1355,8 @@ RemovePresentRecord(PresentRecord *record) {
 }
 
 static void
-DestroyRenderTarget(RenderTarget target) {
+DestroyRenderTarget(RenderTarget target)
+{
 	PictureTarget *pict_target;
 	PresentRecord *record, *last;
 	BufferActivityRecord *activity_record, *activity_last;
@@ -1310,7 +1372,8 @@ DestroyRenderTarget(RenderTarget target) {
 	/* Destroy all back buffers.  */
 	FreeBackBuffers(pict_target);
 
-	if (pict_target->window) {
+	if (pict_target->window)
+	{
 		/* Delete the window from the assoc table.  */
 		XLDeleteAssoc(xid_table, pict_target->window);
 
@@ -1320,7 +1383,8 @@ DestroyRenderTarget(RenderTarget target) {
 
 	/* Free attached presentation records.  */
 	record = pict_target->pending.target_next;
-	while (record != &pict_target->pending) {
+	while (record != &pict_target->pending)
+	{
 		last = record;
 		record = record->target_next;
 
@@ -1330,7 +1394,8 @@ DestroyRenderTarget(RenderTarget target) {
 
 	/* Free all activity associated with this target.  */
 	activity_record = pict_target->activity.target_next;
-	while (activity_record != &pict_target->activity) {
+	while (activity_record != &pict_target->activity)
+	{
 		activity_last = activity_record;
 		activity_record = activity_record->target_next;
 
@@ -1340,7 +1405,8 @@ DestroyRenderTarget(RenderTarget target) {
 
 	/* Free all idle callbacks on this target.  */
 	idle = pict_target->idle_callbacks.target_next;
-	while (idle != &pict_target->idle_callbacks) {
+	while (idle != &pict_target->idle_callbacks)
+	{
 		idle_last = idle;
 		idle = idle->target_next;
 
@@ -1354,7 +1420,8 @@ DestroyRenderTarget(RenderTarget target) {
 
 	/* Dereference the client data if it is set.  Also, remove the
 	   pixels recorded.  */
-	if (pict_target->client) {
+	if (pict_target->client)
+	{
 		if (pict_target->client && IntMultiplyWrapv(pict_target->width, pict_target->height, &pixels) &&
 		    IntSubtractWrapv(pict_target->client->n_pixels, pixels, &pict_target->client->n_pixels))
 			pict_target->client->n_pixels = 0;
@@ -1367,7 +1434,8 @@ DestroyRenderTarget(RenderTarget target) {
 
 static void
 FillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
-                          int nboxes, int min_x, int min_y) {
+                          int nboxes, int min_x, int min_y)
+{
 	XRectangle *rects;
 	static XRenderColor color;
 	int i;
@@ -1386,7 +1454,8 @@ FillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
 	/* Pacify GCC.  */
 	memset(rects, 0, sizeof *rects * nboxes);
 
-	for (i = 0; i < nboxes; ++i) {
+	for (i = 0; i < nboxes; ++i)
+	{
 		rects[i].x = BoxStartX(boxes[i]) - min_x;
 		rects[i].y = BoxStartY(boxes[i]) - min_y;
 		rects[i].width = BoxWidth(boxes[i]);
@@ -1402,7 +1471,8 @@ FillBoxesWithTransparency(RenderTarget target, pixman_box32_t *boxes,
 }
 
 static XserverRegion
-ServerRegionFromRegion(pixman_region32_t *region) {
+ServerRegionFromRegion(pixman_region32_t *region)
+{
 	XRectangle *rects;
 	int i, nboxes;
 	pixman_box32_t *boxes;
@@ -1415,7 +1485,8 @@ ServerRegionFromRegion(pixman_region32_t *region) {
 	else
 		rects = XLMalloc(sizeof *rects * nboxes);
 
-	for (i = 0; i < nboxes; ++i) {
+	for (i = 0; i < nboxes; ++i)
+	{
 		rects[i].x = BoxStartX(boxes[i]);
 		rects[i].y = BoxStartY(boxes[i]);
 		rects[i].width = BoxWidth(boxes[i]);
@@ -1432,7 +1503,8 @@ ServerRegionFromRegion(pixman_region32_t *region) {
 }
 
 static void
-ClearRectangle(RenderTarget target, int x, int y, int width, int height) {
+ClearRectangle(RenderTarget target, int x, int y, int width, int height)
+{
 	PictureTarget *pict_target;
 	static XRenderColor color;
 
@@ -1444,22 +1516,26 @@ ClearRectangle(RenderTarget target, int x, int y, int width, int height) {
 }
 
 static int
-ConvertOperation(const Operation op) {
-	switch (op) {
+ConvertOperation(const Operation op)
+{
+	switch (op)
+	{
 		case OperationOver:
 			return PictOpOver;
 
 		case OperationSource:
 			return PictOpSrc;
 
-		default: {
+		default:
+		{
 			abort();
 		}
 	}
 }
 
 static double
-GetScale(const DrawParams *params) {
+GetScale(const DrawParams *params)
+{
 	if (params->flags & ScaleSet)
 		return params->scale;
 
@@ -1467,7 +1543,8 @@ GetScale(const DrawParams *params) {
 }
 
 static double
-GetSourceX(const DrawParams *params) {
+GetSourceX(const DrawParams *params)
+{
 	if (params->flags & OffsetSet)
 		return params->off_x;
 
@@ -1475,7 +1552,8 @@ GetSourceX(const DrawParams *params) {
 }
 
 static double
-GetSourceY(const DrawParams *params) {
+GetSourceY(const DrawParams *params)
+{
 	if (params->flags & OffsetSet)
 		return params->off_y;
 
@@ -1483,7 +1561,8 @@ GetSourceY(const DrawParams *params) {
 }
 
 static BufferTransform
-GetBufferTransform(const DrawParams *params) {
+GetBufferTransform(const DrawParams *params)
+{
 	if (params->flags & TransformSet)
 		return params->transform;
 
@@ -1491,7 +1570,8 @@ GetBufferTransform(const DrawParams *params) {
 }
 
 static Bool
-CompareStretch(const DrawParams *params, const DrawParams *other) {
+CompareStretch(const DrawParams *params, const DrawParams *other)
+{
 	if ((params->flags & StretchSet) != (other->flags & StretchSet))
 		return False;
 
@@ -1503,7 +1583,8 @@ CompareStretch(const DrawParams *params, const DrawParams *other) {
 }
 
 static void
-MaybeApplyTransform(PictureBuffer *buffer, DrawParams *params) {
+MaybeApplyTransform(PictureBuffer *buffer, DrawParams *params)
+{
 	XTransform transform;
 	Matrix ftransform;
 
@@ -1520,7 +1601,8 @@ MaybeApplyTransform(PictureBuffer *buffer, DrawParams *params) {
 		XRenderSetPictureTransform(compositor.display,
 		                           buffer->picture,
 		                           &identity_transform);
-	else {
+	else
+	{
 		MatrixIdentity(&ftransform);
 
 		/* The buffer transform must always be applied first.  */
@@ -1561,7 +1643,8 @@ MaybeApplyTransform(PictureBuffer *buffer, DrawParams *params) {
 static void
 Composite(RenderBuffer buffer, RenderTarget target,
           Operation op, int src_x, int src_y, int x, int y,
-          int width, int height, DrawParams *draw_params) {
+          int width, int height, DrawParams *draw_params)
+{
 	PictureBuffer *picture_buffer;
 	PictureTarget *picture_target;
 	XLList *tem;
@@ -1586,7 +1669,8 @@ Composite(RenderBuffer buffer, RenderTarget target,
 	                 /* dst-x, dst-y, width, height.  */
 	                 x, y, width, height);
 
-	for (tem = picture_target->buffers_used; tem; tem = tem->next) {
+	for (tem = picture_target->buffers_used; tem; tem = tem->next)
+	{
 		/* Return if the buffer is already in the buffers_used list.  */
 
 		if (tem->data == picture_buffer)
@@ -1601,7 +1685,8 @@ Composite(RenderBuffer buffer, RenderTarget target,
 
 static RenderCompletionKey
 FinishRender(RenderTarget target, pixman_region32_t *damage,
-             RenderCompletionFunc function, void *data) {
+             RenderCompletionFunc function, void *data)
+{
 	XLList *tem, *last;
 	PictureTarget *pict_target;
 	uint64_t roundtrip_id;
@@ -1620,7 +1705,8 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 	roundtrip_id = SendRoundtripMessage();
 	tem = pict_target->buffers_used;
 
-	while (tem) {
+	while (tem)
+	{
 		last = tem;
 		tem = tem->next;
 
@@ -1637,11 +1723,13 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 
 	/* Swap the back buffer to the screen if it was used.  */
 
-	if (pict_target->current_back_buffer != -1) {
+	if (pict_target->current_back_buffer != -1)
+	{
 		/* If a callback was specified, then use the Present extension,
 	   and return a completion callback.  */
 
-		if (function) {
+		if (function)
+		{
 			callback_rec = SwapBackBuffers(pict_target, damage);
 			callback_rec->function = function;
 			callback_rec->data = data;
@@ -1659,7 +1747,8 @@ FinishRender(RenderTarget target, pixman_region32_t *damage,
 }
 
 static void
-CancelCompletionCallback(RenderCompletionKey key) {
+CancelCompletionCallback(RenderCompletionKey key)
+{
 	PresentCompletionCallback *callback;
 
 	callback = key;
@@ -1670,7 +1759,8 @@ CancelCompletionCallback(RenderCompletionKey key) {
 }
 
 static int
-TargetAge(RenderTarget target) {
+TargetAge(RenderTarget target)
+{
 	BackBuffer *buffer;
 	PictureTarget *pict_target;
 
@@ -1697,33 +1787,39 @@ TargetAge(RenderTarget target) {
    straightforward implementation.  */
 
 static RenderFence
-ImportFdFence(int fd, Bool *error) {
+ImportFdFence(int fd, Bool *error)
+{
 	*error = True;
 	return (RenderFence) (XID) None;
 }
 
 static void
-WaitFence(RenderFence fence) {
+WaitFence(RenderFence fence)
+{
 	/* Unsupported.  */
 }
 
 static void
-DeleteFence(RenderFence fence) {
+DeleteFence(RenderFence fence)
+{
 	/* Unsupported.  */
 }
 
 static int
-GetFinishFence(Bool *error) {
+GetFinishFence(Bool *error)
+{
 	*error = True;
 	return -1;
 }
 
 static PresentRecord *
-FindPresentRecord(PictureBuffer *buffer, PictureTarget *target) {
+FindPresentRecord(PictureBuffer *buffer, PictureTarget *target)
+{
 	PresentRecord *record;
 
 	record = buffer->pending.buffer_next;
-	while (record != &buffer->pending) {
+	while (record != &buffer->pending)
+	{
 		if (record->target == target)
 			return record;
 
@@ -1735,7 +1831,8 @@ FindPresentRecord(PictureBuffer *buffer, PictureTarget *target) {
 }
 
 static PresentRecord *
-AllocateRecord(PictureBuffer *buffer, PictureTarget *target) {
+AllocateRecord(PictureBuffer *buffer, PictureTarget *target)
+{
 	PresentRecord *record;
 
 	/* Allocate a record and link it onto both BUFFER and TARGET.  */
@@ -1761,7 +1858,8 @@ AllocateRecord(PictureBuffer *buffer, PictureTarget *target) {
 static PresentCompletionKey
 PresentToWindow(RenderTarget target, RenderBuffer source,
                 pixman_region32_t *damage,
-                PresentCompletionFunc callback, void *data) {
+                PresentCompletionFunc callback, void *data)
+{
 	PictureBuffer *buffer;
 	PictureTarget *pict_target;
 	XserverRegion region;
@@ -1819,7 +1917,8 @@ PresentToWindow(RenderTarget target, RenderBuffer source,
 	/* If it was, just set the serial.  */
 	if (record)
 		record->serial = present_serial;
-	else {
+	else
+	{
 		/* Otherwise, allocate and attach a record.  */
 		record = AllocateRecord(buffer, pict_target);
 		record->serial = present_serial;
@@ -1840,7 +1939,8 @@ PresentToWindow(RenderTarget target, RenderBuffer source,
 
 static RenderCompletionKey
 NotifyMsc(RenderTarget target, RenderCompletionFunc callback,
-          void *data) {
+          void *data)
+{
 	PictureTarget *pict_target;
 	PresentCompletionCallback *callback_rec;
 
@@ -1870,7 +1970,8 @@ NotifyMsc(RenderTarget target, RenderCompletionFunc callback,
 /* Cancel the given presentation callback.  */
 
 static void
-CancelPresentationCallback(PresentCompletionKey key) {
+CancelPresentationCallback(PresentCompletionKey key)
+{
 	PresentCompletionCallback *callback;
 
 	callback = key;
@@ -1908,12 +2009,14 @@ static RenderFuncs picture_render_funcs =
 };
 
 static void
-AddRenderFlag(int flag) {
+AddRenderFlag(int flag)
+{
 	picture_render_funcs.flags |= flag;
 }
 
 static DrmFormatInfo *
-FindFormatMatching(XRenderPictFormat *format) {
+FindFormatMatching(XRenderPictFormat *format)
+{
 	unsigned long alpha, red, green, blue;
 	int i;
 
@@ -1926,7 +2029,8 @@ FindFormatMatching(XRenderPictFormat *format) {
 	green = format->direct.greenMask << format->direct.green;
 	blue = format->direct.blueMask << format->direct.blue;
 
-	for (i = 0; i < ArrayElements(all_formats); ++i) {
+	for (i = 0; i < ArrayElements(all_formats); ++i)
+	{
 		if (all_formats[i].depth == format->depth && all_formats[i].red == red && all_formats[i].green == green &&
 		    all_formats[i].blue == blue && all_formats[i].alpha == alpha)
 			return &all_formats[i];
@@ -1936,10 +2040,12 @@ FindFormatMatching(XRenderPictFormat *format) {
 }
 
 static Bool
-HavePixmapFormat(int depth, int bpp) {
+HavePixmapFormat(int depth, int bpp)
+{
 	int i;
 
-	for (i = 0; i < num_x_formats; ++i) {
+	for (i = 0; i < num_x_formats; ++i)
+	{
 		if (x_formats[i].depth == depth && x_formats[i].bits_per_pixel == bpp)
 			return True;
 	}
@@ -1948,7 +2054,8 @@ HavePixmapFormat(int depth, int bpp) {
 }
 
 static Bool
-FindSupportedFormats(void) {
+FindSupportedFormats(void)
+{
 	int count;
 	XRenderPictFormat *format;
 	DrmFormatInfo *info;
@@ -1957,7 +2064,8 @@ FindSupportedFormats(void) {
 	count = 0;
 	supported = False;
 
-	do {
+	do
+	{
 		format = XRenderFindFormat(compositor.display, 0,
 		                           NULL, count);
 		count++;
@@ -1983,7 +2091,8 @@ FindSupportedFormats(void) {
 }
 
 static Window
-MakeCheckWindow(void) {
+MakeCheckWindow(void)
+{
 	XSetWindowAttributes attrs;
 	unsigned long flags;
 
@@ -2002,7 +2111,8 @@ MakeCheckWindow(void) {
 }
 
 static void
-FindSupportedModifiers(int *pair_count_return) {
+FindSupportedModifiers(int *pair_count_return)
+{
 	Window check_window;
 	xcb_dri3_get_supported_modifiers_cookie_t *cookies;
 	xcb_dri3_get_supported_modifiers_reply_t *reply;
@@ -2016,8 +2126,10 @@ FindSupportedModifiers(int *pair_count_return) {
 	check_window = MakeCheckWindow();
 	pair_count = 0;
 
-	for (i = 0; i < ArrayElements(all_formats); ++i) {
-		if (all_formats[i].format) {
+	for (i = 0; i < ArrayElements(all_formats); ++i)
+	{
+		if (all_formats[i].format)
+		{
 			cookies[i] = xcb_dri3_get_supported_modifiers(compositor.conn,
 			                                              check_window, all_formats[i].depth,
 			                                              all_formats[i].bits_per_pixel);
@@ -2033,7 +2145,8 @@ FindSupportedModifiers(int *pair_count_return) {
 	/* Delete the temporary window used to query for modifiers.  */
 	XDestroyWindow(compositor.display, check_window);
 
-	for (i = 0; i < ArrayElements(all_formats); ++i) {
+	for (i = 0; i < ArrayElements(all_formats); ++i)
+	{
 		if (!all_formats[i].format)
 			continue;
 
@@ -2049,7 +2162,8 @@ FindSupportedModifiers(int *pair_count_return) {
 		all_formats[i].supported_modifiers = XLMalloc(sizeof *mods * length);
 		all_formats[i].n_supported_modifiers = length;
 
-		for (j = 0; j < length; ++j) {
+		for (j = 0; j < length; ++j)
+		{
 			/* Then, add length for each explicit modifier that wasn't
 			   already specified.  */
 
@@ -2066,7 +2180,8 @@ FindSupportedModifiers(int *pair_count_return) {
 }
 
 static void
-InitDrmFormats(void) {
+InitDrmFormats(void)
+{
 	int pair_count, i, j, n, k;
 
 	/* First, look up which formats are supported.  */
@@ -2082,7 +2197,8 @@ InitDrmFormats(void) {
 	n = 0;
 
 	/* Populate the format list.  */
-	for (i = 0; i < ArrayElements(all_formats); ++i) {
+	for (i = 0; i < ArrayElements(all_formats); ++i)
+	{
 		if (!all_formats[i].format)
 			continue;
 
@@ -2095,7 +2211,8 @@ InitDrmFormats(void) {
 		n++;
 
 		/* And add all of the user-specified modifiers.  */
-		for (j = 0; j < num_specified_modifiers; ++j) {
+		for (j = 0; j < num_specified_modifiers; ++j)
+		{
 			/* Assert that n < pair_count.  */
 			XLAssert(n < pair_count);
 
@@ -2105,7 +2222,8 @@ InitDrmFormats(void) {
 		}
 
 		/* Now add every supported explicit modifier.  */
-		for (j = 0; j < all_formats[i].n_supported_modifiers; ++i) {
+		for (j = 0; j < all_formats[i].n_supported_modifiers; ++i)
+		{
 			/* Ignore previously specified modifiers.  */
 
 			if ((all_formats[i].supported_modifiers[j] == DRM_FORMAT_MOD_INVALID))
@@ -2113,7 +2231,8 @@ InitDrmFormats(void) {
 
 			/* Ignore user-specified modifiers.  */
 
-			for (k = 0; k < num_specified_modifiers; ++k) {
+			for (k = 0; k < num_specified_modifiers; ++k)
+			{
 				if (user_specified_modifiers[k] == all_formats[i].supported_modifiers[j])
 					continue;
 			}
@@ -2136,26 +2255,30 @@ InitDrmFormats(void) {
 }
 
 static DrmFormat *
-GetDrmFormats(int *num_formats) {
+GetDrmFormats(int *num_formats)
+{
 	*num_formats = n_drm_formats;
 	return drm_formats;
 }
 
 static dev_t
-GetRenderDevice(xcb_dri3_open_reply_t *reply, Bool *error) {
+GetRenderDevice(xcb_dri3_open_reply_t *reply, Bool *error)
+{
 	int *fds, fd;
 	struct stat dev_stat;
 
 	fds = xcb_dri3_open_reply_fds(compositor.conn, reply);
 
-	if (!fds) {
+	if (!fds)
+	{
 		*error = True;
 		return (dev_t) 0;
 	}
 
 	fd = fds[0];
 
-	if (fstat(fd, &dev_stat) != 0) {
+	if (fstat(fd, &dev_stat) != 0)
+	{
 		close(fd);
 		*error = True;
 		return (dev_t) 0;
@@ -2166,7 +2289,8 @@ GetRenderDevice(xcb_dri3_open_reply_t *reply, Bool *error) {
 }
 
 static dev_t *
-GetRenderDevices(int *num_devices) {
+GetRenderDevices(int *num_devices)
+{
 	Window root;
 	xcb_randr_get_providers_cookie_t cookie;
 	xcb_randr_get_providers_reply_t *reply;
@@ -2179,7 +2303,8 @@ GetRenderDevices(int *num_devices) {
 	dev_t *devices;
 	Bool error_experienced;
 
-	if (render_devices) {
+	if (render_devices)
+	{
 		*num_devices = num_render_devices;
 		return render_devices;
 	}
@@ -2215,11 +2340,13 @@ GetRenderDevices(int *num_devices) {
 	devices = XLCalloc(nproviders + 1, sizeof *devices);
 	ndevices = 0;
 
-	for (i = 0; i < nproviders; ++i) {
+	for (i = 0; i < nproviders; ++i)
+	{
 		open_reply = xcb_dri3_open_reply(compositor.conn, open_cookies[i],
 		                                 &error);
 
-		if (error || !open_reply) {
+		if (error || !open_reply)
+		{
 			if (error)
 				free(error);
 
@@ -2266,11 +2393,14 @@ GetShmFormats(int *num_formats)
 }
 
 static int
-DepthForDmabufFormat(uint32_t drm_format, int *bits_per_pixel) {
+DepthForDmabufFormat(uint32_t drm_format, int *bits_per_pixel)
+{
 	int i;
 
-	for (i = 0; i < ArrayElements(all_formats); ++i) {
-		if (all_formats[i].format_code == drm_format && all_formats[i].format) {
+	for (i = 0; i < ArrayElements(all_formats); ++i)
+	{
+		if (all_formats[i].format_code == drm_format && all_formats[i].format)
+		{
 			*bits_per_pixel = all_formats[i].bits_per_pixel;
 
 			return all_formats[i].depth;
@@ -2281,8 +2411,10 @@ DepthForDmabufFormat(uint32_t drm_format, int *bits_per_pixel) {
 }
 
 static XRenderPictFormat *
-PictFormatForDmabufFormat(const uint32_t drm_format) {
-	for (int i = 0; i < ArrayElements(all_formats); ++i) {
+PictFormatForDmabufFormat(const uint32_t drm_format)
+{
+	for (int i = 0; i < ArrayElements(all_formats); ++i)
+	{
 		if (all_formats[i].format_code == drm_format && all_formats[i].format)
 			return all_formats[i].format;
 	}
@@ -2293,13 +2425,15 @@ PictFormatForDmabufFormat(const uint32_t drm_format) {
 }
 
 static void
-CloseFileDescriptors(const DmaBufAttributes *attributes) {
+CloseFileDescriptors(const DmaBufAttributes *attributes)
+{
 	for (int i = 0; i < attributes->n_planes; ++i)
 		close(attributes->fds[i]);
 }
 
 static Bool
-PictFormatIsPresentable(const XRenderPictFormat *format) {
+PictFormatIsPresentable(const XRenderPictFormat *format)
+{
 	/* If format has the same masks as the visual format, then it is
 	   presentable.  */
 	if (!memcmp(&format->direct, &compositor.argb_format->direct,
@@ -2310,7 +2444,8 @@ PictFormatIsPresentable(const XRenderPictFormat *format) {
 }
 
 static RenderBuffer
-BufferFromDmaBuf(DmaBufAttributes *attributes, Bool *error) {
+BufferFromDmaBuf(DmaBufAttributes *attributes, Bool *error)
+{
 	int depth, bpp;
 	Pixmap pixmap;
 	Picture picture;
@@ -2349,7 +2484,8 @@ BufferFromDmaBuf(DmaBufAttributes *attributes, Bool *error) {
 
 	/* A platform specific error occured creating this buffer.  Signal
 	   failure.  */
-	if (xerror) {
+	if (xerror)
+	{
 		free(xerror);
 		goto error;
 	}
@@ -2398,7 +2534,8 @@ error:
 }
 
 static void
-ForceRoundTrip(void) {
+ForceRoundTrip(void)
+{
 	uint64_t id;
 	XEvent event;
 
@@ -2425,12 +2562,14 @@ ForceRoundTrip(void) {
 }
 
 static void
-FinishDmaBufRecord(DmaBufRecord *pending, Bool success) {
+FinishDmaBufRecord(DmaBufRecord *pending, Bool success)
+{
 	Picture picture;
 	XRenderPictureAttributes picture_attrs;
 	PictureBuffer *buffer;
 
-	if (success) {
+	if (success)
+	{
 		/* This is just to pacify GCC.  */
 		memset(&picture_attrs, 0, sizeof picture_attrs);
 
@@ -2470,7 +2609,8 @@ FinishDmaBufRecord(DmaBufRecord *pending, Bool success) {
 		/* Call the creation success function with the new picture.  */
 		pending->success_func((RenderBuffer) (void *) buffer,
 		                      pending->data);
-	} else
+	}
+	else
 	/* Call the failure function with the data.  */
 		pending->failure_func(pending->data);
 
@@ -2482,14 +2622,16 @@ FinishDmaBufRecord(DmaBufRecord *pending, Bool success) {
 }
 
 static void
-FinishBufferCreation(void) {
+FinishBufferCreation(void)
+{
 	DmaBufRecord *next, *last;
 
 	/* It is now known that all records in pending_success have been
 	   created.  Create pictures and call the success function for
 	   each.  */
 	next = pending_success.next;
-	while (next != &pending_success) {
+	while (next != &pending_success)
+	{
 		last = next;
 		next = next->next;
 
@@ -2504,7 +2646,8 @@ static void
 BufferFromDmaBufAsync(DmaBufAttributes *attributes,
                       DmaBufSuccessFunc success_func,
                       DmaBufFailureFunc failure_func,
-                      void *callback_data) {
+                      void *callback_data)
+{
 	DmaBufRecord *record;
 	int depth, bpp;
 	Pixmap pixmap;
@@ -2570,8 +2713,10 @@ error:
 }
 
 static int
-DepthForFormat(uint32_t format, int *bpp) {
-	switch (format) {
+DepthForFormat(uint32_t format, int *bpp)
+{
+	switch (format)
+	{
 		case WL_SHM_FORMAT_ARGB8888:
 			*bpp = 32;
 			return 32;
@@ -2581,13 +2726,15 @@ DepthForFormat(uint32_t format, int *bpp) {
 			return 24;
 
 		default:
-			return 0;
+			return -1;
 	}
 }
 
 static XRenderPictFormat *
-PictFormatForFormat(uint32_t format) {
-	switch (format) {
+PictFormatForFormat(uint32_t format)
+{
+	switch (format)
+	{
 		case WL_SHM_FORMAT_ARGB8888:
 			return compositor.argb_format;
 
@@ -2595,12 +2742,13 @@ PictFormatForFormat(uint32_t format) {
 			return compositor.xrgb_format;
 
 		default:
-			return 0;
+			return NULL;
 	}
 }
 
 static RenderBuffer
-BufferFromShm(SharedMemoryAttributes *attributes, Bool *error) {
+BufferFromShm(SharedMemoryAttributes *attributes, Bool *error)
+{
 	XRenderPictureAttributes picture_attrs;
 	xcb_shm_seg_t seg;
 	Pixmap pixmap;
@@ -2612,7 +2760,8 @@ BufferFromShm(SharedMemoryAttributes *attributes, Bool *error) {
 	depth = DepthForFormat(attributes->format, &bpp);
 	format = attributes->format;
 
-	if (!depth) {
+	if (depth == -1)
+	{
 		*error = True;
 		return (RenderBuffer) NULL;
 	}
@@ -2621,7 +2770,8 @@ BufferFromShm(SharedMemoryAttributes *attributes, Bool *error) {
 	   them.  */
 	fd = fcntl(attributes->fd, F_DUPFD_CLOEXEC, 0);
 
-	if (fd < 0) {
+	if (fd < 0)
+	{
 		*error = True;
 		return (RenderBuffer) NULL;
 	}
@@ -2679,10 +2829,12 @@ BufferFromShm(SharedMemoryAttributes *attributes, Bool *error) {
 }
 
 static int
-GetScanlinePad(int depth) {
+GetScanlinePad(int depth)
+{
 	int i;
 
-	for (i = 0; i < num_x_formats; ++i) {
+	for (i = 0; i < num_x_formats; ++i)
+	{
 		if (x_formats[i].depth == depth)
 			return x_formats[i].scanline_pad;
 	}
@@ -2698,14 +2850,15 @@ GetScanlinePad(int depth) {
 
 static Bool
 ValidateShmParams(uint32_t format, uint32_t width, uint32_t height,
-                  int32_t offset, int32_t stride, size_t pool_size) {
+                  int32_t offset, int32_t stride, size_t pool_size)
+{
 	int bpp, depth;
 	long wanted_stride;
 	size_t total_size;
 
 	/* Obtain the depth and bpp.  */
 	depth = DepthForFormat(format, &bpp);
-	XLAssert(depth != 0);
+	XLAssert(depth);
 
 	/* If any signed values are negative, return.  */
 	if (offset < 0 || stride < 0)
@@ -2735,7 +2888,8 @@ ValidateShmParams(uint32_t format, uint32_t width, uint32_t height,
 
 static RenderBuffer
 BufferFromSinglePixel(uint32_t red, uint32_t green, uint32_t blue,
-                      uint32_t alpha, Bool *error) {
+                      uint32_t alpha, Bool *error)
+{
 	Picture picture;
 	Pixmap pixmap;
 	XRenderPictureAttributes picture_attrs;
@@ -2783,7 +2937,8 @@ BufferFromSinglePixel(uint32_t red, uint32_t green, uint32_t blue,
 }
 
 static void
-FreeAnyBuffer(RenderBuffer buffer) {
+FreeAnyBuffer(RenderBuffer buffer)
+{
 	PictureBuffer *picture_buffer;
 	PresentRecord *record, *last;
 	IdleCallback *idle, *last_idle;
@@ -2798,7 +2953,8 @@ FreeAnyBuffer(RenderBuffer buffer) {
 
 	/* Free attached presentation records.  */
 	record = picture_buffer->pending.buffer_next;
-	while (record != &picture_buffer->pending) {
+	while (record != &picture_buffer->pending)
+	{
 		last = record;
 		record = record->buffer_next;
 
@@ -2808,7 +2964,8 @@ FreeAnyBuffer(RenderBuffer buffer) {
 
 	/* Free any activity involving this buffer.  */
 	activity_record = picture_buffer->activity.buffer_next;
-	while (activity_record != &picture_buffer->activity) {
+	while (activity_record != &picture_buffer->activity)
+	{
 		activity_last = activity_record;
 		activity_record = activity_record->buffer_next;
 
@@ -2818,7 +2975,8 @@ FreeAnyBuffer(RenderBuffer buffer) {
 
 	/* Run and free all idle callbacks.  */
 	idle = picture_buffer->idle_callbacks.buffer_next;
-	while (idle != &picture_buffer->idle_callbacks) {
+	while (idle != &picture_buffer->idle_callbacks)
+	{
 		last_idle = idle;
 		idle = idle->buffer_next;
 
@@ -2838,22 +2996,26 @@ FreeAnyBuffer(RenderBuffer buffer) {
 }
 
 static void
-FreeShmBuffer(RenderBuffer buffer) {
+FreeShmBuffer(RenderBuffer buffer)
+{
 	FreeAnyBuffer(buffer);
 }
 
 static void
-FreeDmabufBuffer(RenderBuffer buffer) {
+FreeDmabufBuffer(RenderBuffer buffer)
+{
 	FreeAnyBuffer(buffer);
 }
 
 static void
-FreeSinglePixelBuffer(RenderBuffer buffer) {
+FreeSinglePixelBuffer(RenderBuffer buffer)
+{
 	FreeAnyBuffer(buffer);
 }
 
 static void
-SetupMitShm(void) {
+SetupMitShm(void)
+{
 	xcb_shm_query_version_reply_t *reply;
 	xcb_shm_query_version_cookie_t cookie;
 
@@ -2862,7 +3024,8 @@ SetupMitShm(void) {
 
 	ext = xcb_get_extension_data(compositor.conn, &xcb_shm_id);
 
-	if (!ext || !ext->present) {
+	if (!ext || !ext->present)
+	{
 		fprintf(stderr, "The MIT-SHM extension is not supported by this X server.\n");
 		exit(1);
 	}
@@ -2871,10 +3034,13 @@ SetupMitShm(void) {
 	reply = xcb_shm_query_version_reply(compositor.conn,
 	                                    cookie, NULL);
 
-	if (!reply) {
+	if (!reply)
+	{
 		fprintf(stderr, "The MIT-SHM extension on this X server is too old.\n");
 		exit(1);
-	} else if (reply->major_version < 1 || (reply->major_version == 1 && reply->minor_version < 2)) {
+	}
+	else if (reply->major_version < 1 || (reply->major_version == 1 && reply->minor_version < 2))
+	{
 		fprintf(stderr, "The MIT-SHM extension on this X server is too old"
 		        " to support POSIX shared memory.\n");
 		exit(1);
@@ -2884,13 +3050,15 @@ SetupMitShm(void) {
 
 	/* Now check that the mandatory image formats are supported.  */
 
-	if (!HavePixmapFormat(24, 32)) {
+	if (!HavePixmapFormat(24, 32))
+	{
 		fprintf(stderr, "X server does not support pixmap format"
 		        " of depth 24 with 32 bits per pixel\n");
 		exit(1);
 	}
 
-	if (!HavePixmapFormat(32, 32)) {
+	if (!HavePixmapFormat(32, 32))
+	{
 		fprintf(stderr, "X server does not support pixmap format"
 		        " of depth 32 with 32 bits per pixel\n");
 		exit(1);
@@ -2898,7 +3066,8 @@ SetupMitShm(void) {
 }
 
 static void
-InitBufferFuncs(void) {
+InitBufferFuncs(void)
+{
 	xcb_dri3_query_version_cookie_t cookie;
 	xcb_dri3_query_version_reply_t *reply;
 	const xcb_query_extension_reply_t *ext;
@@ -2907,7 +3076,8 @@ InitBufferFuncs(void) {
 	   server.  */
 	x_formats = XListPixmapFormats(compositor.display, &num_x_formats);
 
-	if (!x_formats) {
+	if (!x_formats)
+	{
 		fprintf(stderr, "No pixmap formats could be retrieved from"
 		        " the X server\n");
 		return;
@@ -2923,7 +3093,8 @@ InitBufferFuncs(void) {
 	ext = xcb_get_extension_data(compositor.conn, &xcb_dri3_id);
 	reply = NULL;
 
-	if (ext && ext->present) {
+	if (ext && ext->present)
+	{
 		cookie = xcb_dri3_query_version(compositor.conn, 1, 2);
 		reply = xcb_dri3_query_version_reply(compositor.conn, cookie,
 		                                     NULL);
@@ -2938,7 +3109,8 @@ InitBufferFuncs(void) {
 
 		/* Initialize DRM formats.  */
 		InitDrmFormats();
-	} else
+	}
+	else
 	error:
 		fprintf(stderr, "Warning: the X server does not support a new enough version of"
 		        " the DRI3 extension.\nHardware acceleration will not be available.\n");
@@ -2948,13 +3120,15 @@ InitBufferFuncs(void) {
 }
 
 static Bool
-CanReleaseNow(RenderBuffer buffer) {
+CanReleaseNow(RenderBuffer buffer)
+{
 	return False;
 }
 
 static IdleCallbackKey
 AddIdleCallback(RenderBuffer buffer, RenderTarget target,
-                BufferIdleFunc function, void *data) {
+                BufferIdleFunc function, void *data)
+{
 	PictureBuffer *pict_buffer;
 	PictureTarget *pict_target;
 	IdleCallback *key;
@@ -2979,7 +3153,8 @@ AddIdleCallback(RenderBuffer buffer, RenderTarget target,
 }
 
 static void
-CancelIdleCallback(IdleCallbackKey key) {
+CancelIdleCallback(IdleCallbackKey key)
+{
 	IdleCallback *internal_key;
 
 	internal_key = key;
@@ -2992,7 +3167,8 @@ CancelIdleCallback(IdleCallbackKey key) {
 }
 
 static Bool
-IsBufferIdle(RenderBuffer buffer, RenderTarget target) {
+IsBufferIdle(RenderBuffer buffer, RenderTarget target)
+{
 	BufferActivityRecord *record;
 	PresentRecord *presentation;
 	PictureBuffer *pict_buffer;
@@ -3004,7 +3180,8 @@ IsBufferIdle(RenderBuffer buffer, RenderTarget target) {
 	/* A buffer is idle if it has no pending activity or
 	   presentation on the given target.  */
 	record = pict_buffer->activity.buffer_next;
-	while (record != &pict_buffer->activity) {
+	while (record != &pict_buffer->activity)
+	{
 		if (record->target == pict_target)
 			/* There is still pending activity.  */
 			return False;
@@ -3015,7 +3192,8 @@ IsBufferIdle(RenderBuffer buffer, RenderTarget target) {
 	/* Next, loop through BUFFER's list of presentation records.  If the
 	   buffer is still busy on TARGET, then return.  */
 	presentation = pict_buffer->pending.buffer_next;
-	while (presentation != &pict_buffer->pending) {
+	while (presentation != &pict_buffer->pending)
+	{
 		if (presentation->target == pict_target)
 			/* There is still pending activity.  */
 			return False;
@@ -3028,7 +3206,8 @@ IsBufferIdle(RenderBuffer buffer, RenderTarget target) {
 }
 
 static Bool
-IdleEventPredicate(Display *display, XEvent *event, XPointer data) {
+IdleEventPredicate(Display *display, XEvent *event, XPointer data)
+{
 	/* Return whether or not the event is relevant to buffer busy
 	   tracking.  */
 	return ((event->type == GenericEvent && event->xgeneric.evtype == PresentIdleNotify) || (
@@ -3036,10 +3215,12 @@ IdleEventPredicate(Display *display, XEvent *event, XPointer data) {
 }
 
 static void
-WaitForIdle(RenderBuffer buffer, RenderTarget target) {
+WaitForIdle(RenderBuffer buffer, RenderTarget target)
+{
 	XEvent event;
 
-	while (!IsBufferIdle(buffer, target)) {
+	while (!IsBufferIdle(buffer, target))
+	{
 		XIfEvent(compositor.display, &event, IdleEventPredicate,
 		         NULL);
 
@@ -3057,7 +3238,8 @@ WaitForIdle(RenderBuffer buffer, RenderTarget target) {
 }
 
 static void
-SetNeedWaitForIdle(RenderTarget target) {
+SetNeedWaitForIdle(RenderTarget target)
+{
 	PictureTarget *pict_target;
 
 	/* Request that WaitForIdle be valid with buffers presented to the
@@ -3069,7 +3251,8 @@ SetNeedWaitForIdle(RenderTarget target) {
 }
 
 static Bool
-IsBufferOpaque(RenderBuffer buffer) {
+IsBufferOpaque(RenderBuffer buffer)
+{
 	PictureBuffer *pict_buffer;
 
 	/* Return whether or not the buffer format is opaque, which lets us
@@ -3104,19 +3287,23 @@ static BufferFuncs picture_buffer_funcs = {
 	.init_buffer_funcs = InitBufferFuncs,
 };
 
-Bool HandleErrorForPictureRenderer(XErrorEvent *error) {
+Bool HandleErrorForPictureRenderer(XErrorEvent *error)
+{
 	DmaBufRecord *record, *next;
 
-	if (error->request_code == dri3_opcode && error->minor_code == xDRI3BuffersFromPixmap) {
+	if (error->request_code == dri3_opcode && error->minor_code == xDRI3BuffersFromPixmap)
+	{
 		/* Something couldn't be created.  Find what failed and unlink it.  */
 
 		next = pending_success.next;
 
-		while (next != &pending_success) {
+		while (next != &pending_success)
+		{
 			record = next;
 			next = next->next;
 
-			if (record->pixmap == error->resourceid) {
+			if (record->pixmap == error->resourceid)
+			{
 				/* Call record's failure callback and unlink it.  */
 				FinishDmaBufRecord(record, False);
 				break;
@@ -3130,7 +3317,8 @@ Bool HandleErrorForPictureRenderer(XErrorEvent *error) {
 }
 
 static Bool
-HandlePresentCompleteNotify(XPresentCompleteNotifyEvent *complete) {
+HandlePresentCompleteNotify(XPresentCompleteNotifyEvent *complete)
+{
 	PresentCompletionCallback *callback, *last;
 #ifdef DEBUG_PRESENT_TIME
 	static uint64_t last_ust;
@@ -3138,11 +3326,13 @@ HandlePresentCompleteNotify(XPresentCompleteNotifyEvent *complete) {
 	callback = all_completion_callbacks.next;
 	Bool rc = False;
 
-	while (callback != &all_completion_callbacks) {
+	while (callback != &all_completion_callbacks)
+	{
 		last = callback;
 		callback = callback->next;
 
-		if (last->id == complete->serial_number) {
+		if (last->id == complete->serial_number)
+		{
 			/* The presentation is complete.  Run and unlink the
 			   callback.  */
 			last->function(last->data, complete->msc, complete->ust);
@@ -3166,7 +3356,8 @@ HandlePresentCompleteNotify(XPresentCompleteNotifyEvent *complete) {
 }
 
 static Bool
-HandlePresentIdleNotify(XPresentIdleNotifyEvent *idle) {
+HandlePresentIdleNotify(XPresentIdleNotifyEvent *idle)
+{
 	PresentRecord *record;
 	PictureTarget *target;
 	PictureBuffer *buffer;
@@ -3176,11 +3367,14 @@ HandlePresentIdleNotify(XPresentIdleNotifyEvent *idle) {
 	   to idle->window.  */
 	target = XLLookUpAssoc(xid_table, idle->window);
 
-	if (target) {
+	if (target)
+	{
 		/* See if the idle record corresponds to any of target's back
 	   buffers, and set the BufferSync flag if that is the case.  */
-		for (i = 0; i < ArrayElements(target->back_buffers); ++i) {
-			if (target->back_buffers[i] && (target->back_buffers[i]->present_serial == idle->serial_number)) {
+		for (i = 0; i < ArrayElements(target->back_buffers); ++i)
+		{
+			if (target->back_buffers[i] && (target->back_buffers[i]->present_serial == idle->serial_number))
+			{
 				/* Now say that the target idle fence must be waited
 			   for.  */
 				target->back_buffers[i]->present_serial = 0;
@@ -3195,11 +3389,14 @@ HandlePresentIdleNotify(XPresentIdleNotifyEvent *idle) {
 		/* Now, look for a corresponding presentation record.  */
 		record = target->pending.target_next;
 
-		while (record != &target->pending) {
-			if (record->buffer->pixmap == idle->pixmap) {
+		while (record != &target->pending)
+		{
+			if (record->buffer->pixmap == idle->pixmap)
+			{
 				/* The buffer was found.  Remove the presentation record
 			   if the serial matches, and return.  */
-				if (record->serial == idle->serial_number) {
+				if (record->serial == idle->serial_number)
+				{
 					/* Save away buffer.  */
 					buffer = record->buffer;
 
@@ -3221,8 +3418,10 @@ HandlePresentIdleNotify(XPresentIdleNotifyEvent *idle) {
 }
 
 static Bool
-HandlePresentationEvent(XGenericEventCookie *event) {
-	switch (event->evtype) {
+HandlePresentationEvent(XGenericEventCookie *event)
+{
+	switch (event->evtype)
+	{
 		case PresentIdleNotify:
 			/* Find which pixmap became idle and note that it is now
 		   idle.  */
@@ -3236,10 +3435,12 @@ HandlePresentationEvent(XGenericEventCookie *event) {
 	return False;
 }
 
-Bool HandleOneXEventForPictureRenderer(XEvent *event) {
+Bool HandleOneXEventForPictureRenderer(XEvent *event)
+{
 	uint64_t id, low, high;
 
-	if (event->type == ClientMessage && event->xclient.message_type == _XL_DMA_BUF_CREATED) {
+	if (event->type == ClientMessage && event->xclient.message_type == _XL_DMA_BUF_CREATED)
+	{
 		/* Values are masked against 0xffffffff, as Xlib sign-extends
 	   those longs.  */
 		high = event->xclient.data.l[0] & 0xffffffff;
@@ -3255,7 +3456,8 @@ Bool HandleOneXEventForPictureRenderer(XEvent *event) {
 		return True;
 	}
 
-	if (event->type == ClientMessage && event->xclient.message_type == _XL_BUFFER_RELEASE) {
+	if (event->type == ClientMessage && event->xclient.message_type == _XL_BUFFER_RELEASE)
+	{
 		/* Values are masked against 0xffffffff, as Xlib sign-extends
 	   those longs.  */
 		high = event->xclient.data.l[0] & 0xffffffff;
@@ -3276,7 +3478,7 @@ Bool HandleOneXEventForPictureRenderer(XEvent *event) {
 	return False;
 }
 
-void InitPictureRenderer(struct meatball_config* config)
+void InitPictureRenderer(struct meatball_config *config)
 {
 	/* This should be strictly opt-in. */
 	expose_all_shm_formats = (config->meatball_flags & MB_PICTURE_EXPOSE_ALL_SHM_FORMATS);

@@ -26,13 +26,11 @@
 typedef struct _ShortcutInhibitDataRecord ShortcutInhibitDataRecord;
 typedef struct _KeyboardShortcutInhibitor KeyboardShortcutInhibitor;
 
-enum
-{
+enum {
 	IsGrabbed = 1,
 };
 
-struct _KeyboardShortcutInhibitor
-{
+struct _KeyboardShortcutInhibitor {
 	/* The surface to which the inhibitor applies.  */
 	Surface *surface;
 
@@ -53,8 +51,7 @@ struct _KeyboardShortcutInhibitor
 	int flags;
 };
 
-struct _ShortcutInhibitDataRecord
-{
+struct _ShortcutInhibitDataRecord {
 	/* List of all keyboard shortcut inhibitors.  */
 	KeyboardShortcutInhibitor inhibitors;
 };
@@ -128,7 +125,7 @@ FindKeyboardShortcutInhibitor(Surface *surface, Seat *seat)
 
 static void
 DestroyKeyboardShortcutsInhibitor(struct wl_client *client,
-								  struct wl_resource *resource)
+                                  struct wl_resource *resource)
 {
 	wl_resource_destroy(resource);
 }
@@ -189,8 +186,8 @@ HandleSeatDestroy(void *data)
 
 static void
 InhibitShortcuts(struct wl_client *client, struct wl_resource *resource,
-				 uint32_t id, struct wl_resource *surface_resource,
-				 struct wl_resource *seat_resource)
+                 uint32_t id, struct wl_resource *surface_resource,
+                 struct wl_resource *seat_resource)
 {
 	ShortcutInhibitDataRecord *record;
 	Surface *surface;
@@ -205,14 +202,14 @@ InhibitShortcuts(struct wl_client *client, struct wl_resource *resource,
 	if (XLSeatIsInert(seat))
 	{
 		dummy_resource = wl_resource_create(client,
-											&zwp_keyboard_shortcuts_inhibitor_v1_interface,
-											wl_resource_get_version(resource), id);
+		                                    &zwp_keyboard_shortcuts_inhibitor_v1_interface,
+		                                    wl_resource_get_version(resource), id);
 
 		if (!dummy_resource)
 			wl_resource_post_no_memory(resource);
 		else
 			wl_resource_set_implementation(dummy_resource, &inhibitor_impl,
-										   NULL, NULL);
+			                               NULL, NULL);
 
 		return;
 	}
@@ -226,15 +223,15 @@ InhibitShortcuts(struct wl_client *client, struct wl_resource *resource,
 	if (FindKeyboardShortcutInhibitor(surface, seat))
 	{
 		wl_resource_post_error(resource, AlreadyInhibited,
-							   "inhibitor already attached to surface and seat");
+		                       "inhibitor already attached to surface and seat");
 		return;
 	}
 
 #undef AlreadyInhibited
 
 	record = XLSurfaceGetClientData(surface, ShortcutInhibitData,
-									sizeof *record,
-									FreeShortcutInhibitData);
+	                                sizeof *record,
+	                                FreeShortcutInhibitData);
 	InitShortcutInhibitData(record);
 
 	/* Allocate a new keyboard shortcut inhibitor.  */
@@ -248,8 +245,8 @@ InhibitShortcuts(struct wl_client *client, struct wl_resource *resource,
 
 	memset(inhibitor, 0, sizeof *inhibitor);
 	inhibitor->resource = wl_resource_create(client,
-											 &zwp_keyboard_shortcuts_inhibitor_v1_interface,
-											 wl_resource_get_version(resource), id);
+	                                         &zwp_keyboard_shortcuts_inhibitor_v1_interface,
+	                                         wl_resource_get_version(resource), id);
 
 	if (!inhibitor->resource)
 	{
@@ -273,7 +270,7 @@ InhibitShortcuts(struct wl_client *client, struct wl_resource *resource,
 
 	/* Attach the resource implementation.  */
 	wl_resource_set_implementation(inhibitor->resource, &inhibitor_impl,
-								   inhibitor, HandleResourceDestroy);
+	                               inhibitor, HandleResourceDestroy);
 
 	/* If the given surface is the seat's focus, try to apply the grab
 	   now.  */
@@ -296,13 +293,13 @@ static struct zwp_keyboard_shortcuts_inhibit_manager_v1_interface manager_impl =
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client,
-								  &zwp_keyboard_shortcuts_inhibit_manager_v1_interface,
-								  version, id);
+	                              &zwp_keyboard_shortcuts_inhibit_manager_v1_interface,
+	                              version, id);
 
 	if (!resource)
 	{
@@ -316,8 +313,8 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 void XLInitKeyboardShortcutsInhibit(void)
 {
 	inhibit_manager_global = wl_global_create(compositor.wl_display,
-											  &zwp_keyboard_shortcuts_inhibit_manager_v1_interface,
-											  1, NULL, HandleBind);
+	                                          &zwp_keyboard_shortcuts_inhibit_manager_v1_interface,
+	                                          1, NULL, HandleBind);
 }
 
 void XLCheckShortcutInhibition(Seat *seat, Surface *surface)

@@ -25,8 +25,7 @@
 
 typedef struct _ViewportExt ViewportExt;
 
-struct _ViewportExt
-{
+struct _ViewportExt {
 	/* The attached surface.  */
 	Surface *surface;
 
@@ -88,7 +87,7 @@ DestroyViewport(struct wl_client *client, struct wl_resource *resource)
 
 static void
 SetSource(struct wl_client *client, struct wl_resource *resource,
-		  wl_fixed_t x, wl_fixed_t y, wl_fixed_t width, wl_fixed_t height)
+          wl_fixed_t x, wl_fixed_t y, wl_fixed_t width, wl_fixed_t height)
 {
 	ViewportExt *ext;
 	double src_x, src_y, src_width, src_height;
@@ -99,7 +98,7 @@ SetSource(struct wl_client *client, struct wl_resource *resource,
 	if (!ext->surface)
 	{
 		wl_resource_post_error(resource, WP_VIEWPORT_ERROR_NO_SURFACE,
-							   "the surface has been detached");
+		                       "the surface has been detached");
 		return;
 	}
 
@@ -111,11 +110,13 @@ SetSource(struct wl_client *client, struct wl_resource *resource,
 	/* Now, verify that the values are correct.  They can either all be
 	   -1, or the origin must be positive, and width and height must be
 	   more than 0.  */
-	if (!(src_x == -1.0 && src_y == -1.0 && src_width == -1.0 && src_height == -1.0) && (src_x < 0 || src_y < 0 || src_width < 1.0 || src_height < 1.0))
+	if (!(src_x == -1.0 && src_y == -1.0 && src_width == -1.0 && src_height == -1.0) && (
+		    src_x < 0 || src_y < 0 || src_width < 1.0 || src_height < 1.0))
 		wl_resource_post_error(resource, WP_VIEWPORT_ERROR_BAD_VALUE,
-							   "invalid source rectangle specified");
+		                       "invalid source rectangle specified");
 
-	if (ext->surface->current_state.src_x == src_x && ext->surface->current_state.src_y == src_y && ext->surface->current_state.src_width == src_width && ext->surface->current_state.src_height == src_height)
+	if (ext->surface->current_state.src_x == src_x && ext->surface->current_state.src_y == src_y && ext->surface->
+	    current_state.src_width == src_width && ext->surface->current_state.src_height == src_height)
 		/* No change happened.  */
 		return;
 
@@ -128,7 +129,7 @@ SetSource(struct wl_client *client, struct wl_resource *resource,
 
 static void
 SetDestination(struct wl_client *client, struct wl_resource *resource,
-			   int32_t width, int32_t height)
+               int32_t width, int32_t height)
 {
 	ViewportExt *ext;
 
@@ -138,14 +139,14 @@ SetDestination(struct wl_client *client, struct wl_resource *resource,
 	if (!ext->surface)
 	{
 		wl_resource_post_error(resource, WP_VIEWPORT_ERROR_NO_SURFACE,
-							   "the surface has been detached");
+		                       "the surface has been detached");
 		return;
 	}
 
 	if ((width <= 0 || height <= 0) && !(width == -1 && height == -1))
 	{
 		wl_resource_post_error(resource, WP_VIEWPORT_ERROR_BAD_VALUE,
-							   "invalid destination size specified");
+		                       "invalid destination size specified");
 		return;
 	}
 
@@ -173,7 +174,7 @@ Destroy(struct wl_client *client, struct wl_resource *resource)
 
 static void
 GetViewport(struct wl_client *client, struct wl_resource *resource,
-			uint32_t id, struct wl_resource *surface_resource)
+            uint32_t id, struct wl_resource *surface_resource)
 {
 	ViewportExt *ext;
 	Surface *surface;
@@ -185,7 +186,7 @@ GetViewport(struct wl_client *client, struct wl_resource *resource,
 	if (surface->viewport)
 	{
 		wl_resource_post_error(resource, WP_VIEWPORTER_ERROR_VIEWPORT_EXISTS,
-							   "viewport already exists");
+		                       "viewport already exists");
 		return;
 	}
 
@@ -199,7 +200,7 @@ GetViewport(struct wl_client *client, struct wl_resource *resource,
 
 	memset(ext, 0, sizeof *ext);
 	ext->resource = wl_resource_create(client, &wp_viewport_interface,
-									   wl_resource_get_version(resource), id);
+	                                   wl_resource_get_version(resource), id);
 
 	if (!ext->resource)
 	{
@@ -211,27 +212,27 @@ GetViewport(struct wl_client *client, struct wl_resource *resource,
 	/* Attach the surface.  */
 	ext->surface = wl_resource_get_user_data(surface_resource);
 	ext->destroy_callback = XLSurfaceRunOnFree(ext->surface, HandleSurfaceDestroy,
-											   ext);
+	                                           ext);
 	surface->viewport = ext;
 
 	wl_resource_set_implementation(ext->resource, &wp_viewport_impl,
-								   ext, HandleResourceDestroy);
+	                               ext, HandleResourceDestroy);
 }
 
 static const struct wp_viewporter_interface wp_viewporter_impl =
-	{
-		.destroy = Destroy,
-		.get_viewport = GetViewport,
+{
+	.destroy = Destroy,
+	.get_viewport = GetViewport,
 };
 
 static void
 HandleBind(struct wl_client *client, void *data, uint32_t version,
-		   uint32_t id)
+           uint32_t id)
 {
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &wp_viewporter_interface,
-								  version, id);
+	                              version, id);
 	if (!resource)
 	{
 		wl_client_post_no_memory(client);
@@ -239,24 +240,24 @@ HandleBind(struct wl_client *client, void *data, uint32_t version,
 	}
 
 	wl_resource_set_implementation(resource, &wp_viewporter_impl, NULL,
-								   NULL);
+	                               NULL);
 }
 
 void XLInitWpViewporter(void)
 {
 	viewporter_global = wl_global_create(compositor.wl_display,
-										 &wp_viewporter_interface,
-										 1, NULL, HandleBind);
+	                                     &wp_viewporter_interface,
+	                                     1, NULL, HandleBind);
 }
 
 void XLWpViewportReportBadSize(ViewportExt *ext)
 {
 	wl_resource_post_error(ext->resource, WP_VIEWPORT_ERROR_BAD_SIZE,
-						   "invalid non-integer size specified");
+	                       "invalid non-integer size specified");
 }
 
 void XLWpViewportReportOutOfBuffer(ViewportExt *ext)
 {
 	wl_resource_post_error(ext->resource, WP_VIEWPORT_ERROR_OUT_OF_BUFFER,
-						   "viewport source rectangle out of buffer");
+	                       "viewport source rectangle out of buffer");
 }

@@ -33,8 +33,7 @@ Atom DirectTransferAtoms;
 
 /* Simple hash table for atoms.  */
 
-struct _AtomTable
-{
+struct _AtomTable {
 	/* Atom array indexed by table size.  */
 	Atom *atoms[AtomTableSize];
 
@@ -113,7 +112,7 @@ static const char *names[] = {
 	"_NET_WM_PING",
 	"libinput Scrolling Pixel Distance",
 	"_NET_ACTIVE_WINDOW",
-	
+
 	/* These are automatically generated from mime.txt.  */
 	DirectTransferAtomNames
 };
@@ -225,9 +224,9 @@ Atom InternAtom(const char *name)
 
 	atom_table.atoms_length[hash] = ++bucket_length;
 	atom_table.names[hash] = XLRealloc(atom_table.names[hash],
-									   bucket_length * sizeof *atom_table.names);
+	                                   bucket_length * sizeof *atom_table.names);
 	atom_table.atoms[hash] = XLRealloc(atom_table.atoms[hash],
-									   bucket_length * sizeof *atom_table.atoms);
+	                                   bucket_length * sizeof *atom_table.atoms);
 	atom_table.names[hash][bucket_length - 1] = XLStrdup(name);
 	atom_table.atoms[hash][bucket_length - 1] = atom;
 	return atom;
@@ -250,9 +249,9 @@ void ProvideAtom(const char *name, Atom atom)
 
 	atom_table.atoms_length[hash] = ++bucket_length;
 	atom_table.names[hash] = XLRealloc(atom_table.names[hash],
-									   bucket_length * sizeof *atom_table.names);
+	                                   bucket_length * sizeof *atom_table.names);
 	atom_table.atoms[hash] = XLRealloc(atom_table.atoms[hash],
-									   bucket_length * sizeof *atom_table.atoms);
+	                                   bucket_length * sizeof *atom_table.atoms);
 	atom_table.names[hash][bucket_length - 1] = XLStrdup(name);
 	atom_table.atoms[hash][bucket_length - 1] = atom;
 }
@@ -261,11 +260,11 @@ void XLInitAtoms(void)
 {
 	Atom atoms[ArrayElements(names)];
 
-	if (!XInternAtoms(compositor.display, (char **)names,
-					  ArrayElements(names), False,
-					  atoms))
+	if (!XInternAtoms(compositor.display, (char **) names,
+	                  ArrayElements(names), False,
+	                  atoms))
 	{
-		fprintf(stderr, "Failed to intern X atoms\n");
+		MBLog(MB_LOG_ERROR, "Failed to intern X atoms\n");
 		exit(1);
 	}
 
