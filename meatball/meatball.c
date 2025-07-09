@@ -20,6 +20,9 @@
 /* Meatball interface is imported via compositor.h */
 #include "compositor.h"
 
+/* Logger interface. */
+#include "log.h"
+
 /* GLOBAL */
 pthread_t meatball_thread;
 /* GLOBAL */
@@ -82,6 +85,9 @@ static void
 
 	/* Initialize Xlib threads.  */
 	XInitThreads();
+
+	/* Setup the logger. */
+	InitLog(config);
 
 	Display *dpy = XOpenDisplay(NULL);
 	struct wl_display *wl_display = wl_display_create();

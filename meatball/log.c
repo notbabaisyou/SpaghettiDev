@@ -15,15 +15,59 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <log.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "meatball.h"
+
+static LogToServerProc log_to_server;
 
 void MBLog(enum MBLogType type, const char *format, ...)
 {
+	va_list args;
+	va_start(args, format);
+
 	/**
-	 * TODO
+	 * If we have a handler for logging so that
+	 * we can redirect all output to the server,
+	 * take advantage of it.
 	 */
-	switch (type)
+	if (log_to_server)
 	{
-		default: break;
+		log_to_server(type, format, args);
 	}
+	else
+	{
+		switch (type)
+		{
+			case MB_LOG_INFO:
+			case MB_LOG_WARNING:
+			{
+				fprintf(stdout, format, args);
+				break;
+			}
+
+			case MB_LOG_ERROR:
+			case MB_LOG_DEBUG:
+			{
+				fprintf(stderr, format, args);
+				break;
+			}
+
+			case MB_LOG_NONE: break;
+
+			default:
+			{
+				abort(!"Unknown log type!");
+			}
+		}
+	}
+
+	va_end(args);
+}
+
+void InitLog(struct meatball_config *config)
+{
+	log_to_server = config->log_to_server;
 }

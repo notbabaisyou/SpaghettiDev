@@ -25,10 +25,19 @@
 #endif
 
 typedef int _MEATBALL_BOOL;
+typedef void (*LogToServerProc) (enum MBLogType, const char*, ...);
 
 enum MEATBALL_BOOL {
 	MEATBALL_FALSE = 0,
 	MEATBALL_TRUE  = 1
+};
+
+enum MBLogType {
+	MB_LOG_NONE,
+	MB_LOG_ERROR,
+	MB_LOG_WARNING,
+	MB_LOG_INFO,
+	MB_LOG_DEBUG
 };
 
 enum meatball_flags {
@@ -52,6 +61,11 @@ struct meatball_config {
 	 * See `meatball_flags` for more accepted values.
 	 */
 	unsigned long meatball_flags;
+
+	/**
+	 * Functions.
+	 */
+	LogToServerProc log_to_server;
 };
 
 extern _X_EXPORT _MEATBALL_BOOL meatball_initialize(struct meatball_config *config);
