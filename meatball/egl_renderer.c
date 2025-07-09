@@ -2209,7 +2209,7 @@ InitBufferFuncs(void)
 	}
 	else
 	failed:
-		fprintf(stderr, "Warning: failed to obtain device node of"
+		MBLog(MB_LOG_WARNING, "failed to obtain device node of"
 		        " EGL display.  Hardware acceleration will probably not"
 		        " be available.\n");
 
@@ -2219,7 +2219,7 @@ InitBufferFuncs(void)
 	/* And initialize the SHM formats that are supported.  */
 	InitShmFormats();
 
-	MBLog(MB_LOG_INFO, "meatball: EGL backend is running.");
+	MBLog(MB_LOG_INFO, "meatball: EGL backend is running.\n");
 }
 
 static Bool

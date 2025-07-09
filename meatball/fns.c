@@ -441,7 +441,9 @@ int XLOpenShm(void)
 		}
 
 		if (errno == EEXIST)
+		{
 			++i;
+		}
 		else
 		{
 			perror("shm_open");

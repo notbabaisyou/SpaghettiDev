@@ -20,9 +20,6 @@
 /* Meatball interface is imported via compositor.h */
 #include "compositor.h"
 
-/* Logger interface. */
-#include "log.h"
-
 /* GLOBAL */
 pthread_t meatball_thread;
 /* GLOBAL */
@@ -171,12 +168,24 @@ static void
 	XLInitTearingControl();
 	XLInitTest();
 
+	/* At this point we're ready. */
+	MBLog(MB_LOG_INFO, "meatball: Initialized\n");
+
 	/* This has to come after the rest of the initialization.  */
 	DetermineServerTime();
 	XLRunCompositor();
 
 	/* Exit the thread if we manage to exit the loop. */
 	pthread_exit(NULL);
+}
+
+void meatball_version(unsigned long *version)
+{
+#ifndef MODULE_VERSION_NUMERIC
+#define MODULE_VERSION_NUMERIC(maj, min, patch) \
+	((((maj) & 0xFF) << 24) | (((min) & 0xFF) << 16) | (patch & 0xFFFF))
+#endif
+	*version = MODULE_VERSION_NUMERIC(1, 0, 4);
 }
 
 _MEATBALL_BOOL

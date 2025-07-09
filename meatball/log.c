@@ -19,9 +19,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "log.h"
 #include "meatball.h"
 
-static LogToServerProc log_to_server;
+static LogToServerProc *log_to_server = NULL;
 
 void MBLog(enum MBLogType type, const char *format, ...)
 {
@@ -59,7 +60,7 @@ void MBLog(enum MBLogType type, const char *format, ...)
 
 			default:
 			{
-				abort(!"Unknown log type!");
+				abort();
 			}
 		}
 	}

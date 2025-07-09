@@ -19,13 +19,13 @@
 #define _MEATBALL_H
 
 #include <pthread.h>
+#include <X11/Xfuncproto.h>
 
 #ifdef HAVE_XORG_CONFIG_H
 #include <xorg-config.h>
 #endif
 
 typedef int _MEATBALL_BOOL;
-typedef void (*LogToServerProc) (enum MBLogType, const char*, ...);
 
 enum MEATBALL_BOOL {
 	MEATBALL_FALSE = 0,
@@ -46,6 +46,8 @@ enum meatball_flags {
 	MB_PICTURE_EXPOSE_ALL_SHM_FORMATS = 0x4,
 };
 
+typedef void (LogToServerProc) (enum MBLogType, const char*, va_list);
+
 struct meatball_config {
 	/**
 	 * Render device to use.
@@ -65,11 +67,29 @@ struct meatball_config {
 	/**
 	 * Functions.
 	 */
-	LogToServerProc log_to_server;
+	LogToServerProc* log_to_server;
 };
 
+/**
+ * Returns the version of Meatball present, encoded
+ * in Xorg's version format.
+ * 
+ * Used to check the ABI version in Sauce.
+ *
+ * Will decode into MAJOR.MINOR.PATCHLEVEL
+ */
+extern _X_EXPORT void meatball_version(unsigned long *version);
+
+/**
+ * Initializes the Meatball compatibility layer.
+ * 
+ * Requires a valid, non-NULL `meatball_config` struct.
+ */
 extern _X_EXPORT _MEATBALL_BOOL meatball_initialize(struct meatball_config *config);
 
+/**
+ * Shuts down the running Meatball instance if possible.
+ */
 extern _X_EXPORT void meatball_shutdown(void);
 
 #endif /* _MEATBALL_H */

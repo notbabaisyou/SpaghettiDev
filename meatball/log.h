@@ -20,8 +20,8 @@
 
 #include "meatball.h"
 
-extern void MBLog(enum MBLogType, const char *, ...);
+extern void MBLog(enum MBLogType type, const char *, ...);
 
-extern void InitLog(struct meatball_config* config);
+extern void InitLog(struct meatball_config*);
 
 #endif // _MB_LOG_H

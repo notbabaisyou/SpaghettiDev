@@ -338,7 +338,7 @@ endif
 
 gbm_dep = dependency('', required: false)
 epoxy_dep = dependency('', required: false)
-if build_glamor
+if build_glamor or build_meatball
     gbm_dep = dependency('gbm', version: gbm_req, required: false)
     epoxy_dep = dependency('epoxy', required: false)
 endif

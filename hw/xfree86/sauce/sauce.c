@@ -15,10 +15,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "xf86.h"
-#include "xf86Module.h"
+
+/**
+ * Sauce.
+ * The interposer between the Display Server and Meatball.
+ */
+
+#include <stdarg.h>
+#include <xf86.h>
+#include <xf86Module.h>
 
 #include <meatball/meatball.h>
+
+#define SAUCE_DEFAULT_VERB	1
 
 static MODULESETUPPROTO(sauce_setup);
 static MODULETEARDOWNPROTO(sauce_shutdown);
@@ -43,6 +52,52 @@ _X_EXPORT XF86ModuleData sauceModuleData =
 	.setup = sauce_setup,
 	.teardown = sauce_shutdown
 };
+
+static void
+RedirectLogToServer(enum MBLogType type, const char* format, va_list fmt)
+{
+	/**
+	 * TODO: We need to pass the scrnIndex
+	 * through so we actually log something sane.
+	 */
+	switch (type)
+	{
+		case MB_LOG_NONE:
+		{
+			xf86VDrvMsgVerb(0, X_NONE, SAUCE_DEFAULT_VERB, format, fmt);
+			break;
+		}
+
+		case MB_LOG_DEBUG:
+		{
+			xf86VDrvMsgVerb(0, X_DEBUG, SAUCE_DEFAULT_VERB, format, fmt);
+			break;
+		}
+
+		case MB_LOG_INFO:
+		{
+			xf86VDrvMsgVerb(0, X_INFO, SAUCE_DEFAULT_VERB, format, fmt);
+			break;
+		}
+
+		case MB_LOG_WARNING:
+		{
+			xf86VDrvMsgVerb(0, X_WARNING, SAUCE_DEFAULT_VERB, format, fmt);
+			break;
+		}
+
+		case MB_LOG_ERROR:
+		{
+			xf86VDrvMsgVerb(0, X_ERROR, SAUCE_DEFAULT_VERB, format, fmt);
+			break;
+		}
+
+		default:
+		{
+			assert(!"Hit unknown MBLogType");
+		}
+	}
+}
 
 static ScrnInfoPtr
 GetPrimaryScreen(void)
@@ -76,6 +131,7 @@ sauce_setup(void *module, void *opts, int *errmaj, int *errmin)
 	static Bool setupDone = FALSE;
 
 	if (setupDone) {
+		/* Allow only one instance of Meatball for now. */
 		if (errmaj)
 		{
 			*errmaj = LDR_ONCEONLY;
@@ -83,16 +139,39 @@ sauce_setup(void *module, void *opts, int *errmaj, int *errmin)
 		return NULL;
 	}
 
+#if defined(SAUCE_ABI_EXPECTED_MAJOR) && defined(SAUCE_ABI_EXPECTED_MINOR)
+	unsigned long version;
+	meatball_version(&version);
+
+	unsigned long major, minor;
+	
+	major = GET_MODULE_MAJOR_VERSION(version);
+	minor = GET_MODULE_MINOR_VERSION(version);
+
+	if (major != SAUCE_ABI_EXPECTED_MAJOR && minor != SAUCE_ABI_EXPECTED_MINOR)
+	{
+		/* ABI mismatch, likely something would break. */
+		if (errmaj)
+		{
+			*errmaj = LDR_MISMATCH;
+		}
+		return NULL;	
+	}
+#else
+#warning "Sauce: ABI check unavailable, you might be in for a surprise!"
+#endif
+
 	setupDone = TRUE;
 
-	if (meatball_initialize(NULL))
-	{
-		return module;
-	}
-	else
-	{
-		return NULL;
-	}
+	struct meatball_config config = { 0 };
+
+	/* Software only for now. */
+	config.meatball_flags = MB_FORCE_SOFTWARE_RENDERING;
+
+	/* Setup the display server logger here. */
+	config.log_to_server = &RedirectLogToServer;
+
+	return meatball_initialize(&config) ? module : NULL;
 }
 
 static void
