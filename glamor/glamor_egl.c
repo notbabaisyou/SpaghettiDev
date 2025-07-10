@@ -337,7 +337,8 @@ glamor_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap,
 #undef ADD_ATTR
 
         /*
-         * Using our EGL context will fail, don't use one.
+         * "If <target> is EGL_LINUX_DMA_BUF_EXT,
+         * <dpy> must be a valid display, <ctx> must be EGL_NO_CONTEXT"
          */
         image = eglCreateImageKHR(glamor_egl->display,
                                   EGL_NO_CONTEXT,
@@ -354,8 +355,12 @@ glamor_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap,
     else
 #endif
     {
+        /*
+         * "If <target> is EGL_NATIVE_PIXMAP_KHR, and <ctx> is
+         * not EGL_NO_CONTEXT, the error EGL_BAD_PARAMETER is generated."
+         */
         image = eglCreateImageKHR(glamor_egl->display,
-                                  glamor_egl->context,
+                                  EGL_NO_CONTEXT,
                                   EGL_NATIVE_PIXMAP_KHR, bo, NULL);
     }
 
