@@ -265,23 +265,12 @@ Bool ms_do_pageflip(ScreenPtr screen,
                     ms_pageflip_abort_proc pageflip_abort,
                     const char *log_prefix);
 
-Bool
-ms_tearfree_dri_abort(xf86CrtcPtr crtc,
-                      Bool (*match)(void *data, void *match_data),
-                      void *match_data);
-
-void
-ms_tearfree_dri_abort_all(xf86CrtcPtr crtc);
-
-Bool ms_do_tearfree_flip(ScreenPtr screen, xf86CrtcPtr crtc);
-
 #endif
 
 int ms_flush_drm_events(ScreenPtr screen);
 void ms_drain_drm_events(ScreenPtr screen);
 Bool ms_window_has_variable_refresh(modesettingPtr ms, WindowPtr win);
 void ms_present_set_screen_vrr(ScrnInfoPtr scrn, Bool vrr_enabled);
-Bool ms_tearfree_is_active_on_crtc(xf86CrtcPtr crtc);
 Bool ms_window_has_async_flip(WindowPtr win);
 void ms_window_update_async_flip(WindowPtr win, Bool async_flip);
 Bool ms_window_has_async_flip_modifiers(WindowPtr win);
