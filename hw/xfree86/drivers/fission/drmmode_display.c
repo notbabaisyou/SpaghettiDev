@@ -1701,6 +1701,9 @@ drmmode_need_shadow_scanout(xf86CrtcPtr crtc)
     if (crtc->rotation != RR_Rotate_0)
         return FALSE;
 
+    if (drmmode->per_crtc_fb)
+        return TRUE;
+
     /* check if the current screen size exceeds the driver's limits */
     mode_res = drmModeGetResources(drmmode->fd);
     if (!mode_res)

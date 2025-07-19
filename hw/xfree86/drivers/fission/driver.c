@@ -162,6 +162,7 @@ static const OptionInfoRec Options[] = {
     {OPTION_USE_GAMMA_LUT, "UseGammaLUT", OPTV_BOOLEAN, {0}, FALSE},
     {OPTION_ASYNC_FLIP_SECONDARIES, "AsyncFlipSecondaries", OPTV_BOOLEAN, {0}, FALSE},
     {OPTION_TEARFREE, "TearFree", OPTV_BOOLEAN, {0}, FALSE},
+    {OPTION_PER_CRTC_FB, "PerCrtcFramebuffers", OPTV_BOOLEAN, {0}, FALSE},
     {OPTION_NO_LEGACY_FEATURES, "NoLegacy", OPTV_BOOLEAN, {0}, FALSE},
     {-1, NULL, OPTV_NONE, {0}, FALSE}
 };
@@ -1338,6 +1339,12 @@ PreInit(ScrnInfoPtr pScrn, int flags)
 
     if (xf86ReturnOptValBool(ms->drmmode.Options, OPTION_SW_CURSOR, FALSE)) {
         ms->drmmode.sw_cursor = TRUE;
+    }
+
+    if (xf86ReturnOptValBool(ms->drmmode.Options, OPTION_PER_CRTC_FB, FALSE)) {
+        ms->drmmode.per_crtc_fb = TRUE;
+
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Per-CRTC-framebuffers enabled\n");
     }
 
     if (xf86ReturnOptValBool(ms->drmmode.Options, OPTION_NO_LEGACY_FEATURES, FALSE)) {

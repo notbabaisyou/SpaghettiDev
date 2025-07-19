@@ -127,6 +127,9 @@ typedef struct {
     Bool glamor;
     Bool shadow_enable;
     Bool force_24_32;
+    /** force creating a per-crtc framebuffer **/
+    Bool per_crtc_fb;
+
     void *shadow_fb;
 
     DevPrivateKeyRec pixmapPrivateKeyRec;
