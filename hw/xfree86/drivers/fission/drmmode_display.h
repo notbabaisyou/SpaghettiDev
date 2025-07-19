@@ -185,6 +185,11 @@ typedef struct {
 } drmmode_format_rec, *drmmode_format_ptr;
 
 typedef struct {
+    drmmode_bo bo;
+    unsigned fb_id;
+} drmmode_shadow_scanout_rec, *drmmode_shadow_scanout_ptr;
+
+typedef struct {
     drmmode_ptr drmmode;
     drmModeCrtcPtr mode_crtc;
     uint32_t vblank_pipe;
@@ -201,8 +206,7 @@ typedef struct {
     drmmode_format_rec *formats;
     drmmode_format_rec *formats_async;
 
-    drmmode_bo rotate_bo;
-    unsigned rotate_fb_id;
+    drmmode_shadow_scanout_rec shadow_rotated;
 
     PixmapPtr prime_pixmap;
     PixmapPtr prime_pixmap_back;
