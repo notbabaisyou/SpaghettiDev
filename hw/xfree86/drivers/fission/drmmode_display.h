@@ -186,6 +186,7 @@ typedef struct {
 
 typedef struct {
     drmmode_bo bo;
+    PixmapPtr pixmap;
     unsigned fb_id;
 } drmmode_shadow_scanout_rec, *drmmode_shadow_scanout_ptr;
 
