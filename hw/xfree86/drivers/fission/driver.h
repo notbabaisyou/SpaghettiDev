@@ -268,6 +268,8 @@ Bool ms_do_pageflip(ScreenPtr screen,
 
 #endif
 
+void ms_do_tearfree_flip(xf86CrtcPtr crtc);
+
 int ms_flush_drm_events(ScreenPtr screen);
 void ms_drain_drm_events(ScreenPtr screen);
 Bool ms_window_has_variable_refresh(modesettingPtr ms, WindowPtr win);
