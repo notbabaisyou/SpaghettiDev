@@ -959,9 +959,15 @@ drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
 {
     modesettingPtr ms = modesettingPTR(crtc->scrn);
     drmModeAtomicReq *req = drmModeAtomicAlloc();
+    uint32_t fb_id_tmp;
 
     if (!req)
         return 1;
+
+    /* get the x/y positions that need to be used for the flip based on the
+     * current scanout fb.
+     */
+    drmmode_crtc_get_fb_id(crtc, &fb_id_tmp, &x, &y);
 
     int ret = plane_add_props(req, crtc, fb_id, x, y);
 
