@@ -188,6 +188,7 @@ typedef struct {
     drmmode_bo bo;
     PixmapPtr pixmap;
     unsigned fb_id;
+    RegionRec screen_damage;
 } drmmode_shadow_scanout_rec, *drmmode_shadow_scanout_ptr;
 
 typedef struct {
@@ -208,6 +209,7 @@ typedef struct {
     drmmode_format_rec *formats_async;
 
     drmmode_shadow_scanout_rec shadow_rotated;
+    drmmode_shadow_scanout_ptr shadow_nonrotated;
 
     PixmapPtr prime_pixmap;
     PixmapPtr prime_pixmap_back;
@@ -316,6 +318,8 @@ Bool drmmode_SharedPixmapPresentOnVBlank(PixmapPtr frontTarget, xf86CrtcPtr crtc
 Bool drmmode_SharedPixmapFlip(PixmapPtr frontTarget, xf86CrtcPtr crtc,
                               drmmode_ptr drmmode);
 void drmmode_DisableSharedPixmapFlipping(xf86CrtcPtr crtc, drmmode_ptr drmmode);
+
+void drmmode_update_scanout_buffer(xf86CrtcPtr crtc, drmmode_shadow_scanout_ptr scanout);
 
 extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp);
 extern Bool drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
