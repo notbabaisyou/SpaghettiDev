@@ -208,6 +208,12 @@ drmmode_get_universal_modifiers(ScrnInfoPtr scrn, uint32_t format, uint64_t **mo
     uint32_t tmp_count = 0;
     uint64_t* tmp = NULL;
 
+    /* Self-explanitory. */
+    if (!ms->kms_has_modifiers) {
+        *modifiers = NULL;
+        return 0;       
+    }
+
     /* Universal planes are mandatory for modifiers. */
     if (!ms->has_universal_planes) {
         *modifiers = NULL;
