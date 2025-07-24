@@ -102,15 +102,19 @@ struct ms_drm_queue {
 
 typedef struct _modesettingRec {
     int fd;
-    Bool fd_passed;
-
     int Chipset;
+
+    Bool fd_passed;
+    Bool noAccel;
+    
     EntityInfoPtr pEnt;
 
-    Bool noAccel;
     CloseScreenProcPtr CloseScreen;
     CreateWindowProcPtr CreateWindow;
+
     unsigned int SaveGeneration;
+
+    Bool has_universal_planes;
 
     CreateScreenResourcesProcPtr createScreenResources;
     ScreenBlockHandlerProcPtr BlockHandler;
