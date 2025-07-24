@@ -1467,15 +1467,18 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     ret = drmSetClientCap(ms->fd, DRM_CLIENT_CAP_ATOMIC, 0);
     ms->atomic_modeset_capable = (ret == 0);
 
+    /* Enable universal planes if possible so that
+     * we can use proper framebuffer modifiers. */
+    ret = drmSetClientCap(ms->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+    ms->has_universal_planes = (ret == 0);
+
     /* TearFree requires glamor and, if PageFlip is enabled, universal planes */
     if (xf86ReturnOptValBool(ms->drmmode.Options, OPTION_TEARFREE, TRUE)) {
         if (pScrn->is_gpu) {
             xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
                        "TearFree cannot synchronize PRIME; use 'PRIME Synchronization' instead\n");
         } else if (ms->drmmode.glamor) {
-            /* Atomic modesetting implicitly enables universal planes */
-            if (!ms->drmmode.pageflip ||
-                !drmSetClientCap(ms->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
+            if (!ms->drmmode.pageflip || ms->has_universal_planes) {
                 ms->drmmode.tearfree_enable = TRUE;
                 xf86DrvMsg(pScrn->scrnIndex, X_INFO, "TearFree: enabled\n");
             } else {
