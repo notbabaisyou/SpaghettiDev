@@ -145,6 +145,7 @@ static drmmode_format_ptr get_format(drmmode_crtc_private_ptr drmmode_crtc,
         return &drmmode_crtc->formats[i];
 }
 
+#ifdef GBM_BO_WITH_MODIFIERS2
 static int cmp_uint64(const void *a, const void *b)
 {
     uint64_t ua = *(const uint64_t*)a;
@@ -249,6 +250,7 @@ drmmode_get_universal_modifiers(ScrnInfoPtr scrn, uint32_t format, uint64_t **mo
     *modifiers = tmp;
     return tmp_count;
 }
+#endif
 
 Bool
 drmmode_is_format_supported(ScrnInfoPtr scrn, uint32_t format,
