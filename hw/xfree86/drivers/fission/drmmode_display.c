@@ -1221,9 +1221,22 @@ drmmode_create_bo(drmmode_ptr drmmode, drmmode_bo *bo,
             break;
         }
 
+#ifdef GBM_BO_WITH_MODIFIERS2
+        uint64_t *modifiers;
+        uint32_t num_modifiers =
+                drmmode_get_universal_modifiers(drmmode->scrn, format, &modifiers);
+
+        bo->gbm = gbm_bo_create_with_modifiers2(drmmode->gbm, 
+                                                width, height, format,
+                                                modifiers, num_modifiers,
+                                                GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
+        bo->used_modifiers = (num_modifiers != 0);
+#else
         bo->gbm = gbm_bo_create(drmmode->gbm, width, height, format,
                                 GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
         bo->used_modifiers = FALSE;
+#endif
+
         return bo->gbm != NULL;
     }
 #endif
