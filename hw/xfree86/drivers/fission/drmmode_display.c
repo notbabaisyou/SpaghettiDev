@@ -218,10 +218,17 @@ static uint64_t* merge_common_uint64(const uint64_t *list1, size_t size1,
 uint32_t
 drmmode_get_universal_modifiers(ScrnInfoPtr scrn, uint32_t format, uint64_t **modifiers)
 {
+    modesettingPtr ms = modesettingPTR(scrn);
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
     int c, i;
     uint32_t tmp_count = 0;
     uint64_t* tmp = NULL;
+
+    /* Self-explanitory. */
+    if (!ms->kms_has_modifiers) {
+        *modifiers = NULL;
+        return 0;       
+    }
 
     for (c = 0; c < xf86_config->num_crtc; c++)
     {
