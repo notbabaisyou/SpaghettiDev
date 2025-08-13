@@ -308,6 +308,7 @@ typedef struct _msSpritePriv {
 
 extern miPointerSpriteFuncRec drmmode_sprite_funcs;
 
+uint32_t drmmode_get_universal_modifiers(ScrnInfoPtr scrn, uint32_t format, uint64_t **modifiers);
 Bool drmmode_is_format_supported(ScrnInfoPtr scrn, uint32_t format,
                                  uint64_t modifier, Bool async_flip);
 int drmmode_bo_import(drmmode_ptr drmmode, drmmode_bo *bo,

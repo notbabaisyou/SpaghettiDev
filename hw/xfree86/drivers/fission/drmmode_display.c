@@ -162,6 +162,111 @@ static drmmode_format_ptr get_format(drmmode_crtc_private_ptr drmmode_crtc,
         return &drmmode_crtc->formats[i];
 }
 
+static int cmp_uint64(const void *a, const void *b)
+{
+    uint64_t ua = *(const uint64_t*)a;
+    uint64_t ub = *(const uint64_t*)b;
+
+    return (ua > ub) - (ua < ub);
+}
+
+static uint64_t* merge_common_uint64(const uint64_t *list1, size_t size1,
+                              const uint64_t *list2, size_t size2,
+                              size_t *out_size)
+{
+    uint64_t *sorted1 = malloc(size1 * sizeof(uint64_t));
+    uint64_t *sorted2 = malloc(size2 * sizeof(uint64_t));
+
+    if (!sorted1 || !sorted2)
+    {
+        free(sorted1);
+        free(sorted2);
+
+        *out_size = 0;
+        return NULL;
+    }
+
+    for (size_t i = 0; i < size1; ++i) sorted1[i] = list1[i];
+    for (size_t i = 0; i < size2; ++i) sorted2[i] = list2[i];
+
+    qsort(sorted1, size1, sizeof(uint64_t), cmp_uint64);
+    qsort(sorted2, size2, sizeof(uint64_t), cmp_uint64);
+
+    size_t i = 0, j = 0, k = 0;
+    uint64_t *result = malloc((size1 < size2 ? size1 : size2) * sizeof(uint64_t));
+
+    while (i < size1 && j < size2) {
+        if (sorted1[i] < sorted2[j]) {
+            ++i;
+        } else if (sorted1[i] > sorted2[j]) {
+            ++j;
+        } else {
+            if (k == 0 || result[k-1] != sorted1[i]) {
+                result[k++] = sorted1[i];
+            }
+            ++i; ++j;
+        }
+    }
+
+    free(sorted1);
+    free(sorted2);
+
+    *out_size = k;
+    return result;
+}
+
+uint32_t
+drmmode_get_universal_modifiers(ScrnInfoPtr scrn, uint32_t format, uint64_t **modifiers)
+{
+    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
+    int c, i;
+    uint32_t tmp_count = 0;
+    uint64_t* tmp = NULL;
+
+    for (c = 0; c < xf86_config->num_crtc; c++)
+    {
+        xf86CrtcPtr crtc = xf86_config->crtc[c];
+        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+        if (!drmmode_crtc->formats)
+            continue;
+
+        if (!drmmode_crtc->num_formats)
+            continue;
+
+        if (!drmmode_crtc->formats->num_modifiers)
+            continue;
+
+        for (i = 0; i < drmmode_crtc->num_formats; i++)
+        {
+            drmmode_format_ptr iter = get_format(drmmode_crtc, FALSE, i);
+
+            if (iter->format != format)
+                continue;
+
+            if (!tmp)
+            {
+                tmp_count = iter->num_modifiers;
+                tmp = iter->modifiers;
+                break;
+            }
+            else
+            {
+                /* Remove all non-common entries. */
+                size_t size_out;
+                uint64_t *merged = merge_common_uint64(tmp, tmp_count, iter->modifiers, iter->num_modifiers, &size_out);
+
+                /* Replace the tmp array with the new merge. */
+                tmp_count = size_out;
+                tmp = merged;
+            }
+        }
+    }
+
+    *modifiers = tmp;
+    return tmp_count;
+}
+
 Bool
 drmmode_is_format_supported(ScrnInfoPtr scrn, uint32_t format,
                             uint64_t modifier, Bool async_flip)
