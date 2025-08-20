@@ -104,6 +104,12 @@ typedef struct {
 #endif
 } drmmode_bo;
 
+enum drmmode_fb_flip_mode {
+    DRMMODE_FB_FLIP_NONE,
+    DRMMODE_FB_FLIP_TRANSFORMED,
+    DRMMODE_FB_FLIP_ALWAYS
+};
+
 typedef struct {
     int fd;
     unsigned fb_id;
@@ -148,7 +154,6 @@ typedef struct {
     Bool flip_bo_import_failed;
 
     Bool can_async_flip;
-    Bool async_flip_secondaries;
     Bool dri2_enable;
     Bool present_enable;
 
@@ -156,6 +161,9 @@ typedef struct {
     Bool use_ctm;
 
     Bool pending_modeset;
+
+    enum drmmode_fb_flip_mode fb_flip_mode;
+    int fb_flip_rate;
 } drmmode_rec, *drmmode_ptr;
 
 typedef struct {
@@ -183,6 +191,16 @@ typedef struct {
     uint32_t num_modifiers;
     uint64_t *modifiers;
 } drmmode_format_rec, *drmmode_format_ptr;
+
+typedef struct {
+    drmmode_bo bo;
+    unsigned fb_id;
+
+    PixmapPtr pixmap;
+    DamagePtr damage;
+
+    Bool need_clear;
+} drmmode_fb;
 
 typedef struct {
     drmmode_bo bo;
@@ -221,6 +239,16 @@ typedef struct {
 
     drmmode_bo rotate_bo;
     unsigned rotate_fb_id;
+
+    /** support fb flipping to avoid tearing */
+    unsigned fb_id;
+    drmmode_fb flip_fb[2];
+    unsigned current_fb;
+    uint64_t flipping_time; /* time of the latest fb flipping */
+    Bool can_flip_fb;
+    Bool flip_fb_enabled;
+    Bool flipping;
+    Bool is_scale;
 
     PixmapPtr prime_pixmap;
     PixmapPtr prime_pixmap_back;
@@ -362,6 +390,8 @@ Bool drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y);
 
 void drmmode_set_dpms(ScrnInfoPtr scrn, int PowerManagementMode, int flags);
 void drmmode_crtc_set_vrr(xf86CrtcPtr crtc, Bool enabled);
+
+Bool drmmode_flip_fb(xf86CrtcPtr crtc, int *timeout);
 
 Bool drmmode_get_largest_cursor(ScrnInfoPtr pScrn, drmmode_cursor_dim_ptr cursor_lim);
 

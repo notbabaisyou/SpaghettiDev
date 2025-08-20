@@ -160,7 +160,8 @@ static const OptionInfoRec Options[] = {
     {OPTION_ACCEL_METHOD, "AccelMethod", OPTV_STRING, {0}, FALSE},
     {OPTION_VARIABLE_REFRESH, "VariableRefresh", OPTV_BOOLEAN, {0}, FALSE},
     {OPTION_USE_GAMMA_LUT, "UseGammaLUT", OPTV_BOOLEAN, {0}, FALSE},
-    {OPTION_ASYNC_FLIP_SECONDARIES, "AsyncFlipSecondaries", OPTV_BOOLEAN, {0}, FALSE},
+    {OPTION_FLIP_FB, "FlipFB", OPTV_STRING, {0}, FALSE},
+    {OPTION_FLIP_FB_RATE, "MaxFlipRate", OPTV_INTEGER, {0}, 0},
     {OPTION_NO_LEGACY_FEATURES, "NoLegacy", OPTV_BOOLEAN, {0}, FALSE},
     {-1, NULL, OPTV_NONE, {0}, FALSE}
 };
@@ -697,7 +698,6 @@ dispatch_dirty_pixmap(ScrnInfoPtr scrn, xf86CrtcPtr crtc, PixmapPtr ppix)
     modesettingPtr ms = modesettingPTR(scrn);
     msPixmapPrivPtr ppriv = msGetPixmapPriv(&ms->drmmode, ppix);
     DamagePtr damage = ppriv->secondary_damage;
-    int fb_id = ppriv->fb_id;
 
     dispatch_dirty_region(scrn, crtc, ppix, damage, fb_id, 0, 0);
 
@@ -812,15 +812,40 @@ static void
 msBlockHandler(ScreenPtr pScreen, void *timeout)
 {
     modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(pScreen));
+    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
+    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+    int c;
 
     pScreen->BlockHandler = ms->BlockHandler;
     pScreen->BlockHandler(pScreen, timeout);
     ms->BlockHandler = pScreen->BlockHandler;
     pScreen->BlockHandler = msBlockHandler;
+
     if (pScreen->isGPU && !ms->drmmode.reverse_prime_offload_mode)
+    {
         dispatch_secondary_dirty(pScreen);
-    else if (ms->dirty_enabled)
-        dispatch_dirty(pScreen);
+    }
+    else
+    {
+        if (ms->dirty_enabled)
+            dispatch_dirty(pScreen);
+
+        for (c = 0; c < xf86_config->num_crtc; c++)
+        {
+            xf86CrtcPtr crtc = xf86_config->crtc[c];
+            drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+            if (!drmmode_crtc)
+                continue;
+
+            if (drmmode_flip_fb(crtc, timeout))
+                continue;
+
+            drmmode_crtc->can_flip_fb = FALSE;
+            drmmode_set_desired_modes(pScrn, &ms->drmmode, TRUE, FALSE);
+            break;
+        }
+    }
 
     ms_dirty_update(pScreen, timeout);
 }
@@ -1201,6 +1226,7 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     rgb defaultWeight = { 0, 0, 0 };
     EntityInfoPtr pEnt;
     uint64_t value = 0;
+    const char *str_value;
     int ret;
     int bppflags, connector_count;
     int defaultdepth, defaultbpp;
@@ -1324,14 +1350,26 @@ PreInit(ScrnInfoPtr pScrn, int flags)
                                                  &ms->vrr_support) ? X_CONFIG : X_DEFAULT;
             xf86DrvMsg(pScrn->scrnIndex, from, "VariableRefresh: %sabled\n",
                        ms->vrr_support ? "en" : "dis");
-
-            ms->drmmode.async_flip_secondaries = FALSE;
-            from = xf86GetOptValBool(ms->drmmode.Options, OPTION_ASYNC_FLIP_SECONDARIES,
-                                     &ms->drmmode.async_flip_secondaries) ? X_CONFIG : X_DEFAULT;
-            xf86DrvMsg(pScrn->scrnIndex, from, "AsyncFlipSecondaries: %sabled\n",
-                       ms->drmmode.async_flip_secondaries ? "en" : "dis");
         }
     }
+
+    str_value = xf86GetOptValString(ms->drmmode.Options, OPTION_FLIP_FB);
+    if (!str_value || !strcmp(str_value, "transformed"))
+        ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_TRANSFORMED;
+    else if (!strcmp(str_value, "always"))
+        ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_ALWAYS;
+    else
+        ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_NONE;
+
+    ret = -1;
+    xf86GetOptValInteger(ms->drmmode.Options, OPTION_FLIP_FB_RATE, &ret);
+    ms->drmmode.fb_flip_rate = ret > 0 ? ret : 0;
+
+    if (ms->drmmode.fb_flip_mode != DRMMODE_FB_FLIP_NONE)
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                   "FlipFB: %s, limited to: %d fps\n",
+                   (ms->drmmode.fb_flip_mode == DRMMODE_FB_FLIP_ALWAYS ?
+                    "Always" : "Transformed"), ms->drmmode.fb_flip_rate ? : -1);
 
     pScrn->capabilities = 0;
     ret = drmGetCap(ms->fd, DRM_CAP_PRIME, &value);

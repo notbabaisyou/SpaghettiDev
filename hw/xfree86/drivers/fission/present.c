@@ -268,7 +268,15 @@ ms_present_check_unflip(RRCrtcPtr crtc,
         drmmode_crtc_private_ptr drmmode_crtc = config->crtc[i]->driver_private;
 
         /* Don't do pageflipping if CRTCs are rotated. */
+#ifdef GLAMOR_HAS_GBM
         if (drmmode_crtc->rotate_bo.gbm)
+            return FALSE;
+#endif
+
+        if (drmmode_crtc->rotate_bo.dumb)
+            return FALSE;
+
+        if (ms_transforming(config->crtc[i]))
             return FALSE;
 
         if (xf86_crtc_on(config->crtc[i]))
@@ -368,6 +376,7 @@ ms_present_flip(RRCrtcPtr crtc,
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     xf86CrtcPtr xf86_crtc = crtc->devPrivate;
+    drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
     Bool ret;
     struct ms_present_vblank_event *event;
 
@@ -392,10 +401,10 @@ ms_present_flip(RRCrtcPtr crtc,
         ms_present_set_screen_vrr(scrn, TRUE);
     }
 
-    ret = ms_do_pageflip(screen, pixmap, event, xf86_crtc, !sync_flip,
+    ret = ms_do_pageflip(screen, pixmap, event, drmmode_crtc->vblank_pipe, !sync_flip,
                          ms_present_flip_handler, ms_present_flip_abort,
                          "Present-flip");
-    if (ret)
+    if (ret) 
         ms->drmmode.present_flipping = TRUE;
 
     return ret;
@@ -425,7 +434,7 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
         event->event_id = event_id;
         event->unflip = TRUE;
 
-        if (ms_do_pageflip(screen, pixmap, event, NULL, FALSE,
+        if (ms_do_pageflip(screen, pixmap, event, -1, FALSE,
                            ms_present_flip_handler, ms_present_flip_abort,
                            "Present-unflip")) {
             return;
