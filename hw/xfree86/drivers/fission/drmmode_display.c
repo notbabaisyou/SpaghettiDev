@@ -1120,8 +1120,6 @@ drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
 
     int ret = plane_add_props(req, crtc, fb_id, sx, sy);
 
-    flags |= DRM_MODE_ATOMIC_NONBLOCK;
-
     if (ret == 0)
         ret = drmModeAtomicCommit(ms->fd, req, flags, data);
 
