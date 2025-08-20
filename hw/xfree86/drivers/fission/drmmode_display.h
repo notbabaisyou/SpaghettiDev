@@ -151,7 +151,6 @@ typedef struct {
     Bool async_flip_secondaries;
     Bool dri2_enable;
     Bool present_enable;
-    Bool tearfree_enable;
 
     uint32_t vrr_prop_id;
     Bool use_ctm;
@@ -193,13 +192,6 @@ typedef struct {
 } drmmode_shadow_fb_rec, *drmmode_shadow_fb_ptr;
 
 typedef struct {
-    drmmode_shadow_fb_rec buf[2];
-    struct xorg_list dri_flip_list;
-    uint32_t back_idx;
-    uint32_t flip_seq;
-} drmmode_tearfree_rec, *drmmode_tearfree_ptr;
-
-typedef struct {
     uint16_t width, height;
 } drmmode_cursor_dim_rec, *drmmode_cursor_dim_ptr;
 
@@ -229,7 +221,6 @@ typedef struct {
 
     drmmode_bo rotate_bo;
     unsigned rotate_fb_id;
-    drmmode_tearfree_rec tearfree;
 
     PixmapPtr prime_pixmap;
     PixmapPtr prime_pixmap_back;

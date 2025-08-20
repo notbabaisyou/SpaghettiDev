@@ -776,7 +776,6 @@ drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
-    drmmode_tearfree_ptr trf = &drmmode_crtc->tearfree;
     int ret;
 
     *fb_id = 0;
@@ -790,10 +789,6 @@ drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y)
         } else
             *x = drmmode_crtc->prime_pixmap_x;
         *y = 0;
-    }
-    else if (trf->buf[trf->back_idx ^ 1].px) {
-        *fb_id = trf->buf[trf->back_idx ^ 1].fb_id;
-        *x = *y = 0;
     }
     else if (drmmode_crtc->rotate_fb_id) {
         *fb_id = drmmode_crtc->rotate_fb_id;
@@ -1691,61 +1686,10 @@ drmmode_copy_damage(xf86CrtcPtr crtc, PixmapPtr dst, RegionPtr dmg, Bool empty)
 static void
 drmmode_shadow_fb_destroy(xf86CrtcPtr crtc, PixmapPtr pixmap,
                           void *data, drmmode_bo *bo, uint32_t *fb_id);
-static void
-drmmode_destroy_tearfree_shadow(xf86CrtcPtr crtc)
-{
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-    drmmode_tearfree_ptr trf = &drmmode_crtc->tearfree;
-    int i;
-
-    if (trf->flip_seq)
-        ms_drm_abort_seq(crtc->scrn, trf->flip_seq);
-
-    for (i = 0; i < ARRAY_SIZE(trf->buf); i++) {
-        if (trf->buf[i].px) {
-            drmmode_shadow_fb_destroy(crtc, trf->buf[i].px, (void *)(long)1,
-                                      &trf->buf[i].bo, &trf->buf[i].fb_id);
-            trf->buf[i].px = NULL;
-            RegionUninit(&trf->buf[i].dmg);
-        }
-    }
-}
 
 static PixmapPtr
 drmmode_shadow_fb_create(xf86CrtcPtr crtc, void *data, int width, int height,
                          drmmode_bo *bo, uint32_t *fb_id);
-static Bool
-drmmode_create_tearfree_shadow(xf86CrtcPtr crtc)
-{
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-    drmmode_ptr drmmode = drmmode_crtc->drmmode;
-    drmmode_tearfree_ptr trf = &drmmode_crtc->tearfree;
-    uint32_t w = crtc->mode.HDisplay, h = crtc->mode.VDisplay;
-    int i;
-
-    if (!drmmode->tearfree_enable)
-        return TRUE;
-
-    /* Destroy the old mode's buffers and make new ones */
-    drmmode_destroy_tearfree_shadow(crtc);
-    for (i = 0; i < ARRAY_SIZE(trf->buf); i++) {
-        trf->buf[i].px = drmmode_shadow_fb_create(crtc, NULL, w, h,
-                                                  &trf->buf[i].bo,
-                                                  &trf->buf[i].fb_id);
-        if (!trf->buf[i].px) {
-            drmmode_destroy_tearfree_shadow(crtc);
-            xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-                       "shadow creation failed for TearFree buf%d\n", i);
-            return FALSE;
-        }
-        RegionInit(&trf->buf[i].dmg, &crtc->bounds, 0);
-    }
-
-    /* Initialize the front buffer with the current scanout */
-    drmmode_copy_damage(crtc, trf->buf[trf->back_idx ^ 1].px,
-                        &trf->buf[trf->back_idx ^ 1].dmg, TRUE);
-    return TRUE;
-}
 
 static void drmmmode_prepare_modeset(ScrnInfoPtr scrn)
 {
@@ -1802,10 +1746,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
         crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
                                crtc->gamma_blue, crtc->gamma_size);
 
-        ret = drmmode_create_tearfree_shadow(crtc);
-        if (!ret)
-            goto done;
-
         if (drmmode_crtc_set_mode(crtc, TRUE)) {
             xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
                        "failed to set mode: %s\n", strerror(errno));
@@ -1851,7 +1791,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
         crtc->y = saved_y;
         crtc->rotation = saved_rotation;
         crtc->mode = saved_mode;
-        drmmode_create_tearfree_shadow(crtc);
     } else
         crtc->active = TRUE;
 
@@ -2844,7 +2783,6 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, drmModeResPtr mode_res
     drmmode_crtc->drmmode = drmmode;
     drmmode_crtc->vblank_pipe = drmmode_crtc_vblank_pipe(num);
     xorg_list_init(&drmmode_crtc->mode_list);
-    xorg_list_init(&drmmode_crtc->tearfree.dri_flip_list);
     drmmode_crtc->next_msc = UINT64_MAX;
 
     /* Setup the fallback cursor immediately. */
@@ -4643,7 +4581,6 @@ drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
         drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 
         dumb_bo_destroy(drmmode->fd, drmmode_crtc->cursor.bo);
-        drmmode_destroy_tearfree_shadow(crtc);
     }
 }
 
