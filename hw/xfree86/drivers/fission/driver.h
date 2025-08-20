@@ -146,9 +146,6 @@ typedef struct _modesettingRec {
     Bool pending_modeset;
     /** @} */
 
-    DamagePtr damage;
-    Bool dirty_enabled;
-
     Bool has_queue_sequence;
     Bool tried_queue_sequence;
 

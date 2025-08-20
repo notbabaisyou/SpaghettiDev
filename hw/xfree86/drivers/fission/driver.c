@@ -535,181 +535,11 @@ GetRec(ScrnInfoPtr pScrn)
     return TRUE;
 }
 
-static int
-rotate_clip(PixmapPtr pixmap, xf86CrtcPtr crtc, BoxPtr rect, drmModeClip *clip,
-            Rotation rotation, int x, int y)
+static inline void
+dispatch_dirty(ScrnInfoPtr pScrn, int *timeout)
 {
-    int w, h;
-    int x1, y1, x2, y2;
-
-    if (rotation == RR_Rotate_90 || rotation == RR_Rotate_270) {
-	/* width and height are swapped if rotated 90 or 270 degrees */
-        w = pixmap->drawable.height;
-        h = pixmap->drawable.width;
-    } else {
-        w = pixmap->drawable.width;
-        h = pixmap->drawable.height;
-    }
-
-    /* check if the given rect covers any area in FB of the crtc */
-    if (rect->x2 > crtc->x && rect->x1 < crtc->x + w &&
-        rect->y2 > crtc->y && rect->y1 < crtc->y + h) {
-        /* new coordinate of the partial rect on the crtc area
-         * + x/y offsets in the framebuffer */
-        x1 = max(rect->x1 - crtc->x, 0) + x;
-        y1 = max(rect->y1 - crtc->y, 0) + y;
-        x2 = min(rect->x2 - crtc->x, w) + x;
-        y2 = min(rect->y2 - crtc->y, h) + y;
-
-        /* coordinate transposing/inversion and offset adjustment */
-        if (rotation == RR_Rotate_90) {
-            clip->x1 = y1;
-            clip->y1 = w - x2;
-            clip->x2 = y2;
-            clip->y2 = w - x1;
-        } else if (rotation == RR_Rotate_180) {
-            clip->x1 = w - x2;
-            clip->y1 = h - y2;
-            clip->x2 = w - x1;
-            clip->y2 = h - y1;
-        } else if (rotation == RR_Rotate_270) {
-            clip->x1 = h - y2;
-            clip->y1 = x1;
-            clip->x2 = h - y1;;
-            clip->y2 = x2;
-        } else {
-            clip->x1 = x1;
-            clip->y1 = y1;
-            clip->x2 = x2;
-            clip->y2 = y2;
-        }
-    } else {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int
-dispatch_damages(ScrnInfoPtr scrn, xf86CrtcPtr crtc, RegionPtr dirty,
-                 PixmapPtr pixmap, DamagePtr damage, int fb_id, int x, int y)
-{
-    modesettingPtr ms = modesettingPTR(scrn);
-    unsigned num_cliprects = REGION_NUM_RECTS(dirty);
-    int ret = 0;
-
-    if (!ms->dirty_enabled)
-        return 0;
-
-    if (num_cliprects) {
-        drmModeClip *clip = xallocarray(num_cliprects, sizeof(drmModeClip));
-        BoxPtr rect = REGION_RECTS(dirty);
-        int i;
-        int c = 0;
-
-        if (!clip)
-            return -ENOMEM;
-
-        /* Create clips for the given rects in case the rect covers any
-         * area in the FB.
-         */
-        for (i = 0; i < num_cliprects; i++, rect++) {
-            if (rotate_clip(pixmap, crtc, rect, &clip[c], crtc->rotation, x, y) < 0)
-                continue;
-
-            c++;
-        }
-
-        if (!c)
-            return 0;
-
-        /* TODO query connector property to see if this is needed */
-        ret = drmModeDirtyFB(ms->fd, fb_id, clip, c);
-
-        /* if we're swamping it with work, try one at a time */
-        if (ret == -EINVAL) {
-            for (i = 0; i < c; i++) {
-                if ((ret = drmModeDirtyFB(ms->fd, fb_id, &clip[i], 1)) < 0)
-                    break;
-            }
-        }
-
-        if (ret == -EINVAL || ret == -ENOSYS) {
-            xf86DrvMsg(scrn->scrnIndex, X_INFO,
-                       "Disabling kernel dirty updates, not required.\n");
-            ms->dirty_enabled = FALSE;
-        }
-
-        free(clip);
-    }
-    return ret;
-}
-
-static int
-dispatch_dirty_region(ScrnInfoPtr scrn, xf86CrtcPtr crtc,
-                      PixmapPtr pixmap, DamagePtr damage,
-                      int fb_id, int x, int y)
-{
-    return dispatch_damages(scrn, crtc, DamageRegion(damage),
-                            pixmap, damage, fb_id, x, y);
-}
-
-static void
-dispatch_dirty(ScreenPtr pScreen)
-{
-    ScrnInfoPtr scrn = xf86ScreenToScrn(pScreen);
-    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
-    modesettingPtr ms = modesettingPTR(scrn);
-    PixmapPtr pixmap = pScreen->GetScreenPixmap(pScreen);
-    uint32_t fb_id;
-    int ret, c, x, y ;
-
-    for (c = 0; c < xf86_config->num_crtc; c++) {
-        xf86CrtcPtr crtc = xf86_config->crtc[c];
-        PixmapPtr pmap;
-
-        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-        if (!drmmode_crtc)
-            continue;
-
-	drmmode_crtc_get_fb_id(crtc, &fb_id, &x, &y);
-
-        if (crtc->rotatedPixmap)
-            pmap = crtc->rotatedPixmap;
-        else
-            pmap = pixmap;
-
-        ret = dispatch_dirty_region(scrn, crtc, pmap, ms->damage, fb_id, x, y);
-        if (ret == -EINVAL || ret == -ENOSYS) {
-            DamageUnregister(ms->damage);
-            DamageDestroy(ms->damage);
-            ms->damage = NULL;
-            return;
-        }
-    }
-
-    DamageEmpty(ms->damage);
-}
-
-static void
-dispatch_dirty_pixmap(ScrnInfoPtr scrn, xf86CrtcPtr crtc, PixmapPtr ppix)
-{
-    modesettingPtr ms = modesettingPTR(scrn);
-    msPixmapPrivPtr ppriv = msGetPixmapPriv(&ms->drmmode, ppix);
-    DamagePtr damage = ppriv->secondary_damage;
-
-    dispatch_dirty_region(scrn, crtc, ppix, damage, fb_id, 0, 0);
-
-	if (damage)
-        DamageEmpty(damage);
-}
-
-static void
-dispatch_secondary_dirty(ScreenPtr pScreen)
-{
-    ScrnInfoPtr scrn = xf86ScreenToScrn(pScreen);
-    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
+    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+    modesettingPtr ms = modesettingPTR(pScrn);
     int c;
 
     for (c = 0; c < xf86_config->num_crtc; c++) {
@@ -719,10 +549,12 @@ dispatch_secondary_dirty(ScreenPtr pScreen)
         if (!drmmode_crtc)
             continue;
 
-        if (drmmode_crtc->prime_pixmap)
-            dispatch_dirty_pixmap(scrn, crtc, drmmode_crtc->prime_pixmap);
-        if (drmmode_crtc->prime_pixmap_back)
-            dispatch_dirty_pixmap(scrn, crtc, drmmode_crtc->prime_pixmap_back);
+        if (drmmode_flip_fb(crtc, timeout))
+            continue;
+
+        drmmode_crtc->can_flip_fb = FALSE;
+        drmmode_set_desired_modes(pScrn, &ms->drmmode, TRUE, FALSE);
+        break;
     }
 }
 
@@ -813,52 +645,14 @@ msBlockHandler(ScreenPtr pScreen, void *timeout)
 {
     modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(pScreen));
     ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
-    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
-    int c;
 
     pScreen->BlockHandler = ms->BlockHandler;
     pScreen->BlockHandler(pScreen, timeout);
     ms->BlockHandler = pScreen->BlockHandler;
     pScreen->BlockHandler = msBlockHandler;
 
-    if (pScreen->isGPU && !ms->drmmode.reverse_prime_offload_mode)
-    {
-        dispatch_secondary_dirty(pScreen);
-    }
-    else
-    {
-        if (ms->dirty_enabled)
-            dispatch_dirty(pScreen);
-
-        for (c = 0; c < xf86_config->num_crtc; c++)
-        {
-            xf86CrtcPtr crtc = xf86_config->crtc[c];
-            drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-            if (!drmmode_crtc)
-                continue;
-
-            if (drmmode_flip_fb(crtc, timeout))
-                continue;
-
-            drmmode_crtc->can_flip_fb = FALSE;
-            drmmode_set_desired_modes(pScrn, &ms->drmmode, TRUE, FALSE);
-            break;
-        }
-    }
-
+    dispatch_dirty(pScrn, timeout);
     ms_dirty_update(pScreen, timeout);
-}
-
-static void
-msBlockHandler_oneshot(ScreenPtr pScreen, void *pTimeout)
-{
-    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
-    modesettingPtr ms = modesettingPTR(pScrn);
-
-    msBlockHandler(pScreen, pTimeout);
-
-    drmmode_set_desired_modes(pScrn, &ms->drmmode, TRUE, FALSE);
 }
 
 Bool
@@ -1629,7 +1423,6 @@ CreateScreenResources(ScreenPtr pScreen)
     PixmapPtr rootPixmap;
     Bool ret;
     void *pixels = NULL;
-    int err;
 
     pScreen->CreateScreenResources = ms->createScreenResources;
     ret = pScreen->CreateScreenResources(pScreen);
@@ -1664,24 +1457,6 @@ CreateScreenResources(ScreenPtr pScreen)
         if (!ms->shadow.Add(pScreen, rootPixmap, msUpdatePacked, msShadowWindow,
                             0, 0))
             return FALSE;
-    }
-
-    err = drmModeDirtyFB(ms->fd, ms->drmmode.fb_id, NULL, 0);
-
-    if ((err != -EINVAL && err != -ENOSYS)) {
-        ms->damage = DamageCreate(NULL, NULL, DamageReportNone, TRUE,
-                                  pScreen, rootPixmap);
-
-        if (ms->damage) {
-            DamageRegister(&rootPixmap->drawable, ms->damage);
-            ms->dirty_enabled = err != -EINVAL && err != -ENOSYS;
-            xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Damage tracking initialized\n");
-        }
-        else {
-            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                       "Failed to create screen damage record\n");
-            return FALSE;
-        }
     }
 
     if (dixPrivateKeyRegistered(rrPrivKey)) {
@@ -1982,7 +1757,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     pScreen->CloseScreen = CloseScreen;
 
     ms->BlockHandler = pScreen->BlockHandler;
-    pScreen->BlockHandler = msBlockHandler_oneshot;
+    pScreen->BlockHandler = msBlockHandler;
 
     pScreen->SharePixmapBacking = msSharePixmapBacking;
     pScreen->SetSharedPixmapBacking = msSetSharedPixmapBacking;
@@ -2179,12 +1954,6 @@ CloseScreen(ScreenPtr pScreen)
 #endif
 
     ms_vblank_close_screen(pScreen);
-
-    if (ms->damage) {
-        DamageUnregister(ms->damage);
-        DamageDestroy(ms->damage);
-        ms->damage = NULL;
-    }
 
     if (ms->drmmode.shadow_enable) {
         ms->shadow.Remove(pScreen, pScreen->GetScreenPixmap(pScreen));
