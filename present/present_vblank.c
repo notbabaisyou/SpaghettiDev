@@ -128,6 +128,13 @@ present_vblank_init(present_vblank_ptr vblank,
     vblank->notifies = notifies;
     vblank->num_notifies = num_notifies;
     vblank->has_suboptimal = (options & PresentOptionSuboptimal);
+    
+    if (options & PresentOptionAsyncMayTear)
+        vblank->flip_type = PRESENT_TYPE_ASYNC_TEARING;
+    else if (options & PresentOptionAsync)
+        vblank->flip_type = PRESENT_TYPE_ASYNCHRONOUS;
+    else
+        vblank->flip_type = PRESENT_TYPE_SYNCHRONOUS;
 
     if (pixmap != NULL &&
         !(options & PresentOptionCopy) &&
@@ -139,7 +146,9 @@ present_vblank_init(present_vblank_ptr vblank,
                                      sync_flip, valid, x_off, y_off, &reason))
         {
             vblank->flip = TRUE;
-            vblank->sync_flip = sync_flip;
+            
+            if (sync_flip)
+                vblank->flip_type = PRESENT_TYPE_SYNCHRONOUS;
         }
     }
     vblank->reason = reason;

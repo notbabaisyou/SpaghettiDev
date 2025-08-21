@@ -157,12 +157,19 @@ present_flip(RRCrtcPtr crtc,
              uint64_t event_id,
              uint64_t target_msc,
              PixmapPtr pixmap,
-             Bool sync_flip)
+             present_flip_type type)
 {
     ScreenPtr                   screen = crtc->pScreen;
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
 
-    return (*screen_priv->info->flip) (crtc, event_id, target_msc, pixmap, sync_flip);
+    if (screen_priv->info->version >= 2 && *screen_priv->info->flip2)
+    {
+        return (*screen_priv->info->flip2) (crtc, event_id, target_msc, pixmap, type);
+    }
+    else
+    {
+        return (*screen_priv->info->flip) (crtc, event_id, target_msc, pixmap, (type == PRESENT_TYPE_SYNCHRONOUS));
+    }
 }
 
 static RRCrtcPtr
@@ -366,7 +373,7 @@ present_flip_notify(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     screen_priv->flip_window = vblank->window;
     screen_priv->flip_serial = vblank->serial;
     screen_priv->flip_pixmap = vblank->pixmap;
-    screen_priv->flip_sync = vblank->sync_flip;
+    screen_priv->flip_sync = (vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS);
     screen_priv->flip_idle_fence = vblank->idle_fence;
 
     vblank->pixmap = NULL;
@@ -452,7 +459,7 @@ present_check_flip_window (WindowPtr window)
          */
         if (flip_pending->window == window) {
             if (!present_check_flip(flip_pending->crtc, window, flip_pending->pixmap,
-                                    flip_pending->sync_flip, NULL, 0, 0, NULL))
+                                    flip_pending->flip_type == PRESENT_TYPE_SYNCHRONOUS, NULL, 0, 0, NULL))
                 present_set_abort_flip(screen);
         }
     } else {
@@ -467,12 +474,15 @@ present_check_flip_window (WindowPtr window)
 
     /* Now check any queued vblanks */
     xorg_list_for_each_entry(vblank, &window_priv->vblank, window_list) {
-        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, vblank->sync_flip, NULL, 0, 0, &reason)) {
+        Bool sync_flip = vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS;
+
+        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, sync_flip, NULL, 0, 0, &reason)) {
             vblank->flip = FALSE;
             /* Don't spuriously flag this as a TearFree presentation */
             if (reason < PRESENT_FLIP_REASON_DRIVER_TEARFREE)
                 vblank->reason = reason;
-            if (vblank->sync_flip)
+
+            if (sync_flip)
                 vblank->exec_msc = vblank->target_msc;
         }
     }
@@ -593,7 +603,7 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
             xorg_list_add(&vblank->event_queue, &present_flip_queue);
             /* Try to flip
              */
-            if (present_flip(vblank->crtc, vblank->event_id, vblank->target_msc, vblank->pixmap, vblank->sync_flip)) {
+            if (present_flip(vblank->crtc, vblank->event_id, vblank->target_msc, vblank->pixmap, vblank->flip_type)) {
                 RegionPtr damage;
 
                 /* Fix window pixmaps:
@@ -677,7 +687,8 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
                     completion_msc++;
 
             /* Try the fake flip first and then fall back to a vblank event */
-            if (present_flip(vblank->crtc, vblank->event_id, 0, NULL, TRUE) ||
+            if (present_flip(vblank->crtc, vblank->event_id, 0,
+                                NULL, PRESENT_TYPE_SYNCHRONOUS) ||
                 Success == screen_priv->queue_vblank(screen,
                                                      window,
                                                      vblank->crtc,
@@ -856,7 +867,7 @@ present_scmd_pixmap(WindowPtr window,
         !msc_is_after(vblank->exec_msc, crtc_msc + 1))
         vblank->exec_msc -= 2;
     else if (vblank->reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE ||
-             (vblank->flip && vblank->sync_flip))
+             (vblank->flip && vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS))
         vblank->exec_msc--;
 
     xorg_list_append(&vblank->event_queue, &present_exec_queue);
