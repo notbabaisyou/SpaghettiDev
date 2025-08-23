@@ -147,8 +147,6 @@ typedef struct {
 
     Bool is_secondary;
 
-    PixmapPtr fbcon_pixmap;
-
     Bool dri2_flipping;
     Bool present_flipping;
     Bool flip_bo_import_failed;
