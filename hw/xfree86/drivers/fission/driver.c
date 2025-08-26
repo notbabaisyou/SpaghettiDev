@@ -710,7 +710,7 @@ dispatch_dirty_pixmap(ScrnInfoPtr scrn, xf86CrtcPtr crtc, PixmapPtr ppix)
     DamagePtr damage = ppriv->secondary_damage;
     int fb_id = ppriv->fb_id;
 
-    dispatch_dirty_region(scrn, crtc, ppix, damage, fb_id, 0, 0);
+    dispatch_dirty_region(scrn, crtc, ppix, damage, ppriv->fb_id, 0, 0);
 
 	if (damage)
         DamageEmpty(damage);
