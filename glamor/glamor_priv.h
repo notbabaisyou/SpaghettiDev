@@ -246,6 +246,7 @@ typedef struct glamor_screen_private {
     Bool is_core_profile;
     Bool can_copyplane;
     Bool use_gpu_shader4;
+    Bool has_fence_sync;
     int max_fbo_size;
     Bool enable_gradient_shader;
 
@@ -342,7 +343,6 @@ typedef struct glamor_screen_private {
     Bool suppress_gl_out_of_memory_logging;
     Bool logged_any_fbo_allocation_failure;
     Bool logged_any_pbo_allocation_failure;
-    Bool dirty;
 
     /* xv */
     glamor_program xv_prog;
