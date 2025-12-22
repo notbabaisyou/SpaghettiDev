@@ -60,6 +60,8 @@
 #include "os/ddx_priv.h"
 #include "os/osdep.h"
 
+#include "include/spaghetti_compat.h"
+
 #include "servermd.h"
 #include "windowstr.h"
 #include "scrnintstr.h"
@@ -259,12 +261,16 @@ AddVTAtoms(CallbackListPtr *pcbl, void *data, void *screen)
 }
 
 static Bool
-xf86ScreenInit(ScreenPtr pScreen, int argc, char **argv)
+xf86ScreenInit(ScreenPtr pScreen, Bool nv_workaround, int argc, char **argv)
 {
     ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 
     pScrn->pScreen = pScreen;
-    return pScrn->ScreenInit (pScreen, argc, argv);
+
+    if (!nv_workaround)
+        return pScrn->ScreenInit (pScreen, argc, argv);
+    else
+        return NVScreenInit (pScreen, argc, argv);
 }
 
 static void

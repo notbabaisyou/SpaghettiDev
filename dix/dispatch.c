@@ -4027,6 +4027,7 @@ AddScreen(Bool (*pfnInit) (ScreenPtr /*pScreen */ ,
 
 int
 AddGPUScreen(Bool (*pfnInit) (ScreenPtr /*pScreen */ ,
+                              Bool /* nv_workaround */,
                               int /*argc */ ,
                               char **      /*argv */
                               ),
@@ -4060,7 +4061,7 @@ AddGPUScreen(Bool (*pfnInit) (ScreenPtr /*pScreen */ ,
      */
     screenInfo.gpuscreens[i] = pScreen;
     screenInfo.numGPUScreens++;
-    if (!(*pfnInit) (pScreen, argc, argv)) {
+    if (!(*pfnInit) (pScreen, FALSE, argc, argv)) {
         dixFreePrivates(pScreen->devPrivates, PRIVATE_SCREEN);
         free(pScreen);
         screenInfo.numGPUScreens--;
