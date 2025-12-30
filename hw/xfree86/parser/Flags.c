@@ -78,6 +78,7 @@ static const xf86ConfigSymTabRec ServerFlagsTab[] = {
     {SUSPENDTIME, "suspendtime"},
     {OFFTIME, "offtime"},
     {DEFAULTLAYOUT, "defaultserverlayout"},
+    {BACKGROUNDISOLATION, "backgroundisolation"},
     {-1, ""},
 };
 
@@ -119,6 +120,7 @@ xf86parseFlagsSection(void)
         case DISABLEMODINDEV:
         case MODINDEVALLOWNONLOCAL:
         case ALLOWMOUSEOPENFAIL:
+        case BACKGROUNDISOLATION:
         {
             int i = 0;
 

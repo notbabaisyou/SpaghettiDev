@@ -107,6 +107,7 @@ typedef enum {
     SUSPENDTIME,
     OFFTIME,
     DEFAULTLAYOUT,
+    BACKGROUNDISOLATION,
 
     /* Monitor tokens */
     MODEL,
