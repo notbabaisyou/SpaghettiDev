@@ -692,6 +692,14 @@ Unset by default.
 .TP 7
 .BI "Option \*qAllowByteSwappedClients\*q  \*q" boolean \*q
 Allow clients with a different byte-order than the server. Disabled by default.
+.TP 7
+.BI "Option \*qBackgroundIsolation\*q \*q" boolean \*q
+Blocks raw keyboard events to ungrabbed clients and keyboard
+input events to both unfocused windows and clients.
+
+Acts as a crude protection against keyloggers.
+
+Disabled by default.
 .SH "MODULE SECTION"
 The
 .B Module
