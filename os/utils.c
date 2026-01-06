@@ -172,9 +172,6 @@ Bool noXFixesExtension = FALSE;
 /* Xinerama is disabled by default unless enabled via +xinerama */
 Bool noPanoramiXExtension = TRUE;
 #endif /* XINERAMA */
-#ifdef DRI2
-Bool noDRI2Extension = FALSE;
-#endif
 
 Bool noGEExtension = FALSE;
 

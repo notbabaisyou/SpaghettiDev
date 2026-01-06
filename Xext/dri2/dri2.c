@@ -30,9 +30,7 @@
  *   Kristian Høgsberg (krh@redhat.com)
  */
 
-#ifdef HAVE_XORG_CONFIG_H
-#include <xorg-config.h>
-#endif
+#include <dix-config.h>
 
 #include <errno.h>
 
@@ -48,7 +46,13 @@
 #include "dri2.h"
 #include "dri2int.h"
 #include "damage.h"
-#include "xf86.h"
+
+#define xf86DrvMsg(scrnIndex, type, /* format, */ ...) \
+    do { \
+        char formatted[512]; \
+        snprintf(formatted, 512, __VA_ARGS__); \
+        LogMessageVerb(type, 9, "(%d): %s", scrnIndex, formatted); \
+    } while (0); \
 
 CARD8 dri2_major;               /* version of DRI2 supported by DDX */
 CARD8 dri2_minor;
