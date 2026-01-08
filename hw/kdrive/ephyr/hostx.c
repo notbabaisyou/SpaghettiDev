@@ -61,7 +61,6 @@
 #include <epoxy/common.h>
 #include <epoxy/gl.h>
 #include "glamor.h"
-#include "glamor_glx_provider.h"
 #include "ephyr_glamor.h"
 #endif
 #include "ephyrlog.h"
@@ -1615,8 +1614,6 @@ ephyr_glamor_init(ScreenPtr screen)
         free(glvnd_vendors);
     }
     free(hostx_glx_exts);
-
-    GlxPushProvider(&glamor_provider);
 
     return TRUE;
 }
