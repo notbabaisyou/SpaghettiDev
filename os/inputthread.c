@@ -441,15 +441,6 @@ InputThreadPreInit(void)
         (void)fcntl(hotplugPipeRead, F_SETFD, flags);
     }
     hotplugPipeWrite = hotplugPipe[1];
-
-#ifndef __linux__ /* Linux does not deal well with renaming the main thread */
-#if defined(HAVE_PTHREAD_SETNAME_NP_WITH_TID)
-    pthread_setname_np (pthread_self(), "MainThread");
-#elif defined(HAVE_PTHREAD_SETNAME_NP_WITHOUT_TID)
-    pthread_setname_np ("MainThread");
-#endif
-#endif
-
 }
 
 /**

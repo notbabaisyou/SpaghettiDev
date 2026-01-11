@@ -130,25 +130,27 @@ extern void Dispatch(void);
 
 CallbackListPtr RootWindowFinalizeCallback = NULL;
 
-int
-dix_main(int argc, char *argv[], char *envp[])
+typedef struct
+{
+    int argc;
+    char **argv;
+} DixArgs;
+
+static void*
+dix_loop(void* arg)
 {
     int i;
-    HWEventQueueType alwaysCheckForInput[2];
+    HWEventQueueType alwaysCheckForInput[2] = { 0, 1 };
+    const DixArgs* args = (DixArgs*)arg;
+    
+#if defined(HAVE_PTHREAD_SETNAME_NP_WITH_TID)
+    pthread_setname_np (pthread_self(), "DixLoop");
+#elif defined(HAVE_PTHREAD_SETNAME_NP_WITHOUT_TID)
+    pthread_setname_np ("DixLoop");
+#endif
 
-    display = "0";
-
-    InitRegions();
-
-    CheckUserParameters(argc, argv, envp);
-
-    CheckUserAuthorization();
-
-    ProcessCommandLine(argc, argv);
-
-    alwaysCheckForInput[0] = 0;
-    alwaysCheckForInput[1] = 1;
-    while (1) {
+    do
+    {
         serverGeneration++;
         ScreenSaverTime = defaultScreenSaverTime;
         ScreenSaverInterval = defaultScreenSaverInterval;
@@ -156,19 +158,30 @@ dix_main(int argc, char *argv[], char *envp[])
         ScreenSaverAllowExposures = defaultScreenSaverAllowExposures;
 
         InitBlockAndWakeupHandlers();
+
         /* Perform any operating system dependent initializations you'd like */
         OsInit();
-        if (serverGeneration == 1) {
+
+        if (serverGeneration == 1)
+        {
             CreateWellKnownSockets();
+
             for (i = 1; i < LimitClients; i++)
                 clients[i] = NullClient;
+
             serverClient = calloc(1, sizeof(ClientRec));
-            if (!serverClient)
+            if (!serverClient) {
                 FatalError("couldn't create server client");
+                break;
+            }
+
             InitClient(serverClient, 0, (void *) NULL);
         }
         else
+        {
             ResetWellKnownSockets();
+        }
+
         clients[0] = serverClient;
         currentMaxClients = 1;
 
@@ -181,11 +194,15 @@ dix_main(int argc, char *argv[], char *envp[])
         /* Initialize server client devPrivates, to be reallocated as
          * more client privates are registered
          */
-        if (!dixAllocatePrivates(&serverClient->devPrivates, PRIVATE_CLIENT))
+        if (!dixAllocatePrivates(&serverClient->devPrivates, PRIVATE_CLIENT)) {
             FatalError("failed to create server client privates");
+            break;
+        }
 
-        if (!InitClientResources(serverClient)) /* for root resources */
-            FatalError("couldn't init server resources");
+        if (!InitClientResources(serverClient)) { /* for root resources */
+            FatalError("couldn't init server resources");    
+            break;
+        }
 
         SetInputCheck(&alwaysCheckForInput[0], &alwaysCheckForInput[1]);
         screenInfo.numScreens = 0;
@@ -196,19 +213,28 @@ dix_main(int argc, char *argv[], char *envp[])
         dixResetRegistry();
         InitFonts();
         InitCallbackManager();
-        InitOutput(&screenInfo, argc, argv);
+        InitOutput(&screenInfo, args->argc, args->argv);
 
-        if (screenInfo.numScreens < 1)
-            FatalError("no screens found");
-        InitExtensions(argc, argv);
+        if (!screenInfo.numScreens) {
+            FatalError("No Screens found");
+            break;
+        }
+
+        InitExtensions(args->argc, args->argv);
 
         for (i = 0; i < screenInfo.numGPUScreens; i++) {
             ScreenPtr pScreen = screenInfo.gpuscreens[i];
-            if (!PixmapScreenInit(pScreen))
+
+            if (!PixmapScreenInit(pScreen)) {
                 FatalError("failed to create screen pixmap properties");
+                break;
+            }
+
             if (pScreen->CreateScreenResources &&
-                !(*pScreen->CreateScreenResources) (pScreen))
+              !(*pScreen->CreateScreenResources) (pScreen)) {
                 FatalError("failed to create screen resources");
+                break;
+            }
         }
 
         for (i = 0; i < screenInfo.numScreens; i++) {
@@ -216,11 +242,16 @@ dix_main(int argc, char *argv[], char *envp[])
 
             /* Let all screens register the necessary privates */
 
-            if (!PixmapScreenInit(pScreen))
+            if (!PixmapScreenInit(pScreen)) {
                 FatalError("failed to create screen pixmap properties");
+                break;
+            }
+
             if (pScreen->CreateScreenResources &&
-                !(*pScreen->CreateScreenResources) (pScreen))
+              !(*pScreen->CreateScreenResources) (pScreen)) {
                 FatalError("failed to create screen resources");
+                break;
+            }
         }
 
         for (i = 0; i < screenInfo.numScreens; i++) {
@@ -228,12 +259,21 @@ dix_main(int argc, char *argv[], char *envp[])
 
             /* Then use these privates to initialize root windows etc */
 
-            if (!CreateGCperDepth(i))
+            if (!CreateGCperDepth(i)) {
                 FatalError("failed to create scratch GCs");
-            if (!CreateDefaultStipple(i))
+                break;
+            }
+
+            if (!CreateDefaultStipple(i)) {
                 FatalError("failed to create default stipple");
-            if (!CreateRootWindow(pScreen))
+                break;
+            }
+
+            if (!CreateRootWindow(pScreen)) {
                 FatalError("failed to create root window");
+                break;
+            }
+            
             CallCallbacks(&RootWindowFinalizeCallback, pScreen);
         }
 
@@ -241,12 +281,15 @@ dix_main(int argc, char *argv[], char *envp[])
             ErrorF("[dix] failed to set default font path '%s'",
                    defaultFontPath);
         }
+
         if (!SetDefaultFont("fixed")) {
             FatalError("could not open default font");
+            break;
         }
 
         if (!(rootCursor = CreateRootCursor())) {
             FatalError("could not open default cursor font");
+            break;
         }
 
         rootCursor = RefCursor(rootCursor);
@@ -263,7 +306,7 @@ dix_main(int argc, char *argv[], char *envp[])
             InitRootWindow(screenInfo.screens[i]->root);
 
         InitCoreDevices();
-        InitInput(argc, argv);
+        InitInput(args->argc, args->argv);
         InitAndStartDevices();
         ReserveClientIds(serverClient);
 
@@ -275,6 +318,7 @@ dix_main(int argc, char *argv[], char *envp[])
         if (!noPanoramiXExtension) {
             if (!PanoramiXCreateConnectionBlock()) {
                 FatalError("could not create connection block info");
+                break;
             }
         }
         else
@@ -282,6 +326,7 @@ dix_main(int argc, char *argv[], char *envp[])
         {
             if (!CreateConnectionBlock()) {
                 FatalError("could not create connection block info");
+                break;
             }
         }
 
@@ -299,6 +344,7 @@ dix_main(int argc, char *argv[], char *envp[])
         /* Now free up whatever must be freed */
         if (screenIsSaved == SCREEN_SAVER_ON)
             dixSaveScreens(serverClient, SCREEN_SAVER_OFF, ScreenSaverReset);
+
         FreeScreenSaverTimer();
         CloseDownExtensions();
 
@@ -348,7 +394,7 @@ dix_main(int argc, char *argv[], char *envp[])
         dixFreePrivates(serverClient->devPrivates, PRIVATE_CLIENT);
         serverClient->devPrivates = NULL;
 
-	dixFreeRegistry();
+        dixFreeRegistry();
 
         FreeFonts();
 
@@ -373,6 +419,44 @@ dix_main(int argc, char *argv[], char *envp[])
 
         free(ConnectionInfo);
         ConnectionInfo = NULL;
+    } while (TRUE);
+
+    return NULL;
+}
+
+int
+dix_main(int argc, char *argv[], char *envp[])
+{
+    pthread_t dix_thread;
+    pthread_attr_t attrs;
+    DixArgs args = { argc, argv };
+    int ret;
+    display = "0";
+
+    InitRegions();
+
+    CheckUserParameters(argc, argv, envp);
+
+    CheckUserAuthorization();
+
+    ProcessCommandLine(argc, argv);
+
+    pthread_attr_init(&attrs);
+    pthread_attr_setinheritsched(&attrs, PTHREAD_EXPLICIT_SCHED);
+    
+    /* RT scheduling is only available behind root only. */
+    if (geteuid() == 0) {
+        struct sched_param param = { .sched_priority = 1 };
+        pthread_attr_setschedpolicy(&attrs, SCHED_FIFO);
+        pthread_attr_setschedparam(&attrs, &param);
     }
-    return 0;
+#if defined(SCHED_BATCH)
+    else
+        pthread_attr_setschedpolicy(&attrs, SCHED_BATCH);
+#endif
+
+    if ((ret = pthread_create(&dix_thread, &attrs, dix_loop, &args)))
+        return ret;
+    else
+        return pthread_join(dix_thread, NULL);
 }
