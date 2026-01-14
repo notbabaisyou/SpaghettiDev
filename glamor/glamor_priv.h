@@ -234,6 +234,37 @@ struct glamor_saved_procs {
     ScreenBlockHandlerProcPtr block_handler;
 };
 
+typedef struct {
+    void   *map;
+    GLsync  fence;
+
+    size_t  size;
+
+    GLuint  id;
+    Bool    persistent;
+    Bool    coherent;
+} pbo_slot_t;
+
+typedef struct {
+    Bool have_buffer_storage;
+    Bool prefer_coherent;
+    size_t upload_threshold;
+    size_t download_threshold;
+
+    unsigned upload_index;
+    unsigned download_index;
+
+    pbo_slot_t upload[4];
+    pbo_slot_t download[2];
+
+    /* XYBitmap cache */
+    GLuint bitmap_tex;
+    GLsizei bitmap_w;
+    GLsizei bitmap_h;
+    GLint bitorder_uniform;
+    GLuint last_bitmap_prog;
+} image_state_t;
+
 typedef struct glamor_screen_private {
     Bool is_gles;
     int glsl_version;
@@ -254,6 +285,7 @@ typedef struct glamor_screen_private {
     Bool use_gpu_shader4;
     int max_fbo_size;
     Bool enable_gradient_shader;
+    Bool enable_pbo_uploads;
 
     /**
      * Stores information about supported formats. Note, that this list contains all
@@ -283,6 +315,9 @@ typedef struct glamor_screen_private {
     /* glamor copy shaders */
     glamor_program      copy_area_prog;
     glamor_program      copy_plane_prog;
+
+    /* glamor image shaders */
+    glamor_program      put_bitmap_prog;
 
     /* glamor line shader */
     glamor_program_fill poly_line_program;
@@ -351,6 +386,9 @@ typedef struct glamor_screen_private {
 
     /* xv */
     glamor_program xv_prog;
+
+    /* pbo */
+    image_state_t image_state;
 
     struct glamor_context ctx;
 } glamor_screen_private;
@@ -937,6 +975,21 @@ void
 glamor_solid_boxes(DrawablePtr drawable,
                    BoxPtr box, int nbox, unsigned long fg_pixel);
 
+/* glamor_pbo.c */
+
+static inline void
+pbo_wait_fence(pbo_slot_t *slot)
+{
+    if (slot->fence) {
+        glClientWaitSync(slot->fence, GL_SYNC_FLUSH_COMMANDS_BIT, GL_TIMEOUT_IGNORED);
+        glDeleteSync(slot->fence);
+        slot->fence = 0;
+    }
+}
+
+Bool
+pbo_acquire_upload(glamor_screen_private *glamor_priv,
+				   image_state_t *s, size_t required, pbo_slot_t **out);
 
 /* glamor_xv */
 typedef struct {

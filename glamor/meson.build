@@ -10,6 +10,7 @@ srcs_glamor = [
     'glamor_segs.c',
     'glamor_render.c',
     'glamor_gradient.c',
+    'glamor_pbo.c',
     'glamor_prepare.c',
     'glamor_program.c',
     'glamor_rects.c',

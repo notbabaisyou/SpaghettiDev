@@ -606,6 +606,18 @@ glamor_setup_formats(ScreenPtr screen)
     glamor_priv->cbcr_format.texture_only = FALSE;
 }
 
+static inline void
+glamor_setup_pbo_uploads(glamor_screen_private *glamor_priv)
+{
+    image_state_t img_state = glamor_priv->image_state;
+    const bool prefer_coherent = strstr((char *)glGetString(GL_VENDOR), "Intel");
+
+    img_state.prefer_coherent = prefer_coherent;
+    img_state.upload_threshold = prefer_coherent ? 65536 : 131072;
+    img_state.download_threshold = prefer_coherent ? 65536 : 131072;
+    img_state.bitorder_uniform = -1;
+}
+
 /** Set up glamor for an already-configured GL context. */
 Bool
 glamor_init(ScreenPtr screen, unsigned int flags)
@@ -770,6 +782,9 @@ glamor_init(ScreenPtr screen, unsigned int flags)
         epoxy_has_gl_extension("GL_EXT_texture_rg") ||
         epoxy_has_gl_extension("GL_ARB_texture_rg");
 
+    glamor_priv->enable_pbo_uploads =
+        (!glamor_priv->is_gles && epoxy_gl_version() >= 44);
+
     glamor_priv->can_copyplane = (gl_version >= 30);
 
     glamor_setup_debug_output(screen);
@@ -798,6 +813,9 @@ glamor_init(ScreenPtr screen, unsigned int flags)
     glamor_priv->has_texture_swizzle =
         (epoxy_has_gl_extension("GL_ARB_texture_swizzle") ||
          (glamor_priv->is_gles && gl_version >= 30));
+
+    if (glamor_priv->enable_pbo_uploads)
+        glamor_setup_pbo_uploads(glamor_priv);
 
     glamor_setup_formats(screen);
 
