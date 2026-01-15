@@ -131,7 +131,7 @@ const glamor_facet glamor_facet_put_bitmap = {
  */
 static Bool
 glamor_put_image_xybitmap_gl(DrawablePtr drawable, GCPtr gc, int x, int y,
-                             int w, int h, int leftPad, char *bits)
+                             int w, int h, int leftPad, int format, char *bits)
 {
     ScreenPtr screen = drawable->pScreen;
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
@@ -145,6 +145,15 @@ glamor_put_image_xybitmap_gl(DrawablePtr drawable, GCPtr gc, int x, int y,
     int box_index;
     int off_x, off_y;
     Bool ret = FALSE;
+
+    if (format != XYBitmap)
+        return FALSE;
+
+    if (w < 128)
+        return FALSE;
+
+    if (h < 128)
+        return FALSE;
 
     if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(pixmap_priv))
         return FALSE;
@@ -236,6 +245,54 @@ bail:
     return ret;
 }
 
+/*
+ * Create a temporary in-memory pixmap, put the image there then copy
+ * to the destination.
+ */
+static Bool
+glamor_put_image_xy_gl(DrawablePtr drawable, GCPtr gc, int depth, int x, int y,
+                       int w, int h, int leftPad, int format, char *bits)
+{
+    PixmapPtr pixmap = glamor_get_drawable_pixmap(drawable);
+    glamor_pixmap_private *pixmap_priv = glamor_get_pixmap_private(pixmap);
+    ScreenPtr   screen = drawable->pScreen;
+    PixmapPtr   temp_pixmap = NULL;
+    DrawablePtr temp_drawable;
+    GCPtr       temp_gc;
+    Bool        ret = FALSE;
+    ChangeGCVal gcv[3];
+
+    if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(pixmap_priv))
+        return FALSE;
+
+    temp_pixmap = (*screen->CreatePixmap)(screen, w, h, drawable->depth, CREATE_PIXMAP_USAGE_SCRATCH);
+    if (!temp_pixmap)
+        goto bail;
+
+    temp_drawable = &temp_pixmap->drawable;
+    temp_gc = GetScratchGC(temp_drawable->depth, screen);
+    if (!temp_gc)
+        goto bail_pixmap;
+
+    /* copy mode for the first plane to clear all of the other bits */
+    gcv[0].val = GXcopy;
+    gcv[1].val = gc->fgPixel;
+    gcv[2].val = gc->bgPixel;
+
+    ChangeGC(NullClient, temp_gc, GCFunction | GCForeground | GCBackground, gcv);
+    ValidateGC(temp_drawable, temp_gc);
+
+    (*temp_gc->ops->PutImage)(temp_drawable, temp_gc, depth, 0, 0, w, h, leftPad, format, bits);
+    (*gc->ops->CopyArea)(&temp_pixmap->drawable, drawable, gc, 0, 0, w, h, x, y);
+
+    ret = TRUE;
+    FreeScratchGC(temp_gc);
+bail_pixmap:
+    (*screen->DestroyPixmap)(temp_pixmap);
+bail:
+    return ret;
+}
+
 static void
 glamor_put_image_bail(DrawablePtr drawable, GCPtr gc, int depth, int x, int y,
                       int w, int h, int leftPad, int format, char *bits)
@@ -254,10 +311,13 @@ glamor_put_image(DrawablePtr drawable, GCPtr gc, int depth, int x, int y,
         if (glamor_put_image_zpixmap_gl(drawable, gc, depth, x, y, w, h, leftPad, format, bits))
             return;
     case XYPixmap:
-        goto bail;
     case XYBitmap:
-        if (glamor_put_image_xybitmap_gl(drawable, gc, x, y, w, h, leftPad, bits))
+        if (glamor_put_image_xybitmap_gl(drawable, gc, x, y, w, h, leftPad, format, bits))
             return;
+
+        if (glamor_put_image_xy_gl(drawable, gc, depth, x, y, w, h, leftPad, format, bits))
+            return;
+
         break;
     }
 
