@@ -211,19 +211,28 @@ glamor_create_pixmap(ScreenPtr screen, int w, int h, int depth,
     if (w > 32767 || h > 32767)
         return NullPixmap;
 
-    if ((usage == GLAMOR_CREATE_PIXMAP_CPU
-         || usage == CREATE_PIXMAP_USAGE_XY_TO_Z
-         || (usage == CREATE_PIXMAP_USAGE_GLYPH_PICTURE &&
-             w <= glamor_priv->glyph_max_dim &&
-             h <= glamor_priv->glyph_max_dim)
-         || (w == 0 && h == 0)
-         || !glamor_priv->formats[depth].rendering_supported
-         || (glamor_priv->formats[depth].texture_only &&
-              (usage != GLAMOR_CREATE_FBO_NO_FBO))))
-        return fbCreatePixmap(screen, w, h, depth, usage);
-    else
-        pixmap = fbCreatePixmap(screen, 0, 0, depth, usage);
+    if (!w && !h)
+        goto unsupported;
 
+    if (usage == GLAMOR_CREATE_PIXMAP_CPU)
+        goto unsupported;
+
+    if (usage == CREATE_PIXMAP_USAGE_XY_TO_Z)
+        goto unsupported;
+
+    if (usage == CREATE_PIXMAP_USAGE_GLYPH_PICTURE &&
+        w <= glamor_priv->glyph_max_dim &&
+        h <= glamor_priv->glyph_max_dim)
+        goto unsupported;
+
+    if (!glamor_priv->formats[depth].rendering_supported)
+        goto unsupported;
+
+    if (glamor_priv->formats[depth].texture_only &&
+        usage != GLAMOR_CREATE_FBO_NO_FBO)
+        goto unsupported;
+
+    pixmap = fbCreatePixmap(screen, 0, 0, depth, usage);
     if (!pixmap)
         return NullPixmap;
 
@@ -255,12 +264,14 @@ glamor_create_pixmap(ScreenPtr screen, int w, int h, int depth,
 
     if (fbo == NULL) {
         fbDestroyPixmap(pixmap);
-        return fbCreatePixmap(screen, w, h, depth, usage);
+        goto unsupported;
     }
 
     glamor_pixmap_attach_fbo(pixmap, fbo);
-
     return pixmap;
+
+unsupported:
+    return fbCreatePixmap(screen, w, h, depth, usage);
 }
 
 Bool
