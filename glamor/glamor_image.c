@@ -321,7 +321,6 @@ glamor_put_image(DrawablePtr drawable, GCPtr gc, int depth, int x, int y,
         break;
     }
 
-bail:
     glamor_put_image_bail(drawable, gc, depth, x, y, w, h, leftPad, format, bits);
 }
 
