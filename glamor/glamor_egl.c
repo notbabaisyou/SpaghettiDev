@@ -48,7 +48,7 @@
 
 #include "glamor.h"
 #include "glamor_priv.h"
-#include "glamor_glx_provider.h"
+#include "glxglamor.h"
 #include "dri3.h"
 
 /*
@@ -66,6 +66,16 @@ struct glamor_egl_screen_private {
     EGLDisplay display;
     EGLContext context;
     char *device_path;
+
+    /* Screen capabilities. */
+
+    Bool dmabuf_capable;
+    Bool high_priority_ctx;
+    Bool provider_enabled; /* if GLX provider is enabled in options */
+
+    /* Misc. items, least used. */
+
+    int fd;
 
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr CloseScreen;
@@ -1035,7 +1045,6 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
 #ifdef GLXEXT
     static Bool vendor_initialized = FALSE;
 #endif
-    const char *gbm_backend_name;
 
     glamor_egl->saved_close_screen = screen->CloseScreen;
     screen->CloseScreen = glamor_egl_close_screen;
@@ -1082,8 +1091,9 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
         }
     }
 #endif
+
 #ifdef GLXEXT
-    if (!vendor_initialized) {
+    if (glamor_egl->provider_enabled && !vendor_initialized) {
         GlxPushProvider(&glamor_provider);
         xorgGlxCreateVendor();
         vendor_initialized = TRUE;
@@ -1253,12 +1263,12 @@ glamor_egl_try_gles_api(ScrnInfoPtr scrn)
 
 enum {
     GLAMOREGLOPT_RENDERING_API,
-    GLAMOREGLOPT_VENDOR_LIBRARY
+    GLAMOREGLOPT_GLX_GLAMOR,
 };
 
 static const OptionInfoRec GlamorEGLOptions[] = {
     { GLAMOREGLOPT_RENDERING_API, "RenderingAPI", OPTV_STRING, {0}, FALSE },
-    { GLAMOREGLOPT_VENDOR_LIBRARY, "GlxVendorLibrary", OPTV_STRING, {0}, FALSE },
+    { GLAMOREGLOPT_GLX_GLAMOR, "GLXGlamor", OPTV_BOOLEAN, {0}, FALSE },
     { -1, NULL, OPTV_NONE, {0}, FALSE },
 };
 
@@ -1282,9 +1292,9 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
     options = XNFalloc(sizeof(GlamorEGLOptions));
     memcpy(options, GlamorEGLOptions, sizeof(GlamorEGLOptions));
     xf86ProcessOptions(scrn->scrnIndex, scrn->options, options);
-    glvnd_vendor = xf86GetOptValString(options, GLAMOREGLOPT_VENDOR_LIBRARY);
-    if (glvnd_vendor)
-        glamor_egl->glvnd_vendor = XNFstrdup(glvnd_vendor);
+
+    glamor_egl->provider_enabled = 
+        xf86ReturnOptValBool(GlamorEGLOptions, GLAMOREGLOPT_GLX_GLAMOR, TRUE);
 
     api = xf86GetOptValString(options, GLAMOREGLOPT_RENDERING_API);
     if (api && !strncasecmp(api, "es", 2))

@@ -34,7 +34,7 @@ srcs_glamor = [
 ]
 
 if build_glx
-    srcs_glamor += 'glamor_glx_provider.c'
+    srcs_glamor += 'glxglamor.c'
 endif
 if build_xv
     srcs_glamor += 'glamor_xv.c'
