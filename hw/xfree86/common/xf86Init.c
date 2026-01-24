@@ -110,9 +110,11 @@ static PixmapFormatRec formats[MAXFORMATS] = {
     {16, 16, BITMAP_SCANLINE_PAD},
     {24, 32, BITMAP_SCANLINE_PAD},
     {32, 32, BITMAP_SCANLINE_PAD},
+    {48, 64, BITMAP_SCANLINE_PAD2},
+    {64, 64, BITMAP_SCANLINE_PAD2}
 };
 
-static int numFormats = 7;
+static int numFormats = 9;
 static Bool formatsDone = FALSE;
 
 
