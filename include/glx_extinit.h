@@ -49,9 +49,13 @@ struct __GLXprovider
 extern __GLXprovider __glXDRISWRastProvider;
 extern LILO GLXProviders;
 
-Bool GlxPushProvider(__GLXprovider* provider);
+Bool GlxPushProvider(__GLXprovider * provider);
+Bool xorgGlxInitProviders(void);
+void xorgGlxFreeProviders(void);
 Bool xorgGlxCreateVendor(void);
 #else
+static inline Bool xorgGlxInitProviders(void) { return TRUE; }
+static inline void xorgGlxFreeProviders(void) { }
 static inline Bool xorgGlxCreateVendor(void) { return TRUE; }
 #endif
 

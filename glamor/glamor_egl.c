@@ -42,7 +42,7 @@
 #include <gbm.h>
 #include <drm_fourcc.h>
 
-#include "minivec.h"
+#include "minivec_int.h"
 
 #include "glamor_egl.h"
 
@@ -1085,6 +1085,15 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
         }
     }
 #endif
+
+#ifdef GLXEXT
+    if (glamor_egl->provider_enabled && !vendor_initialized) {
+        GlxPushProvider(&glamor_provider);
+        vendor_initialized = TRUE;
+    }
+
+    xorgGlxCreateVendor();
+#endif
 }
 
 static void glamor_egl_cleanup(struct glamor_egl_screen_private *glamor_egl)
@@ -1124,11 +1133,11 @@ glamor_egl_try_big_gl_api(ScrnInfoPtr scrn)
         glamor_egl_get_screen_private(scrn);
 
     if (eglBindAPI(EGL_OPENGL_API)) {
-        mini_vector config;
-        mini_vector_init(&config, sizeof(EGLint), 5);
+        mini_vector_int config;
+        mini_vector_int_init(&config, 5);
 
-        insert_mini_vector(&config, EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR);
-        insert_mini_vector(&config, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR);
+        insert_mini_vector_int(&config, EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR);
+        insert_mini_vector_int(&config, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR);
 
         /*
          * If the user has requested a high priority context,
@@ -1136,11 +1145,11 @@ glamor_egl_try_big_gl_api(ScrnInfoPtr scrn)
          */
         if (glamor_egl->high_priority_ctx)
         {
-            insert_mini_vector(&config, EGL_CONTEXT_PRIORITY_LEVEL_IMG);
-            insert_mini_vector(&config, EGL_CONTEXT_PRIORITY_HIGH_IMG);
+            insert_mini_vector_int(&config, EGL_CONTEXT_PRIORITY_LEVEL_IMG);
+            insert_mini_vector_int(&config, EGL_CONTEXT_PRIORITY_HIGH_IMG);
         }
 
-        insert_mini_vector(&config, EGL_NONE);
+        insert_mini_vector_int(&config, EGL_NONE);
 
         static const EGLint config_attribs[] = {
             EGL_NONE
@@ -1149,7 +1158,7 @@ glamor_egl_try_big_gl_api(ScrnInfoPtr scrn)
         glamor_egl->context = eglCreateContext(glamor_egl->display,
                                                EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
                                                config.array);
-        free_mini_vector(&config);
+        free_mini_vector_int(&config);
 
         if (glamor_egl->context == EGL_NO_CONTEXT)
             glamor_egl->context = eglCreateContext(glamor_egl->display,
@@ -1189,11 +1198,11 @@ glamor_egl_try_gles_api(ScrnInfoPtr scrn)
     struct glamor_egl_screen_private *glamor_egl =
         glamor_egl_get_screen_private(scrn);
 
-    mini_vector config;
-    mini_vector_init(&config, sizeof(EGLint), 5);
+    mini_vector_int config;
+    mini_vector_int_init(&config, 5);
 
-    insert_mini_vector(&config, EGL_CONTEXT_CLIENT_VERSION);
-    insert_mini_vector(&config, 2);
+    insert_mini_vector_int(&config, EGL_CONTEXT_CLIENT_VERSION);
+    insert_mini_vector_int(&config, 2);
 
     /*
      * If the user has requested a high priority context,
@@ -1201,16 +1210,16 @@ glamor_egl_try_gles_api(ScrnInfoPtr scrn)
      */
     if (glamor_egl->high_priority_ctx)
     {
-        insert_mini_vector(&config, EGL_CONTEXT_PRIORITY_LEVEL_IMG);
-        insert_mini_vector(&config, EGL_CONTEXT_PRIORITY_HIGH_IMG);
+        insert_mini_vector_int(&config, EGL_CONTEXT_PRIORITY_LEVEL_IMG);
+        insert_mini_vector_int(&config, EGL_CONTEXT_PRIORITY_HIGH_IMG);
     }
 
-    insert_mini_vector(&config, EGL_NONE);
-
+    insert_mini_vector_int(&config, EGL_NONE);
 
     if (!eglBindAPI(EGL_OPENGL_ES_API)) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
                     "glamor: Failed to bind GLES API.\n");
+        free_mini_vector_int(&config);
         return FALSE;
     }
 
@@ -1218,7 +1227,7 @@ glamor_egl_try_gles_api(ScrnInfoPtr scrn)
                                             EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
                                             config.array);
 
-    free_mini_vector(&config);
+    free_mini_vector_int(&config);
 
     if (glamor_egl->context != EGL_NO_CONTEXT) {
         if (!eglMakeCurrent(glamor_egl->display,

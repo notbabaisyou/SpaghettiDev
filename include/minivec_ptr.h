@@ -1,6 +1,6 @@
 /**
  * Spaghetti Display Server
- * Copyright (C) 2025  SpaghettiFork
+ * Copyright (C) 2025-2026  SpaghettiFork
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,21 +15,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _MINI_VEC_H_
-#define _MINI_VEC_H_
+#ifndef _MINI_VEC_PTR_H_
+#define _MINI_VEC_PTR_H_
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct
 {
-	int *array;
+	void *array;
 	size_t used;
 	size_t size;
 	size_t obj_size;
-} mini_vector;
+} mini_vector_ptr;
 
-inline void mini_vector_init(mini_vector *a, size_t obj_size, size_t initialSize)
+inline void mini_vector_ptr_init(mini_vector_ptr *a, size_t obj_size, size_t initialSize)
 {
 	a->array = malloc(initialSize * obj_size);
 	a->used = 0;
@@ -37,7 +38,7 @@ inline void mini_vector_init(mini_vector *a, size_t obj_size, size_t initialSize
 	a->obj_size = obj_size;
 }
 
-inline void insert_mini_vector(mini_vector *a, int element)
+inline void insert_mini_vector_ptr(mini_vector_ptr *a, void* element)
 {
 	if (a->used == a->size)
 	{
@@ -45,14 +46,15 @@ inline void insert_mini_vector(mini_vector *a, int element)
 		a->array = realloc(a->array, a->size * a->obj_size);
 	}
 
-	a->array[a->used++] = element;
+	memcpy((char *)a->array + a->used * a->obj_size, element, a->obj_size);
+	a->used++;
 }
 
-inline void free_mini_vector(mini_vector *a)
+inline void free_mini_vector_ptr(mini_vector_ptr *a)
 {
 	free(a->array);
 	a->array = NULL;
 	a->used = a->size = 0;
 }
 
-#endif // _MINI_VEC_H_
+#endif // _MINI_VEC_PTR_H_

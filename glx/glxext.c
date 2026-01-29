@@ -48,6 +48,8 @@
 #include "indirect_util.h"
 #include "glxvndabi.h"
 
+#include "minivec_ptr.h"
+
 /*
 ** X resources.
 */
@@ -66,6 +68,7 @@ RESTYPE __glXDrawableRes;
  * - DRI2 (legacy GLX provider) - if available */
 LILO GLXProviders = { 0 };
 
+static mini_vector_ptr GlxProviders = { 0 };
 static DevPrivateKeyRec glxClientPrivateKeyRec;
 static GlxServerVendor *glvnd_vendor = NULL;
 
@@ -284,10 +287,28 @@ glxClientCallback(CallbackListPtr *list, void *closure, void *data)
 /************************************************************************/
 
 Bool
-GlxPushProvider(__GLXprovider* provider)
+xorgGlxInitProviders(void)
 {
-    /* Should we prevent duplicates here? */
-    return add_lilo(&GLXProviders, provider);
+    mini_vector_ptr_init(&GlxProviders, sizeof(__GLXprovider), 4);
+    return TRUE;
+}
+
+void
+xorgGlxFreeProviders(void)
+{
+    free_mini_vector_ptr(&GlxProviders);
+}
+
+static void
+xorgGlxPushProvider(CallbackListPtr *pcbl, void *param, _X_UNUSED void *ext)
+{
+    insert_mini_vector_ptr(&GlxProviders, param);
+}
+
+Bool
+GlxPushProvider(__GLXprovider * provider)
+{
+    return AddCallback(glxServer.extensionInitCallback, xorgGlxPushProvider, provider);
 }
 
 static void
@@ -525,7 +546,7 @@ xorgGlxServerInit(CallbackListPtr *pcbl, void *param, void *ext)
 
     for (i = 0; i < screenInfo.numScreens; i++) {
         ScreenPtr pScreen = screenInfo.screens[i];
-        __GLXprovider *current = NULL;
+        __GLXprovider *p = NULL;
 
         if (glxServer.getVendorForScreen(NULL, pScreen) != NULL) {
             // There's already a vendor registered.
@@ -533,15 +554,16 @@ xorgGlxServerInit(CallbackListPtr *pcbl, void *param, void *ext)
             continue;
         }
 
-        /* Attempt to use GLX providers back-to-front, as the
-         * front has legacy and software backends for GLX/DRI2. */
-        LILO_FOREACH_BACK_TO_FRONT(&GLXProviders, current) {
-            __GLXscreen *glxScreen = current->screenProbe(pScreen);
-            if (glxScreen != NULL) {
-                LogMessage(X_INFO,
-                           "GLX: Initialized %s GL provider for screen %d\n",
-                           current->name, i);
-                break;
+        for (size_t idx = GlxProviders.used; idx > 0; idx--) {
+            /* mini_vec isn't very iteration friendly... */
+            if ((p = (GlxProviders.array + ((idx - 1) * GlxProviders.obj_size))) != NULL) {
+                __GLXscreen *glxScreen = p->screenProbe(pScreen);
+                if (glxScreen != NULL) {
+                    LogMessage(X_INFO,
+                               "GLX: Initialized %s GL provider for screen %d\n",
+                               p->name, i);
+                    break;
+                }
             }
         }
 
