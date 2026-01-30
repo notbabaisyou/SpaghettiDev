@@ -2139,7 +2139,12 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     /* Need to extend HWcursor support to handle mask interleave */
     if (!ms->drmmode.sw_cursor)
         xf86_cursors_init(pScreen, cursor_dim.width, cursor_dim.height,
-                          HARDWARE_CURSOR_SOURCE_MASK_NOT_INTERLEAVED |
+                          HARDWARE_CURSOR_TRUECOLOR_AT_8BPP |
+                          HARDWARE_CURSOR_BIT_ORDER_MSBFIRST |
+                          HARDWARE_CURSOR_INVERT_MASK |
+                          HARDWARE_CURSOR_SWAP_SOURCE_AND_MASK |
+                          HARDWARE_CURSOR_AND_SOURCE_WITH_MASK |
+                          HARDWARE_CURSOR_SOURCE_MASK_INTERLEAVE_64 |
                           HARDWARE_CURSOR_UPDATE_UNHIDDEN |
                           HARDWARE_CURSOR_ARGB);
 

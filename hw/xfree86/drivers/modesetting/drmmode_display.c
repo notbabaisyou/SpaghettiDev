@@ -1537,7 +1537,7 @@ drmmode_load_cursor_argb_check(xf86CrtcPtr crtc, CARD32 *image)
     CursorPtr cursor = xf86CurrentCursor(crtc->scrn->pScreen);
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_cursor_rec drmmode_cursor = drmmode_crtc->cursor;
-    int width, height, x, y, i;
+    int width, height, i;
     int max_width, max_height;
     uint32_t *ptr;
 
@@ -1563,17 +1563,9 @@ drmmode_load_cursor_argb_check(xf86CrtcPtr crtc, CARD32 *image)
     width  = drmmode_cursor.dimensions[i].width;
     height = drmmode_cursor.dimensions[i].height;
 
-    /* Copy the cursor image over. */
-    i = 0;
-    for (y = 0; y < height; y++) {
-        for (x = 0; x < width; x++) {
-            ptr[i++] = image[y * max_width + x];
-        }
-    }
-
-    /* Clear the remainder for good measure. */
-    for (; i < max_width * max_height; i++)
-        ptr[i++] = 0;
+    /* Copy the cursor image over, xf86_crtc_load_cursor_argb
+     * already handles rotation of data for us, plus zeroing data. */
+    memcpy(ptr, image, max_width * max_height * sizeof(CARD32));
 
     if (drmmode_cursor.up)
         return drmmode_set_cursor(crtc, width, height);
