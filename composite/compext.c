@@ -744,8 +744,10 @@ PanoramiXCompositeNameWindowPixmap(ClientPtr client)
         ++pPixmap->refcnt;
     }
 
-    if (!AddResource(stuff->pixmap, XRT_PIXMAP, (void *) newPix))
+    if (!AddResource(stuff->pixmap, XRT_PIXMAP, (void *) newPix)) {
+        free(newPix);
         return BadAlloc;
+    }
 
     return Success;
 }
