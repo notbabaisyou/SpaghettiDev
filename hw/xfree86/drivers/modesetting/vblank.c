@@ -32,8 +32,30 @@
 
 #include <xf86.h>
 #include <xf86Crtc.h>
+
+#include <sys/timerfd.h>
+
 #include "driver.h"
 #include "drmmode_display.h"
+
+typedef struct _VblankTimerRec {
+    struct _VblankTimerRec *next, *last;
+    struct timespec timespec;
+    uint64_t msc;
+    uint32_t seq;
+} VblankTimerRec, *VblankTimerPtr;
+
+/**
+ * List of software vblank timers used to schedule copying.  Vblank
+ * events are sent after the blanking period on some drivers, so they
+ * cannot be reliably used to schedule copying.  In fact, a more
+ * reliable method is to just ask for the time with drmWaitVBlank, and
+ * to schedule a software timer for that time.
+ */
+static VblankTimerRec vblank_timers;
+
+/** timerfd descriptor used for this.  */
+static int vblank_timer_fd;
 
 /**
  * Tracking for outstanding events queued to the kernel.
@@ -260,6 +282,7 @@ ms_get_kernel_ust_msc(xf86CrtcPtr crtc,
     }
 }
 
+#if 0
 static void
 ms_drm_set_seq_msc(uint32_t seq, uint64_t msc)
 {
@@ -268,24 +291,6 @@ ms_drm_set_seq_msc(uint32_t seq, uint64_t msc)
     xorg_list_for_each_entry(q, &ms_drm_queue, list) {
         if (q->seq == seq) {
             q->msc = msc;
-            break;
-        }
-    }
-}
-
-static void
-ms_drm_set_seq_queued(uint32_t seq, uint64_t msc)
-{
-    drmmode_crtc_private_ptr drmmode_crtc;
-    struct ms_drm_queue *q;
-
-    xorg_list_for_each_entry(q, &ms_drm_queue, list) {
-        if (q->seq == seq) {
-            drmmode_crtc = q->crtc->driver_private;
-            if (msc < drmmode_crtc->next_msc)
-                drmmode_crtc->next_msc = msc;
-            q->msc = msc;
-            q->kernel_queued = TRUE;
             break;
         }
     }
@@ -304,77 +309,7 @@ ms_queue_coalesce(xf86CrtcPtr crtc, uint32_t seq, uint64_t msc)
     ms_drm_set_seq_msc(seq, msc);
     return TRUE;
 }
-
-Bool
-ms_queue_vblank(xf86CrtcPtr crtc, ms_queue_flag flags,
-                uint64_t msc, uint64_t *msc_queued, uint32_t seq)
-{
-    ScreenPtr screen = crtc->randr_crtc->pScreen;
-    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    modesettingPtr ms = modesettingPTR(scrn);
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-    drmVBlank vbl;
-    int ret;
-
-    /* Try coalescing this event into another to avoid event queue exhaustion */
-    if (flags == MS_QUEUE_ABSOLUTE && ms_queue_coalesce(crtc, seq, msc))
-        return TRUE;
-
-    for (;;) {
-        /* Queue an event at the specified sequence */
-        if (ms->has_queue_sequence || !ms->tried_queue_sequence) {
-            uint32_t drm_flags = 0;
-            uint64_t kernel_queued;
-
-            ms->tried_queue_sequence = TRUE;
-
-            if (flags & MS_QUEUE_RELATIVE)
-                drm_flags |= DRM_CRTC_SEQUENCE_RELATIVE;
-            if (flags & MS_QUEUE_NEXT_ON_MISS)
-                drm_flags |= DRM_CRTC_SEQUENCE_NEXT_ON_MISS;
-
-            ret = drmCrtcQueueSequence(ms->fd, drmmode_crtc->mode_crtc->crtc_id,
-                                       drm_flags, msc, &kernel_queued, seq);
-            if (ret == 0) {
-                msc = ms_kernel_msc_to_crtc_msc(crtc, kernel_queued, TRUE);
-                ms_drm_set_seq_queued(seq, msc);
-                if (msc_queued)
-                    *msc_queued = msc;
-                ms->has_queue_sequence = TRUE;
-                return TRUE;
-            }
-
-            if (ret != -1 || (errno != ENOTTY && errno != EINVAL)) {
-                ms->has_queue_sequence = TRUE;
-                goto check;
-            }
-        }
-        vbl.request.type = DRM_VBLANK_EVENT | drmmode_crtc->vblank_pipe;
-        if (flags & MS_QUEUE_RELATIVE)
-            vbl.request.type |= DRM_VBLANK_RELATIVE;
-        else
-            vbl.request.type |= DRM_VBLANK_ABSOLUTE;
-        if (flags & MS_QUEUE_NEXT_ON_MISS)
-            vbl.request.type |= DRM_VBLANK_NEXTONMISS;
-
-        vbl.request.sequence = msc;
-        vbl.request.signal = seq;
-        ret = drmWaitVBlank(ms->fd, &vbl);
-        if (ret == 0) {
-            msc = ms_kernel_msc_to_crtc_msc(crtc, vbl.reply.sequence, FALSE);
-            ms_drm_set_seq_queued(seq, msc);
-            if (msc_queued)
-                *msc_queued = msc;
-            return TRUE;
-        }
-    check:
-        if (errno != EBUSY) {
-            ms_drm_abort_seq(scrn, seq);
-            return FALSE;
-        }
-        ms_flush_drm_events(screen);
-    }
-}
+#endif
 
 /**
  * Convert a 32-bit or 64-bit kernel MSC sequence number to a 64-bit local
@@ -484,6 +419,27 @@ ms_drm_queue_alloc(xf86CrtcPtr crtc,
     return q->seq;
 }
 
+static void
+AbortVblankTimer(uint32_t seq)
+{
+    VblankTimerPtr last, next;
+
+    next = vblank_timers.next;
+    while (next != &vblank_timers)
+    {
+        last = next;
+        next = last->next;
+
+        if (last->seq == seq)
+        {
+            last->next->last = last->last;
+            last->last->next = last->next;
+            free(last);
+            return;
+        }
+    }
+}
+
 /**
  * Abort one queued DRM entry, removing it
  * from the list, calling the abort function and
@@ -495,15 +451,12 @@ ms_drm_abort_one(struct ms_drm_queue *q)
     if (q->aborted)
         return;
 
-    /* Don't remove vblank events if they were queued in the kernel */
-    if (q->kernel_queued) {
-        q->abort(q->data);
-        q->aborted = TRUE;
-    } else {
-        xorg_list_del(&q->list);
-        q->abort(q->data);
-        free(q);
-    }
+    /* Abort any pending vblank timer for the same sequence.  */
+    AbortVblankTimer (q->seq);
+
+    xorg_list_del(&q->list);
+    q->abort(q->data);
+    free(q);
 }
 
 /**
@@ -559,6 +512,175 @@ ms_drm_abort(ScrnInfoPtr scrn, Bool (*match)(void *data, void *match_data),
  * General DRM kernel handler. Looks for the matching sequence number in the
  * drm event queue and calls the handler for it.
  */
+static void ms_drm_sequence_handler(int, uint64_t, uint64_t, Bool, uint64_t);
+
+static void
+RunVblankTimer(VblankTimerPtr timer, struct timespec time)
+{
+    timer->last->next = timer->next;
+    timer->next->last = timer->last;
+    ms_drm_sequence_handler(-1, timer->msc,
+                            (time.tv_sec * 1000000000 + time.tv_nsec),
+                            xFalse, timer->seq);
+    free(timer);
+}
+
+static void
+CheckVblank(void)
+{
+    VblankTimerPtr current, last;
+    struct timespec now, prime;
+    struct itimerspec new_value;
+    static Bool inside;
+
+    if (inside)
+        return;
+
+#ifdef CLOCK_MONOTONIC_COARSE
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &now);
+#endif
+
+    prime.tv_sec = 0;
+    prime.tv_nsec = 0;
+
+    current = vblank_timers.next;
+
+    /* This function is reentrant after this point! */
+    inside = xTrue;
+
+    while (current != &vblank_timers)
+    {
+        last = current;
+        current = last->next;
+
+        if (last->timespec.tv_sec < now.tv_sec ||
+            (last->timespec.tv_sec == now.tv_sec && last->timespec.tv_nsec <= now.tv_nsec)) {
+            RunVblankTimer(last, now);
+        } else {
+            /* Now, find the earliest vblank and prime the timerfd for
+             * that.  */
+            if ((!prime.tv_sec && !prime.tv_nsec) ||
+                (last->timespec.tv_sec < prime.tv_sec) ||
+                (last->timespec.tv_sec == prime.tv_sec && last->timespec.tv_nsec < prime.tv_nsec))
+                prime = last->timespec;
+        }
+    }
+
+    new_value.it_interval.tv_sec = 0;
+    new_value.it_interval.tv_nsec = 0;
+    new_value.it_value = prime;
+
+    timerfd_settime(vblank_timer_fd, TFD_TIMER_ABSTIME,
+                    &new_value, NULL);
+    inside = xFalse;
+}
+
+static void
+HandleVblankTimerReadable(int fd, int ready, void *data)
+{
+    uint64_t nexpired;
+
+    if (read(fd, &nexpired, sizeof(nexpired)) < sizeof(nexpired))
+        return;
+
+    /* nexpired is ignored from here onwards.  */
+    CheckVblank();
+}
+
+static Bool
+AddVblankTimer(xf86CrtcPtr crtc, drmVBlankReply *reply,
+               uint32_t seq, uint32_t msc)
+{
+    VblankTimerPtr timer;
+    drmmode_crtc_private_ptr msCrtc;
+    drmModeModeInfoPtr mode_info;
+    int64_t value, vblank_duration_ns, refresh_duration_ns;
+
+    /* Compute the vertical blanking period.  */
+    msCrtc = crtc->driver_private;
+    mode_info = &msCrtc->mode_crtc->mode;
+
+    if (mode_info->htotal <= 0 || mode_info->vtotal <= 0)
+        return xFalse;
+
+    timer = malloc(sizeof(VblankTimerRec));
+
+    if (!timer)
+        return xFalse;
+
+    timer->timespec.tv_sec = reply->tval_sec;
+    timer->timespec.tv_nsec = reply->tval_usec * 1000;
+
+    /* Get to the specified frame by repeatedly adding the refresh
+     * period until the desired sequence is reached.  */
+    value = mode_info->vtotal * mode_info->htotal;
+
+    if (mode_info->flags & DRM_MODE_FLAG_DBLSCAN)
+        value += value;
+
+    value = (value * 1000 + mode_info->clock - 1) / mode_info->clock;
+    refresh_duration_ns = value * 1000 * min(1, (msc - reply->sequence));
+
+    timer->timespec.tv_nsec += refresh_duration_ns;
+
+    while (timer->timespec.tv_nsec >= 1000000000)
+    {
+        timer->timespec.tv_sec++;
+        timer->timespec.tv_nsec -= 1000000000;
+    }
+
+    /* Now, subtract the vblank period.  */
+    value = mode_info->vsync_end - mode_info->vsync_start;
+    value *= mode_info->htotal;
+
+    if (mode_info->flags & DRM_MODE_FLAG_DBLSCAN)
+        value += value;
+
+    /* A grace period of about 2 ms is added to account for scheduling
+     * delays and the amount of time it takes for the copy to
+     * happen.  */
+    value = ((value * 1000 + mode_info->clock - 1) / mode_info->clock + 2000);
+
+    vblank_duration_ns = value * 1000;
+
+    if (vblank_duration_ns > timer->timespec.tv_nsec)
+    {
+        vblank_duration_ns -= timer->timespec.tv_nsec;
+        timer->timespec.tv_nsec = 0;
+
+        while (vblank_duration_ns >= 1000000000)
+        {
+            timer->timespec.tv_sec--;
+            vblank_duration_ns -= 1000000000;
+        }
+
+        if (vblank_duration_ns > 0)
+        {
+            timer->timespec.tv_sec -= 1;
+            timer->timespec.tv_nsec = 1000000000 - vblank_duration_ns;
+        }
+    }
+    else
+    {
+        timer->timespec.tv_nsec -= vblank_duration_ns;
+    }
+
+    timer->msc = msc;
+    timer->seq = seq;
+
+    /* Link this to the end of the list.  This function can be called
+     * within CheckVblank.  */
+    timer->next = &vblank_timers;
+    timer->last = vblank_timers.last;
+    vblank_timers.last->next = timer;
+    vblank_timers.last = timer;
+
+    CheckVblank();
+    return xTrue;
+}
+
 static void
 ms_drm_sequence_handler(int fd, uint64_t frame, uint64_t ns, Bool is64bit, uint64_t user_data)
 {
@@ -603,10 +725,7 @@ ms_drm_sequence_handler(int fd, uint64_t frame, uint64_t ns, Bool is64bit, uint6
     msc = UINT64_MAX;
     xorg_list_for_each_entry(q, &ms_drm_queue, list) {
         if (q->crtc == crtc) {
-            if (q->kernel_queued) {
-                if (q->msc < next_msc)
-                    next_msc = q->msc;
-            } else if (q->msc < msc) {
+            if (q->msc < msc) {
                 msc = q->msc;
                 seq = q->seq;
             }
@@ -649,12 +768,68 @@ ms_drm_queue_is_empty(void)
 }
 
 Bool
+ms_queue_vblank(xf86CrtcPtr crtc, ms_queue_flag flags,
+                uint64_t msc, uint64_t *msc_queued, uint32_t seq)
+{
+    ScreenPtr screen = crtc->randr_crtc->pScreen;
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    modesettingPtr ms = modesettingPTR(scrn);
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+    drmVBlank vbl;
+    int ret;
+
+#if 0
+    /* Try coalescing this event into another to avoid event queue exhaustion */
+    if (flags == MS_QUEUE_ABSOLUTE && ms_queue_coalesce(crtc, seq, msc))
+        return TRUE;
+#endif
+    
+    vbl.request.type = drmmode_crtc->vblank_pipe;
+    vbl.request.sequence = 0;
+    vbl.request.signal = 0;
+
+    vbl.request.type |= DRM_VBLANK_RELATIVE;
+
+    ret = drmWaitVBlank(ms->fd, &vbl);
+    if (ret || (!vbl.reply.tval_sec && !vbl.reply.tval_usec))
+    {
+        if (msc_queued)
+            *msc_queued = 0;
+        return FALSE;
+    }
+    else
+    {
+        if (msc_queued)
+            *msc_queued = msc;
+        return AddVblankTimer(crtc, &vbl.reply, seq, msc);
+    }
+}
+
+Bool
 ms_vblank_screen_init(ScreenPtr screen)
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     modesettingEntPtr ms_ent = ms_ent_priv(scrn);
     xorg_list_init(&ms_drm_queue);
+
+    if (!vblank_timers.next)
+    {
+        vblank_timers.next = &vblank_timers;
+        vblank_timers.last = &vblank_timers;
+
+        /* No CLOCK_MONOTONIC_COARSE equivalent... */
+        vblank_timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
+        if (vblank_timer_fd < 0)
+        {
+            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                       "failed to create timer fd for vblank tracking\n");
+            return xFalse;
+        }
+
+        SetNotifyFd(vblank_timer_fd, HandleVblankTimerReadable,
+                    X_NOTIFY_READ, NULL);
+    }
 
     ms->event_context.version = 4;
     ms->event_context.vblank_handler = ms_drm_handler;
@@ -683,6 +858,11 @@ ms_vblank_close_screen(ScreenPtr screen)
     modesettingEntPtr ms_ent = ms_ent_priv(scrn);
 
     ms_drm_abort_scrn(scrn);
+
+    if (vblank_timer_fd) {
+        close(vblank_timer_fd);
+        vblank_timer_fd = 0;
+    }
 
     if (ms_ent->fd_wakeup_registered == serverGeneration &&
         !--ms_ent->fd_wakeup_ref) {

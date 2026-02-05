@@ -90,14 +90,13 @@ typedef void (*ms_drm_abort_proc)(void *data);
 struct ms_drm_queue {
     struct xorg_list list;
     xf86CrtcPtr crtc;
+    Bool aborted;
     uint32_t seq;
     uint64_t msc;
     void *data;
     ScrnInfoPtr scrn;
     ms_drm_handler_proc handler;
     ms_drm_abort_proc abort;
-    Bool kernel_queued;
-    Bool aborted;
 };
 
 typedef struct _modesettingRec {
