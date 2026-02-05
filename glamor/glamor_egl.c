@@ -1400,21 +1400,15 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
         epoxy_has_egl_extension(glamor_egl->display,
                                 "EGL_EXT_image_dma_buf_import_modifiers")) {
         if (xf86Info.debug != NULL) {
-            glamor_egl->dmabuf_capable = !!strstr(xf86Info.debug,
-                                                  "dmabuf_capable");
-		} else {
-			Bool ret = FALSE;
-
-			const int size = sizeof(ALLOWLIST_DMA_BUF_CAPABLE) / sizeof(ALLOWLIST_DMA_BUF_CAPABLE[0]);
-			for (int idx = 0; idx < size; idx++) {
-				if (strstr((const char *)renderer, ALLOWLIST_DMA_BUF_CAPABLE[idx])) {
-					ret = TRUE;
-					break;
-				}
-			}
-
-			glamor_egl->dmabuf_capable = ret;
-		}
+            glamor_egl->dmabuf_capable = !!strstr(xf86Info.debug, "dmabuf_capable");
+        } else {
+            for (int idx = 0; idx < ARRAY_SIZE(ALLOWLIST_DMA_BUF_CAPABLE); idx++) {
+                if (strstr((const char *)renderer, ALLOWLIST_DMA_BUF_CAPABLE[idx])) {
+                    glamor_egl->dmabuf_capable = TRUE;
+                    break;
+                }
+            }
+        }
     }
 #endif
 
