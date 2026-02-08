@@ -103,6 +103,9 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     uint32_t flags = 0;
     uint32_t render_type = GLX_RGBA_TYPE;
     uint32_t flush = GLX_CONTEXT_RELEASE_BEHAVIOR_FLUSH_ARB;
+#ifdef __DRI2_NO_ERROR
+    uint32_t no_error = 0;
+#endif
     uint32_t priority = GLX_CONTEXT_PRIORITY_MEDIUM_EXT;
     __GLXcontext *ctx = NULL;
     __GLXcontext *shareCtx = NULL;
@@ -184,6 +187,20 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
             client->errorValue = shareCtx->pGlxScreen->pScreen->myNum;
             return BadMatch;
         }
+
+        /* The GLX_ARB_create_context_no_error spec says:
+         *
+         *     "BadMatch is generated if the value of
+         *     GLX_CONTEXT_OPENGL_NO_ERROR_ARB used to create <share_context>
+         *     does not match the value of GLX_CONTEXT_OPENGL_NO_ERROR_ARB
+         *     for the context being created."
+         */
+#ifdef __DRI2_NO_ERROR
+        if (!!shareCtx->noError != !!no_error) {
+            client->errorValue = req->shareList;
+            return BadMatch;
+        }
+#endif
     }
 
     for (i = 0; i < req->numAttribs; i++) {
@@ -236,7 +253,11 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
             break;
 
         case GLX_CONTEXT_OPENGL_NO_ERROR_ARB:
-            /* ignore */
+#ifdef __DRI2_NO_ERROR
+            /* Only supported on direct contexts, ignored otherwise. */
+            if (req->isDirect)
+                no_error = attribs[2 * i + 1];
+#endif
             break;
 
         case GLX_CONTEXT_PRIORITY_LEVEL_EXT:
@@ -322,6 +343,27 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     if (shareCtx != NULL && shareCtx->resetNotificationStrategy != reset)
         return BadMatch;
 
+    /* The GLX_ARB_create_context_no_error spec says:
+     *
+     *     "BadMatch is generated if the GLX_CONTEXT_OPENGL_NO_ERROR_ARB is
+     *     TRUE at the same time as a debug or robustness context is
+     *     specified."
+     */
+#ifdef __DRI2_NO_ERROR
+    if (no_error && ((flags & GLX_CONTEXT_DEBUG_BIT_ARB) ||
+                     (flags & GLX_CONTEXT_ROBUST_ACCESS_BIT_ARB)))
+        return BadMatch;
+#endif
+
+    /* The KHR_no_error spec says:
+     *
+     *     "Requires OpenGL ES 2.0 or OpenGL 2.0."
+     */
+#ifdef __DRI2_NO_ERROR
+    if (no_error && major_version < 2)
+        return BadMatch;
+#endif
+
     /* There is no GLX protocol for desktop OpenGL versions after 1.4.  There
      * is no GLX protocol for any version of OpenGL ES.  If the application is
      * requested an indirect rendering context for a version that cannot be
@@ -372,6 +414,9 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     ctx->share_id = req->shareList;
     ctx->idExists = TRUE;
     ctx->isDirect = req->isDirect;
+#ifdef __DRI2_NO_ERROR
+    ctx->noError = no_error;
+#endif
     ctx->renderMode = GL_RENDER;
     ctx->resetNotificationStrategy = reset;
     ctx->releaseBehavior = flush;

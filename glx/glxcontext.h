@@ -89,6 +89,11 @@ struct __GLXcontext {
      */
     GLboolean isDirect;
 
+     /*
+     ** Whether this context uses no-error mode.
+     */
+    GLboolean noError;
+
     /*
      ** The context priority. Packed into a single byte.
      */

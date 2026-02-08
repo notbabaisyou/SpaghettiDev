@@ -44,6 +44,7 @@
 #include "glxserver.h"
 #include "glxutil.h"
 #include "glxdricommon.h"
+#include "glxext.h"
 
 #include "extension_string.h"
 
@@ -51,9 +52,16 @@ typedef struct __GLXDRIscreen __GLXDRIscreen;
 typedef struct __GLXDRIcontext __GLXDRIcontext;
 typedef struct __GLXDRIdrawable __GLXDRIdrawable;
 
-#define ALL_DRI_CTX_FLAGS (__DRI_CTX_FLAG_DEBUG                         \
-                           | __DRI_CTX_FLAG_FORWARD_COMPATIBLE          \
-                           | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS)
+#ifdef __DRI2_NO_ERROR
+#define ALL_DRI_CTX_FLAGS ( __DRI_CTX_FLAG_DEBUG \
+                          | __DRI_CTX_FLAG_FORWARD_COMPATIBLE \
+                          | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS \
+                          | __DRI_CTX_FLAG_NO_ERROR)
+#else
+#define ALL_DRI_CTX_FLAGS ( __DRI_CTX_FLAG_DEBUG \
+                          | __DRI_CTX_FLAG_FORWARD_COMPATIBLE  \
+                          | __DRI_CTX_FLAG_ROBUST_BUFFER_ACCESS)
+#endif
 
 struct __GLXDRIscreen {
     __GLXscreen base;
@@ -341,6 +349,9 @@ dri2_convert_glx_attribs(__GLXDRIscreen *screen, unsigned num_attribs,
                          unsigned *error, uint32_t* priority)
 {
     unsigned i;
+#ifdef __DRI2_NO_ERROR
+    Bool no_error = 0;
+#endif
 
     if (num_attribs == 0)
         return TRUE;
@@ -421,7 +432,9 @@ dri2_convert_glx_attribs(__GLXDRIscreen *screen, unsigned num_attribs,
             /* already checked for us */
             break;
         case GLX_CONTEXT_OPENGL_NO_ERROR_ARB:
-            /* ignore */
+#ifdef __DRI2_NO_ERROR
+            no_error = attribs[i * 2 + 1];
+#endif
             break;
         default:
             /* If an unknown attribute is received, fail.
@@ -430,6 +443,13 @@ dri2_convert_glx_attribs(__GLXDRIscreen *screen, unsigned num_attribs,
             return FALSE;
         }
     }
+
+#ifdef __DRI2_NO_ERROR
+    /* Ignored if indirect contexts are enabled. */
+    if (no_error && !enableIndirectGLX) {
+        *flags |= __DRI_CTX_FLAG_NO_ERROR;
+    }
+#endif
 
     /* Unknown flag value.
      */
