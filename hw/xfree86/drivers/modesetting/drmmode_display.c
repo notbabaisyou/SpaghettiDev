@@ -1444,7 +1444,7 @@ drmmode_create_tearfree_shadow(xf86CrtcPtr crtc)
     return TRUE;
 }
 
-static void drmmmode_prepare_modeset(ScrnInfoPtr scrn)
+static void drmmode_prepare_modeset(ScrnInfoPtr scrn)
 {
     ScreenPtr pScreen = scrn->pScreen;
     modesettingPtr ms = modesettingPTR(scrn);
@@ -1482,7 +1482,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
     int i;
 
     if (mode)
-        drmmmode_prepare_modeset(crtc->scrn);
+        drmmode_prepare_modeset(crtc->scrn);
 
     saved_mode = crtc->mode;
     saved_x = crtc->x;
@@ -3844,7 +3844,7 @@ drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode, Bool set_hw,
     Bool success = TRUE;
     int c;
 
-    drmmmode_prepare_modeset(pScrn);
+    drmmode_prepare_modeset(pScrn);
 
     for (c = 0; c < config->num_crtc; c++) {
         xf86CrtcPtr crtc = config->crtc[c];
