@@ -390,6 +390,9 @@ egl_screen_probe(ScreenPtr pScreen)
     __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_no_config_context");
     __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_texture_from_pixmap");
 
+    if (epoxy_has_egl_extension("EGL_IMG_context_priority"))
+        __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_context_priority");
+
     screen->fbconfigs = egl_setup_configs(pScreen, glamor_screen->ctx.display);
     if (!screen->fbconfigs) {
         free(screen);
