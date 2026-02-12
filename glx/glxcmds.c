@@ -335,6 +335,7 @@ DoCreateContext(__GLXclientState * cl, GLXContextID gcId,
     glxc->isDirect = isDirect;
     glxc->renderMode = GL_RENDER;
     glxc->renderType = renderType;
+    glxc->contextPriority = 1; /* __DRI_CTX_PRIORITY_MEDIUM */
 
     /* The GLX_ARB_create_context_robustness spec says:
      *

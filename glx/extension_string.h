@@ -46,6 +46,7 @@ enum {
     ARB_multisample_bit,
     EXT_create_context_es_profile_bit,
     EXT_create_context_es2_profile_bit,
+    EXT_context_priority_bit,
     EXT_fbconfig_packed_float_bit,
     EXT_get_drawable_type_bit,
     EXT_import_context_bit,

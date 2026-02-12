@@ -90,6 +90,11 @@ struct __GLXcontext {
     GLboolean isDirect;
 
     /*
+     ** The context priority. Packed into a single byte.
+     */
+    GLubyte contextPriority;    
+
+    /*
      ** Current rendering mode for this context.
      */
     GLenum renderMode;
@@ -124,8 +129,8 @@ struct __GLXcontext {
     GLint largeCmdBytesTotal;   /* total bytes expected         */
     GLint largeCmdRequestsSoFar;        /* requests received so far     */
     GLint largeCmdRequestsTotal;        /* total requests expected      */
-    GLbyte *largeCmdBuf;
     GLint largeCmdBufSize;
+    GLbyte *largeCmdBuf;
 
     /*
      ** The drawable private this context is bound to

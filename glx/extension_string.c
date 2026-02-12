@@ -84,6 +84,7 @@ static const struct extension_info known_glx_extensions[] = {
 
     { GLX(EXT_create_context_es_profile), VER(0,0), N, },
     { GLX(EXT_create_context_es2_profile), VER(0,0), N, },
+    { GLX(EXT_context_priority),        VER(1,4), N, },
     { GLX(EXT_fbconfig_packed_float),   VER(0,0), N, },
     { GLX(EXT_framebuffer_sRGB),        VER(0,0), N, },
     { GLX(EXT_get_drawable_type),       VER(0,0), Y, },

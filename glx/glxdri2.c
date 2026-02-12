@@ -337,7 +337,8 @@ static Bool
 dri2_convert_glx_attribs(__GLXDRIscreen *screen, unsigned num_attribs,
                          const uint32_t *attribs,
                          unsigned *major_ver, unsigned *minor_ver,
-                         uint32_t *flags, int *api, int *reset, unsigned *error)
+                         uint32_t *flags, int *api, int *reset,
+                         unsigned *error, uint32_t* priority)
 {
     unsigned i;
 
@@ -400,6 +401,22 @@ dri2_convert_glx_attribs(__GLXDRIscreen *screen, unsigned num_attribs,
                 return FALSE;
             }
             break;
+        case GLX_CONTEXT_PRIORITY_LEVEL_EXT:
+            switch (attribs[i * 2 + 1]) {
+            case GLX_CONTEXT_PRIORITY_HIGH_EXT:
+                *priority = __DRI_CTX_PRIORITY_HIGH;
+                break;
+            case GLX_CONTEXT_PRIORITY_MEDIUM_EXT:
+                *priority = __DRI_CTX_PRIORITY_MEDIUM;
+                break;
+            case GLX_CONTEXT_PRIORITY_LOW_EXT:
+                *priority = __DRI_CTX_PRIORITY_LOW;
+                break;
+            default:
+                *error = BadValue;
+                return FALSE;
+            }
+            break;
         case GLX_SCREEN:
             /* already checked for us */
             break;
@@ -448,12 +465,13 @@ create_driver_context(__GLXDRIcontext * context,
     context->driContext = NULL;
 
     if (screen->dri2->base.version >= 3) {
-        uint32_t ctx_attribs[4 * 2];
+        uint32_t ctx_attribs[5 * 2];
         unsigned num_ctx_attribs = 0;
         unsigned dri_err = 0;
         unsigned major_ver;
         unsigned minor_ver;
         uint32_t flags = 0;
+        uint32_t priority = __DRI_CTX_PRIORITY_MEDIUM;
         int reset;
         int api = __DRI_API_OPENGL;
 
@@ -461,13 +479,15 @@ create_driver_context(__GLXDRIcontext * context,
             if (!dri2_convert_glx_attribs(screen, num_attribs, attribs,
                                           &major_ver, &minor_ver,
                                           &flags, &api, &reset,
-                                          (unsigned *) error))
+                                          (unsigned *) error, &priority))
                 return;
 
             ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MAJOR_VERSION;
             ctx_attribs[num_ctx_attribs++] = major_ver;
             ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MINOR_VERSION;
             ctx_attribs[num_ctx_attribs++] = minor_ver;
+            ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_PRIORITY;
+            ctx_attribs[num_ctx_attribs++] = priority;
 
             if (flags != 0) {
                 ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_FLAGS;
@@ -844,6 +864,10 @@ initializeExtensions(__GLXscreen * screen)
                              "GLX_EXT_create_context_es_profile");
         __glXEnableExtension(screen->glx_enable_bits,
                              "GLX_EXT_create_context_es2_profile");
+    }
+
+    if (dri->dri2->base.version >= 5) {
+        __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_context_priority");
     }
 
     if (DRI2HasSwapControl(pScreen)) {

@@ -32,6 +32,23 @@
     (GLX_CONTEXT_DEBUG_BIT_ARB | GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB \
      | GLX_CONTEXT_ROBUST_ACCESS_BIT_ARB)
 
+static inline GLubyte
+assign_dri_context_priority(uint32_t priority)
+{
+    switch (priority) {
+        case GLX_CONTEXT_PRIORITY_HIGH_EXT:
+            return 2; /* __DRI_CTX_PRIORITY_HIGH */
+
+        case GLX_CONTEXT_PRIORITY_MEDIUM_EXT:
+            return 1; /* __DRI_CTX_PRIORITY_MEDIUM */
+
+        case GLX_CONTEXT_PRIORITY_LOW_EXT:
+            return 0; /* __DRI_CTX_PRIORITY_LOW */
+
+        default: assert(!"unreachable switch case");
+    }
+}
+
 static Bool
 validate_GL_version(int major_version, int minor_version)
 {
@@ -81,17 +98,18 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     ClientPtr client = cl->client;
     xGLXCreateContextAttribsARBReq *req = (xGLXCreateContextAttribsARBReq *) pc;
     int32_t *attribs = (req->numAttribs != 0) ? (int32_t *) (req + 1) : NULL;
-    unsigned i;
     int major_version = 1;
     int minor_version = 0;
     uint32_t flags = 0;
     uint32_t render_type = GLX_RGBA_TYPE;
     uint32_t flush = GLX_CONTEXT_RELEASE_BEHAVIOR_FLUSH_ARB;
+    uint32_t priority = GLX_CONTEXT_PRIORITY_MEDIUM_EXT;
     __GLXcontext *ctx = NULL;
     __GLXcontext *shareCtx = NULL;
     __GLXscreen *glxScreen;
     __GLXconfig *config = NULL;
     int err;
+    unsigned i;
 
     /* The GLX_ARB_create_context_robustness spec says:
      *
@@ -219,6 +237,15 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
 
         case GLX_CONTEXT_OPENGL_NO_ERROR_ARB:
             /* ignore */
+            break;
+
+        case GLX_CONTEXT_PRIORITY_LEVEL_EXT:
+            priority = attribs[2 * i + 1];
+
+            if (priority != GLX_CONTEXT_PRIORITY_HIGH_EXT &&
+                priority != GLX_CONTEXT_PRIORITY_MEDIUM_EXT &&
+                priority != GLX_CONTEXT_PRIORITY_LOW_EXT)
+                return BadValue;
             break;
 
         default:
@@ -349,6 +376,7 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     ctx->resetNotificationStrategy = reset;
     ctx->releaseBehavior = flush;
     ctx->renderType = render_type;
+    ctx->contextPriority = assign_dri_context_priority(priority);
 
     /* Add the new context to the various global tables of GLX contexts.
      */
