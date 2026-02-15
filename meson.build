@@ -490,6 +490,21 @@ endif
 
 build_fission = false # libdrm_dep.found() and dri2proto_dep.found()
 build_modesetting = libdrm_dep.found() and dri2proto_dep.found()
+build_ms_dri3 = false
+
+if build_modesetting
+    if build_dri3
+        gbm_dep = dependency('gbm', version: '>= 17.1', required: true)
+        epoxy_dep = dependency('epoxy', required: true)
+        if not gbm_dep.found()
+            error('DRI3 requested, but gbm not found')
+        endif
+        if not epoxy_dep.found()
+            error('DRI3 requested, but epoxy not found')
+        endif
+        build_ms_dri3 = gbm_dep.found() and epoxy_dep.found()
+    endif
+endif
 
 build_vgahw = false
 if get_option('vgahw') == 'auto'

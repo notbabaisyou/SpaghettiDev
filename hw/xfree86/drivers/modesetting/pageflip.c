@@ -77,7 +77,7 @@ ms_drain_drm_events(ScreenPtr screen)
         ms_flush_drm_events_timeout(screen, -1);
 }
 
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
 
 /*
  * Event data for an in progress flip.
@@ -415,9 +415,14 @@ ms_do_pageflip(ScreenPtr screen,
         return TRUE;
     }
 
-    ms->glamor.block_handler(screen);
-
-    new_front_bo.gbm = ms->glamor.gbm_bo_from_pixmap(screen, new_front);
+    if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR) {
+        ms->glamor.block_handler(screen);
+        new_front_bo.gbm = ms->glamor.gbm_bo_from_pixmap(screen, new_front);
+    }
+#ifdef MS_DRI3
+    else if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+        new_front_bo.gbm = ms_soft2d_gbm_bo_from_pixmap(screen, new_front);
+#endif
     new_front_bo.dumb = NULL;
 
     if (!new_front_bo.gbm) {

@@ -269,7 +269,7 @@ check_outputs(int fd, int *count)
         *count = res->count_connectors;
 
     ret = res->count_connectors > 0;
-#if defined(GLAMOR_HAS_GBM_LINEAR)
+#if defined(GLAMOR_HAS_GBM_LINEAR) || defined(MS_DRI3)
     if (ret == FALSE) {
         uint64_t value = 0;
         if (drmGetCap(fd, DRM_CAP_PRIME, &value) == 0 &&
@@ -1169,8 +1169,6 @@ try_enable_glamor(ScrnInfoPtr pScrn)
     Bool do_glamor = (!accel_method_str ||
                       strcmp(accel_method_str, "glamor") == 0);
 
-    ms->drmmode.glamor = FALSE;
-
 #ifdef GLAMOR_HAS_GBM
     if (ms->drmmode.force_24_32) {
         xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Cannot use glamor with 24bpp packed fb\n");
@@ -1185,7 +1183,7 @@ try_enable_glamor(ScrnInfoPtr pScrn)
     if (load_glamor(pScrn)) {
         if (ms->glamor.egl_init(pScrn, ms->fd)) {
             xf86DrvMsg(pScrn->scrnIndex, X_INFO, "glamor initialized\n");
-            ms->drmmode.glamor = TRUE;
+            ms->drmmode.accel_method = MS_ACCEL_GLAMOR;
         } else {
             xf86DrvMsg(pScrn->scrnIndex, X_INFO,
                        "glamor initialization failed\n");
@@ -1199,6 +1197,36 @@ try_enable_glamor(ScrnInfoPtr pScrn)
         xf86DrvMsg(pScrn->scrnIndex, X_INFO,
                    "No glamor support in the X Server\n");
     }
+#endif
+}
+
+static void
+try_enable_soft2d(ScrnInfoPtr pScrn)
+{
+    modesettingPtr ms = modesettingPTR(pScrn);
+    const char *accel_method_str = xf86GetOptValString(ms->drmmode.Options,
+                                                       OPTION_ACCEL_METHOD);
+    Bool do_dri3 = FALSE;
+
+    do_dri3 = (!accel_method_str ||
+                strcmp(accel_method_str, "soft2d") == 0);
+
+    if (!do_dri3) {
+        xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "SOFT2D disabled\n");
+        return;
+    }
+
+#ifdef MS_DRI3
+    ms->drmmode.gbm = gbm_create_device(ms->fd);
+    if (ms->drmmode.gbm) {
+        ms->drmmode.accel_method = MS_ACCEL_SOFT2D;
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO, "SOFT2D initialized\n");
+    } else {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "SOFT2D initialization failed\n");
+    }
+#else
+    if (do_dri3)
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO, "No SOFT2D support in the X Server\n");
 #endif
 }
 
@@ -1401,8 +1429,11 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     try_enable_glamor(pScrn);
+#if MS_DRI3
+    try_enable_soft2d(pScrn);
+#endif
 
-    if (!ms->drmmode.glamor) {
+    if (!ms->drmmode.accel_method) {
         Bool prefer_shadow = TRUE;
 
         if (ms->drmmode.force_24_32) {
@@ -1449,11 +1480,11 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     if (ret == 0) {
         if (connector_count && (value & DRM_PRIME_CAP_IMPORT)) {
             pScrn->capabilities |= RR_Capability_SinkOutput;
-            if (ms->drmmode.glamor)
+            if (ms->drmmode.accel_method)
                 pScrn->capabilities |= RR_Capability_SinkOffload;
         }
-#ifdef GLAMOR_HAS_GBM_LINEAR
-        if (value & DRM_PRIME_CAP_EXPORT && ms->drmmode.glamor)
+#if defined(GLAMOR_HAS_GBM_LINEAR) || defined(MS_DRI3)
+        if (value & DRM_PRIME_CAP_EXPORT && ms->drmmode.accel_method)
             pScrn->capabilities |= RR_Capability_SourceOutput | RR_Capability_SourceOffload;
 #endif
     }
@@ -1812,7 +1843,8 @@ CreateScreenResources(ScreenPtr pScreen)
     if (!ms->drmmode.sw_cursor)
         drmmode_map_cursor_bos(pScrn, &ms->drmmode);
 
-    if (!ms->drmmode.gbm) {
+    if (!ms->drmmode.gbm ||
+         ms->drmmode.accel_method == MS_ACCEL_SOFT2D) {
         pixels = drmmode_map_front_bo(&ms->drmmode);
         if (!pixels)
             return FALSE;
@@ -1882,14 +1914,22 @@ CreateScreenResources(ScreenPtr pScreen)
 static Bool
 msSharePixmapBacking(PixmapPtr ppix, ScreenPtr secondary, void **handle)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     modesettingPtr ms =
         modesettingPTR(xf86ScreenToScrn(ppix->drawable.pScreen));
-    int ret;
+    int ret = -1;
     CARD16 stride;
     CARD32 size;
-    ret = ms->glamor.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
-                                              &stride, &size);
+
+    if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR)
+        ret = ms->glamor.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
+                                                  &stride, &size);
+#ifdef MS_DRI3
+    else if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+        ret = ms_soft2d_shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
+                                                 &stride, &size);
+#endif
+
     if (ret == -1)
         return FALSE;
 
@@ -1902,11 +1942,11 @@ msSharePixmapBacking(PixmapPtr ppix, ScreenPtr secondary, void **handle)
 static Bool
 msSetSharedPixmapBacking(PixmapPtr ppix, void *fd_handle)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     ScreenPtr screen = ppix->drawable.pScreen;
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
-    Bool ret;
+    Bool ret = FALSE;
     int ihandle = (int) (long) fd_handle;
 
     if (ihandle == -1)
@@ -1914,17 +1954,29 @@ msSetSharedPixmapBacking(PixmapPtr ppix, void *fd_handle)
            return drmmode_SetSlaveBO(ppix, &ms->drmmode, ihandle, 0, 0);
 
     if (ms->drmmode.reverse_prime_offload_mode) {
-        ret = ms->glamor.back_pixmap_from_fd(ppix, ihandle,
-                                             ppix->drawable.width,
-                                             ppix->drawable.height,
-                                             ppix->devKind,
-                                             ppix->drawable.depth,
-                                             ppix->drawable.bitsPerPixel);
+        if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR)
+            ret = ms->glamor.back_pixmap_from_fd(ppix, ihandle,
+                                                 ppix->drawable.width,
+                                                 ppix->drawable.height,
+                                                 ppix->devKind,
+                                                 ppix->drawable.depth,
+                                                 ppix->drawable.bitsPerPixel);
+#ifdef MS_DRI3
+        else if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+            ret = ms_soft2d_back_pixmap_from_fd(ppix, ihandle,
+                                                ppix->drawable.width,
+                                                ppix->drawable.height,
+                                                ppix->devKind,
+                                                ppix->drawable.depth,
+                                                ppix->drawable.bitsPerPixel);
+#endif
+
         close(ihandle);
     } else {
         int size = ppix->devKind * ppix->drawable.height;
         ret = drmmode_SetSlaveBO(ppix, &ms->drmmode, ihandle, ppix->devKind, size);
     }
+
     if (ret == FALSE)
         return ret;
 
@@ -2036,8 +2088,12 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
         return FALSE;
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor)
+    if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR)
         ms->drmmode.gbm = ms->glamor.egl_get_gbm_device(pScreen);
+#endif
+#ifdef MS_DRI3
+    if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+        ms->drmmode.gbm = gbm_create_device(ms->fd);
 #endif
 
     /* HW dependent - FIXME */
@@ -2064,8 +2120,8 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     if (!miSetPixmapDepths())
         return FALSE;
 
-    if (!dixRegisterScreenSpecificPrivateKey
-        (pScreen, &ms->drmmode.pixmapPrivateKeyRec, PRIVATE_PIXMAP,
+    if (!dixRegisterPrivateKey
+        (&ms->drmmode.pixmapPrivateKeyRec, PRIVATE_PIXMAP,
          sizeof(msPixmapPrivRec))) {
         return FALSE;
     }
@@ -2147,7 +2203,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
      * later memory should be bound when allocating, e.g rotate_mem */
     pScrn->vtSema = TRUE;
 
-    if (serverGeneration == 1 && bgNoneRoot && ms->drmmode.glamor) {
+    if (serverGeneration == 1 && bgNoneRoot && ms->drmmode.accel_method) {
         ms->CreateWindow = pScreen->CreateWindow;
         pScreen->CreateWindow = CreateWindow_oneshot;
     }
@@ -2200,47 +2256,58 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     }
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor) {
+    if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR) {
         if (!(ms->drmmode.dri2_enable = ms_dri2_screen_init(pScreen))) {
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                        "Failed to initialize the DRI2 extension.\n");
         }
-
-        /* enable reverse prime if we are a GPU screen, and accelerated, and not
-         * i915, evdi or udl. i915 is happy scanning out from sysmem.
-         * evdi and udl are virtual drivers scanning out from sysmem
-         * backed dumb buffers.
-         */
-        if (pScreen->isGPU) {
-            drmVersionPtr version;
-
-            /* enable if we are an accelerated GPU screen */
-            ms->drmmode.reverse_prime_offload_mode = TRUE;
-
-            if ((version = drmGetVersion(ms->drmmode.fd))) {
-                if (!strncmp("i915", version->name, version->name_len)) {
-                    ms->drmmode.reverse_prime_offload_mode = FALSE;
-                }
-                if (!strncmp("evdi", version->name, version->name_len)) {
-                    ms->drmmode.reverse_prime_offload_mode = FALSE;
-                }
-                if (!strncmp("udl", version->name, version->name_len)) {
-                    ms->drmmode.reverse_prime_offload_mode = FALSE;
-                }
-                if (!ms->drmmode.reverse_prime_offload_mode) {
-                    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-                       "Disable reverse prime offload mode for %s.\n", version->name);
-                }
-                drmFreeVersion(version);
-            }
+    }
+#endif
+#ifdef MS_DRI3
+    if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D) {
+        if (!ms_soft2d_screen_init(pScreen)) {
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                       "Failed to initialize the DRI3 extension.\n");
+        }
+        if (!ms_soft2d_sync_init(pScreen)) {
+            xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                       "Failed to initialize the Sync extension.\n");
         }
     }
 #endif
+    /* enable reverse prime if we are a GPU screen, and accelerated, and not
+     * i915, evdi or udl. i915 is happy scanning out from sysmem.
+     * evdi and udl are virtual drivers scanning out from sysmem
+     * backed dumb buffers.
+     */
+    if (pScreen->isGPU) {
+        drmVersionPtr version;
+
+        /* enable if we are an accelerated GPU screen */
+        ms->drmmode.reverse_prime_offload_mode = TRUE;
+
+        if ((version = drmGetVersion(ms->drmmode.fd))) {
+            if (!strncmp("i915", version->name, version->name_len)) {
+                ms->drmmode.reverse_prime_offload_mode = FALSE;
+            }
+            if (!strncmp("evdi", version->name, version->name_len)) {
+                ms->drmmode.reverse_prime_offload_mode = FALSE;
+            }
+            if (!strncmp("udl", version->name, version->name_len)) {
+                ms->drmmode.reverse_prime_offload_mode = FALSE;
+            }
+            if (!ms->drmmode.reverse_prime_offload_mode) {
+                xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                    "Disable reverse prime offload mode for %s.\n", version->name);
+            }
+            drmFreeVersion(version);
+        }
+    }
+
     if (!(ms->drmmode.present_enable = ms_present_screen_init(pScreen))) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "Failed to initialize the Present extension.\n");
     }
-
 
     pScrn->vtSema = TRUE;
 
@@ -2337,6 +2404,11 @@ CloseScreen(ScreenPtr pScreen)
     /* Clear mask of assigned crtc's in this generation */
     ms_ent->assigned_crtcs = 0;
 
+#ifdef MS_DRI3
+    if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+        ms_soft2d_sync_close(pScreen);
+#endif
+
 #ifdef GLAMOR_HAS_GBM
     if (ms->drmmode.dri2_enable) {
         ms_dri2_close_screen(pScreen);
@@ -2380,6 +2452,10 @@ CloseScreen(ScreenPtr pScreen)
         LeaveVT(pScrn);
     }
 
+#ifdef MS_DRI3
+    if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+        pScreen->DestroyPixmap = ms->drmmode.destroy_pixmap;
+#endif
     pScreen->CreateScreenResources = ms->createScreenResources;
     pScreen->BlockHandler = ms->BlockHandler;
 

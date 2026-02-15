@@ -246,7 +246,7 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
     int num_crtcs_on = 0;
     int i;
-    struct gbm_bo *gbm;
+    struct gbm_bo *gbm = NULL;
 
     if (!ms->drmmode.pageflip)
         return FALSE;
@@ -283,9 +283,14 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     if (!ms->drmmode.glamor)
         return FALSE;
 
-#ifdef GBM_BO_WITH_MODIFIERS
+#if defined(GBM_BO_WITH_MODIFIERS) || defined(MS_DRI3)
     /* Check if buffer format/modifier is supported by all active CRTCs */
-    gbm = ms->glamor.gbm_bo_from_pixmap(screen, pixmap);
+    if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR)
+       gbm = ms->glamor.gbm_bo_from_pixmap(screen, pixmap);
+#ifdef MS_DRI3
+    else if (ms->drmmode.accel_method == MS_ACCEL_SOFT2D)
+       gbm = ms_soft2d_gbm_bo_from_pixmap(screen, pixmap);
+#endif
     if (gbm) {
         uint32_t format;
         uint64_t modifier;
@@ -497,7 +502,7 @@ static present_screen_info_rec ms_present_screen_info = {
     .flush = ms_present_flush,
 
     .capabilities = PresentCapabilityNone,
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     .check_flip = NULL,
     .check_flip2 = ms_present_check_flip,
     .flip = ms_present_flip,
@@ -511,10 +516,21 @@ ms_present_screen_init(ScreenPtr screen)
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     uint64_t value;
+#if defined(MS_DRI3)
+    Bool linear_async;
+#endif
     int ret;
 
+#if defined(MS_DRI3)
+    linear_async = drmmode_has_linear_scanout(scrn);
+#endif
+
     ret = drmGetCap(ms->fd, DRM_CAP_ASYNC_PAGE_FLIP, &value);
+#if defined(MS_DRI3)
+    if (ret == 0 && value == 1 && linear_async) {
+#else
     if (ret == 0 && value == 1) {
+#endif
         ms_present_screen_info.capabilities |= PresentCapabilityAsync;
         ms->drmmode.can_async_flip = TRUE;
     }

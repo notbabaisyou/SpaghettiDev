@@ -36,6 +36,17 @@
 
 #include "dumb_bo.h"
 
+#ifdef MS_DRI3
+typedef Bool (*GetDrawableModifiersFuncPtr) (DrawablePtr draw, uint32_t format,
+                                             uint32_t *num_modifiers, uint64_t **modifiers);
+# ifdef XSYNC
+#  include "misync.h"
+#  ifdef HAVE_XSHMFENCE
+#   include "misyncshm.h"
+#  endif
+# endif
+#endif
+
 struct gbm_device;
 
 enum drmmode_plane_property {
@@ -76,7 +87,7 @@ typedef struct {
     uint32_t width;
     uint32_t height;
     struct dumb_bo *dumb;
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     struct gbm_bo *gbm;
     Bool used_modifiers;
     Bool owned_gbm;
@@ -103,16 +114,22 @@ typedef struct {
 #endif
     drmEventContext event_context;
     drmmode_bo front_bo;
+
     Bool sw_cursor;
+    /** Is Option "PageFlip" enabled? */
+    Bool pageflip;
 
     /* Broken-out options. */
     OptionInfoPtr Options;
 
-    Bool glamor;
+    enum {
+        MS_ACCEL_NONE = 0,
+        MS_ACCEL_GLAMOR = 1,
+        MS_ACCEL_SOFT2D = 2
+    } accel_method;
+
     Bool shadow_enable;
     Bool shadow_enable2;
-    /** Is Option "PageFlip" enabled? */
-    Bool pageflip;
     Bool force_24_32;
     void *shadow_fb;
     void *shadow_fb2;
@@ -125,25 +142,27 @@ typedef struct {
     int sprites_visible;
 
     Bool reverse_prime_offload_mode;
-
     Bool is_secondary;
-
-    PixmapPtr fbcon_pixmap;
-
     Bool dri2_flipping;
     Bool present_flipping;
     Bool flip_bo_import_failed;
-
     Bool can_async_flip;
     Bool async_flip_secondaries;
     Bool dri2_enable;
     Bool present_enable;
     Bool tearfree_enable;
-
     uint32_t vrr_prop_id;
     Bool use_ctm;
-
     Bool pending_modeset;
+
+    PixmapPtr fbcon_pixmap;
+#ifdef MS_DRI3
+    DestroyPixmapProcPtr destroy_pixmap;
+    GetDrawableModifiersFuncPtr get_drawable_modifiers;
+#ifdef XSYNC
+    SyncScreenFuncsRec sync_funcs;
+#endif
+#endif
 } drmmode_rec, *drmmode_ptr;
 
 typedef struct {
@@ -293,6 +312,12 @@ typedef struct _msPixmapPriv {
     PixmapDirtyUpdatePtr dirty; /* cached dirty ent to avoid searching list */
     DrawablePtr secondary_src; /* if we exported shared pixmap, dirty tracking src */
     Bool notify_on_damage; /* if sink has requested damage notification */
+
+#ifdef MS_DRI3
+    Bool use_modifiers;
+    struct gbm_bo *bo;
+    void *bo_map;
+#endif
 } msPixmapPrivRec, *msPixmapPrivPtr;
 
 #define msGetPixmapPriv(drmmode, p) ((msPixmapPrivPtr)dixGetPrivateAddr(&(p)->devPrivates, &(drmmode)->pixmapPrivateKeyRec))
@@ -308,6 +333,9 @@ extern miPointerSpriteFuncRec drmmode_sprite_funcs;
 
 Bool drmmode_is_format_supported(ScrnInfoPtr scrn, uint32_t format,
                                  uint64_t modifier, Bool async_flip);
+
+Bool drmmode_has_linear_scanout(ScrnInfoPtr scrn);
+
 int drmmode_bo_import(drmmode_ptr drmmode, drmmode_bo *bo,
                       uint32_t *fb_id);
 int drmmode_bo_destroy(drmmode_ptr drmmode, drmmode_bo *bo);

@@ -39,6 +39,9 @@
 #ifdef GLAMOR_HAS_GBM
 #define GLAMOR_FOR_XORG 1
 #include "glamor.h"
+#endif
+
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
 #include <gbm.h>
 #endif
 
@@ -233,7 +236,28 @@ void ms_vblank_close_screen(ScreenPtr screen);
 
 Bool ms_present_screen_init(ScreenPtr screen);
 
-#ifdef GLAMOR_HAS_GBM
+#ifdef MS_DRI3
+Bool ms_soft2d_screen_init(ScreenPtr screen);
+Bool ms_soft2d_create_back_pixmap(PixmapPtr pixmap, int handle, int stride);
+Bool ms_soft2d_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *bo);
+int ms_soft2d_shareable_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, CARD16 *stride, CARD32 *size);
+Bool ms_soft2d_sync_init(ScreenPtr screen);
+void ms_soft2d_sync_close(ScreenPtr screen);
+struct gbm_bo *ms_soft2d_gbm_bo_from_pixmap(ScreenPtr screen, PixmapPtr pixmap);
+Bool ms_soft2d_destroy_pixmap(PixmapPtr pixmap);
+void ms_soft2d_set_drawable_modifiers_func(ScreenPtr screen, GetDrawableModifiersFuncPtr func);
+Bool ms_soft2d_back_pixmap_from_fd(PixmapPtr pixmap, int fd, CARD16 width,
+                                   CARD16 height, CARD16 stride, CARD8 depth, CARD8 bpp);
+int ms_soft2d_pixmap_name_get(PixmapPtr pixmap, CARD16 *stride, CARD32 *size);
+void ms_soft2d_buffers_exchange(PixmapPtr front, PixmapPtr back);
+
+PixmapPtr
+ms_soft2d_pixmap_from_fds(ScreenPtr screen, CARD8 num, const int *fds, CARD16 width,
+                          CARD16 height, const CARD32 *strides, const CARD32 *offsets,
+                          CARD8 depth, CARD8 bpp, uint64_t modifier);
+#endif
+
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
 
 typedef void (*ms_pageflip_handler_proc)(modesettingPtr ms,
                                          uint64_t frame,

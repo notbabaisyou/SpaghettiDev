@@ -208,7 +208,24 @@ drmmode_is_format_supported(ScrnInfoPtr scrn, uint32_t format,
     return TRUE;
 }
 
-#ifdef GBM_BO_WITH_MODIFIERS
+Bool
+drmmode_has_linear_scanout(ScrnInfoPtr scrn)
+{
+    modesettingPtr ms = modesettingPTR(scrn);
+
+    switch (ms->drmmode.accel_method)
+    {
+        /* XXX: The format choice is completely arbitrary, but
+         * if the hardware lacks async-linear scanout (older Intel) 
+         * then it shouldn't really matter what format we throw at it. */
+        case MS_ACCEL_SOFT2D:
+            return drmmode_is_format_supported(scrn, DRM_FORMAT_XRGB8888, DRM_FORMAT_MOD_LINEAR, TRUE);
+        default:
+            return TRUE;
+    }
+}
+
+#if defined(GBM_BO_WITH_MODIFIERS) || defined(MS_DRI3)
 static uint32_t
 get_modifiers_set(ScrnInfoPtr scrn, uint32_t format, uint64_t **modifiers,
                   Bool enabled_crtc_only, Bool exclude_multiplane, Bool async_flip)
@@ -674,7 +691,7 @@ drmmode_bo_destroy(drmmode_ptr drmmode, drmmode_bo *bo)
     int ret;
 
 #ifdef GLAMOR_HAS_GBM
-    if (bo->gbm) {
+    if (bo->gbm && drmmode->accel_method == MS_ACCEL_GLAMOR) {
 #ifdef GLAMOR_HAS_GBM_MAP
         if (bo->gbm_ptr) {
             gbm_bo_unmap(bo->gbm, bo->gbm_map_data);
@@ -702,7 +719,7 @@ drmmode_bo_destroy(drmmode_ptr drmmode, drmmode_bo *bo)
 uint32_t
 drmmode_bo_get_pitch(drmmode_bo *bo)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     if (bo->gbm)
         return gbm_bo_get_stride(bo->gbm);
 #endif
@@ -713,7 +730,7 @@ drmmode_bo_get_pitch(drmmode_bo *bo)
 static Bool
 drmmode_bo_has_bo(drmmode_bo *bo)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     if (bo->gbm)
         return TRUE;
 #endif
@@ -724,7 +741,7 @@ drmmode_bo_has_bo(drmmode_bo *bo)
 uint32_t
 drmmode_bo_get_handle(drmmode_bo *bo)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     if (bo->gbm)
         return gbm_bo_get_handle(bo->gbm).u32;
 #endif
@@ -737,8 +754,8 @@ drmmode_bo_map(drmmode_ptr drmmode, drmmode_bo *bo)
 {
     int ret;
 
-#ifdef GLAMOR_HAS_GBM
-    if (bo->gbm) {
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
+    if (bo->gbm && drmmode->accel_method == MS_ACCEL_GLAMOR) {
 #ifdef GLAMOR_HAS_GBM_MAP
         uint32_t stride;
 
@@ -753,6 +770,11 @@ drmmode_bo_map(drmmode_ptr drmmode, drmmode_bo *bo)
         return NULL;
 #endif
     }
+#if MS_DRI3
+    else if (drmmode->accel_method == MS_ACCEL_SOFT2D) {
+        return NULL;
+    }
+#endif
 #endif
 
     if (bo->dumb->ptr)
@@ -769,7 +791,7 @@ int
 drmmode_bo_import(drmmode_ptr drmmode, drmmode_bo *bo,
                   uint32_t *fb_id)
 {
-#ifdef GBM_BO_WITH_MODIFIERS
+#if defined(GBM_BO_WITH_MODIFIERS) || defined(MS_DRI3)
     modesettingPtr ms = modesettingPTR(drmmode->scrn);
     if (bo->gbm && ms->kms_has_modifiers &&
         gbm_bo_get_modifier(bo->gbm) != DRM_FORMAT_MOD_INVALID) {
@@ -837,7 +859,7 @@ drmmode_create_bo(drmmode_ptr drmmode, drmmode_bo *bo,
     bo->height = height;
 
 #ifdef GLAMOR_HAS_GBM
-    if (drmmode->glamor) {
+    if (drmmode->accel_method == MS_ACCEL_GLAMOR) {
         uint32_t format;
         uint32_t num_modifiers;
         uint64_t *modifiers = NULL;
@@ -1212,7 +1234,7 @@ drmmode_crtc_dpms(xf86CrtcPtr crtc, int mode)
     }
 }
 
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
 #ifdef LIBDRM_GETFB2
 static Bool
 depth_bpp_from_format(uint32_t pixel_format, int* depth, int* bpp)
@@ -1329,9 +1351,17 @@ create_pixmap_for_fbcon(drmmode_ptr drmmode, ScrnInfoPtr pScrn, int fbcon_id)
         goto out_close_fds;
     }
 
-    pixmap = ms->glamor.glamor_pixmap_from_fds(pScreen, num_fds, fds,
-                                               width, height, strides, offsets,
-                                               depth, bpp, modifier);
+    if (drmmode->accel_method == MS_ACCEL_GLAMOR)
+        pixmap = ms->glamor.glamor_pixmap_from_fds(pScreen, num_fds, fds,
+                                                   width, height, strides, offsets,
+                                                   depth, bpp, modifier);
+#ifdef MS_DRI3
+    else
+        pixmap = ms_soft2d_pixmap_from_fds(pScreen, num_fds, fds,
+                                           width, height, strides, offsets,
+                                           depth, bpp, modifier);
+#endif
+
     if (!pixmap)
         goto out_close_fds;
 
@@ -1354,7 +1384,7 @@ out_free_fb:
 void
 drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
     ScreenPtr pScreen = xf86ScrnToScreen(pScrn);
     PixmapPtr src, dst;
@@ -3859,11 +3889,11 @@ drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp)
 Bool
 drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 {
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(MS_DRI3)
     ScreenPtr pScreen = xf86ScrnToScreen(pScrn);
     modesettingPtr ms = modesettingPTR(pScrn);
 
-    if (drmmode->glamor) {
+    if (drmmode->accel_method == MS_ACCEL_GLAMOR) {
         if (!ms->glamor.init(pScreen, GLAMOR_USE_EGL_SCREEN)) {
             return FALSE;
         }
@@ -3871,6 +3901,11 @@ drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
         ms->glamor.set_drawable_modifiers_func(pScreen, get_drawable_modifiers);
 #endif
     }
+#ifdef MS_DRI3
+    else if (drmmode->accel_method == MS_ACCEL_SOFT2D) {
+        ms_soft2d_set_drawable_modifiers_func(pScreen, get_drawable_modifiers);
+    }
+#endif
 #endif
 
     return TRUE;
