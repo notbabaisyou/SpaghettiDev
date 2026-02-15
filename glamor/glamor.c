@@ -273,6 +273,17 @@ glamor_destroy_pixmap(PixmapPtr pixmap)
 }
 
 void
+glamor_make_current(glamor_screen_private *glamor_priv)
+{
+    struct glamor_context *glamor_ctx = &glamor_priv->ctx;
+
+    if (lastGLContext != glamor_ctx->ctx) {
+        lastGLContext = glamor_ctx->ctx;
+        glamor_priv->ctx.make_current(&glamor_priv->ctx);
+    }
+}
+
+void
 glamor_block_handler(ScreenPtr screen)
 {
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);

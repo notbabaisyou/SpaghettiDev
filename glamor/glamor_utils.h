@@ -665,24 +665,13 @@ glamor_is_large_pixmap(PixmapPtr pixmap)
     return (glamor_pixmap_priv_is_large(priv));
 }
 
-static inline void
-glamor_make_current(glamor_screen_private *glamor_priv)
-{
-    if (lastGLContext != glamor_priv->ctx.ctx) {
-        lastGLContext = glamor_priv->ctx.ctx;
-        glamor_priv->ctx.make_current(&glamor_priv->ctx);
-    }
-    glamor_priv->dirty = TRUE;
-}
+extern _X_EXPORT void glamor_make_current(glamor_screen_private *glamor);
 
 static inline void
 glamor_flush(glamor_screen_private *glamor_priv)
 {
-    if (glamor_priv->dirty) {
-        glamor_make_current(glamor_priv);
-        glFlush();
-        glamor_priv->dirty = FALSE;
-    }
+    glamor_make_current(glamor_priv);
+    glFlush();
 }
 
 static inline BoxRec
