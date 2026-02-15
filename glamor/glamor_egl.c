@@ -98,25 +98,6 @@ glamor_egl_get_screen_private(ScrnInfoPtr scrn)
         scrn->privates[xf86GlamorEGLPrivateIndex].ptr;
 }
 
-static void
-glamor_egl_make_current(struct glamor_context *glamor_ctx)
-{
-    /* There's only a single global dispatch table in Mesa.  EGL, GLX,
-     * and AIGLX's direct dispatch table manipulation don't talk to
-     * each other.  We need to set the context to NULL first to avoid
-     * EGL's no-op context change fast path when switching back to
-     * EGL.
-     */
-    eglMakeCurrent(glamor_ctx->display, EGL_NO_SURFACE,
-                   EGL_NO_SURFACE, EGL_NO_CONTEXT);
-
-    if (!eglMakeCurrent(glamor_ctx->display,
-                        EGL_NO_SURFACE, EGL_NO_SURFACE,
-                        glamor_ctx->ctx)) {
-        FatalError("Failed to make EGL context current\n");
-    }
-}
-
 static int
 glamor_get_flink_name(int fd, int handle, int *name)
 {
@@ -1062,8 +1043,6 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
 
     glamor_ctx->ctx = glamor_egl->context;
     glamor_ctx->display = glamor_egl->display;
-
-    glamor_ctx->make_current = glamor_egl_make_current;
 
 #ifdef GLXEXT
     /* Use dynamic logic only if vendor is not forced via xorg.conf */

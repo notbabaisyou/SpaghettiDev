@@ -279,7 +279,15 @@ glamor_make_current(glamor_screen_private *glamor_priv)
 
     if (lastGLContext != glamor_ctx->ctx) {
         lastGLContext = glamor_ctx->ctx;
-        glamor_priv->ctx.make_current(&glamor_priv->ctx);
+
+        eglMakeCurrent(glamor_ctx->display, EGL_NO_SURFACE,
+                       EGL_NO_SURFACE, EGL_NO_CONTEXT);
+
+        if (!eglMakeCurrent(glamor_ctx->display,
+                            glamor_ctx->surface, glamor_ctx->surface,
+                            glamor_ctx->ctx)) {
+            FatalError("Failed to make EGL context current\n");
+        }
     }
 }
 

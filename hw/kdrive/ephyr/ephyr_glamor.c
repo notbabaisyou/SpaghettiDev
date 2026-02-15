@@ -73,25 +73,6 @@ struct ephyr_glamor {
     GLuint vao, vbo;
 };
 
-static void
-glamor_egl_make_current(struct glamor_context *glamor_ctx)
-{
-    /* There's only a single global dispatch table in Mesa.  EGL, GLX,
-     * and AIGLX's direct dispatch table manipulation don't talk to
-     * each other.  We need to set the context to NULL first to avoid
-     * EGL's no-op context change fast path when switching back to
-     * EGL.
-     */
-    eglMakeCurrent(glamor_ctx->display, EGL_NO_SURFACE,
-                   EGL_NO_SURFACE, EGL_NO_CONTEXT);
-
-    if (!eglMakeCurrent(glamor_ctx->display,
-                        glamor_ctx->surface, glamor_ctx->surface,
-                        glamor_ctx->ctx)) {
-        FatalError("Failed to make EGL context current\n");
-    }
-}
-
 void
 glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
 {
@@ -104,7 +85,6 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
     glamor_ctx->display = ephyr_glamor->dpy;
     glamor_ctx->ctx = ephyr_glamor->ctx;
     glamor_ctx->surface = ephyr_glamor->egl_win;
-    glamor_ctx->make_current = glamor_egl_make_current;
 }
 
 int
