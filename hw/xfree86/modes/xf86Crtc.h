@@ -44,6 +44,9 @@
 #ifndef HARDWARE_CURSOR_ARGB
 #define HARDWARE_CURSOR_ARGB				0x00004000
 #endif
+#ifndef HARDWARE_CURSOR_NO_COORD_TRANSLATION
+#define HARDWARE_CURSOR_NO_COORD_TRANSLATION 0x00008000
+#endif
 
 typedef struct _xf86Crtc xf86CrtcRec, *xf86CrtcPtr;
 typedef struct _xf86Output xf86OutputRec, *xf86OutputPtr;

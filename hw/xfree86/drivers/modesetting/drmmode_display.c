@@ -1696,16 +1696,7 @@ drmmode_load_cursor_argb_check(xf86CrtcPtr crtc, CARD32 *image)
     height = drmmode_cursor.dimensions[i].height;
 
     /* Copy the cursor image over. */
-    i = 0;
-    for (y = 0; y < height; y++) {
-        for (x = 0; x < width; x++) {
-            ptr[i++] = image[y * max_width + x];
-        }
-    }
-
-    /* Clear the remainder for good measure. */
-    for (; i < max_width * max_height; i++)
-        ptr[i++] = 0;
+    memcpy(ptr, image, max_width * max_height * sizeof(CARD32));
 
     if (drmmode_cursor.up)
         return drmmode_set_cursor(crtc, width, height);

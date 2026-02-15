@@ -2141,7 +2141,8 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
         xf86_cursors_init(pScreen, cursor_dim.width, cursor_dim.height,
                           HARDWARE_CURSOR_SOURCE_MASK_NOT_INTERLEAVED |
                           HARDWARE_CURSOR_UPDATE_UNHIDDEN |
-                          HARDWARE_CURSOR_ARGB);
+                          HARDWARE_CURSOR_ARGB |
+                          HARDWARE_CURSOR_NO_COORD_TRANSLATION);
 
     /* Must force it before EnterVT, so we are in control of VT and
      * later memory should be bound when allocating, e.g rotate_mem */

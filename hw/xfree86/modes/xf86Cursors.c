@@ -265,22 +265,30 @@ xf86_crtc_convert_cursor_to_argb(xf86CrtcPtr crtc, unsigned char *src)
 
     crtc->cursor_argb = FALSE;
 
-    for (y = 0; y < cursor_info->MaxHeight; y++)
-        for (x = 0; x < cursor_info->MaxWidth; x++) {
-            xf86_crtc_rotate_coord(rotation,
-                                   cursor_info->MaxWidth,
-                                   cursor_info->MaxHeight, x, y, &xin, &yin);
-            if (get_bit(src, cursor_info, xin, yin, TRUE) ==
-                ((flags & HARDWARE_CURSOR_INVERT_MASK) == 0)) {
-                if (get_bit(src, cursor_info, xin, yin, FALSE))
-                    bits = xf86_config->cursor_fg;
-                else
-                    bits = xf86_config->cursor_bg;
+    if (!(flags & HARDWARE_CURSOR_NO_COORD_TRANSLATION)) {
+        for (y = 0; y < cursor_info->MaxHeight; y++) {
+            for (x = 0; x < cursor_info->MaxWidth; x++) {
+                xf86_crtc_rotate_coord(rotation,
+                                       cursor_info->MaxWidth,
+                                       cursor_info->MaxHeight, x, y, &xin, &yin);
+
+                if (get_bit(src, cursor_info, xin, yin, TRUE) ==
+                           ((flags & HARDWARE_CURSOR_INVERT_MASK) == 0)) {
+
+                    if (get_bit(src, cursor_info, xin, yin, FALSE))
+                        bits = xf86_config->cursor_fg;
+                    else
+                        bits = xf86_config->cursor_bg;
+
+                } else {
+                    bits = 0;
+                }
+                
+                cursor_image[y * cursor_info->MaxWidth + x] = bits;
             }
-            else
-                bits = 0;
-            cursor_image[y * cursor_info->MaxWidth + x] = bits;
         }
+    }
+
     return xf86_driver_load_cursor_argb(crtc, cursor_image);
 }
 
