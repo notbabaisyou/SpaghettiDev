@@ -184,8 +184,7 @@ ProcDRI2CreateDrawable(ClientPtr client)
                        &pDrawable, &status))
         return status;
 
-    status = DRI2CreateDrawable(client, pDrawable,
-                                FakeClientID(client->index),
+    status = DRI2CreateDrawable(client, pDrawable, 0,
                                 DRI2InvalidateBuffersEvent, client);
     if (status != Success)
         return status;
@@ -205,7 +204,7 @@ ProcDRI2DestroyDrawable(ClientPtr client)
                        &pDrawable, &status))
         return status;
 
-    return Success;
+    return DRI2DestroyDrawable(client, pDrawable, 0);
 }
 
 static int

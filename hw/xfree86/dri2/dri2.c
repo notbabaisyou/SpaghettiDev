@@ -309,11 +309,24 @@ DRI2SwapLimit(DrawablePtr pDraw, int swap_limit)
 }
 
 typedef struct DRI2DrawableRefRec {
+    unsigned int refcnt;
     XID pid;
     DRI2InvalidateProcPtr invalidate;
     void *priv;
     struct xorg_list link;
 } DRI2DrawableRefRec, *DRI2DrawableRefPtr;
+
+static DRI2DrawableRefPtr
+DRI2FindClientDrawableRef(ClientPtr client, DRI2DrawablePtr pPriv)
+{
+    DRI2DrawableRefPtr ref;
+
+    xorg_list_for_each_entry(ref, &pPriv->reference_list, link)
+        if (ref->refcnt && CLIENT_ID(ref->pid) == client->index)
+            return ref;
+
+    return NULL;
+}
 
 int
 DRI2CreateDrawable(ClientPtr client, DrawablePtr pDraw, XID pid,
@@ -330,16 +343,34 @@ DRI2CreateDrawable(ClientPtr client, DrawablePtr pDraw, XID pid,
         return BadAlloc;
 
     pPriv->prime_id = dri2ClientPrivate(client)->prime_id;
+
+    if (pid == 0) {
+        ref = DRI2FindClientDrawableRef(client, pPriv);
+        if (ref) {
+            ref->refcnt++;
+            assert(ref->invalidate == invalidate);
+            assert(ref->priv == priv);
+            return Success;
+        }
+    }
+
     ref = malloc(sizeof *ref);
     if (ref == NULL)
         return BadAlloc;
 
-    if (!AddResource(pid, dri2ReferenceRes, ref)) {
+    if (pid == 0) {
+        ref->refcnt = 1;
+        ref->pid = FakeClientID(client->index);
+    } else {
+        ref->refcnt = 0;
+        ref->pid = pid;
+    }
+
+    if (!AddResource(ref->pid, dri2ReferenceRes, ref)) {
         free(ref);
         return BadAlloc;
     }
 
-    ref->pid = pid;
     ref->invalidate = invalidate;
     ref->priv = priv;
     xorg_list_add(&ref->link, &pPriv->reference_list);
@@ -366,9 +397,27 @@ DRI2CreateDrawable2(ClientPtr client, DrawablePtr pDraw, XID pid,
 }
 
 int
-DRI2DestroyDrawable(ClientPtr client, DrawablePtr pDraw, XID id)
+DRI2DestroyDrawable(ClientPtr client, DrawablePtr pDraw, XID pid)
 {
-    FreeResourceByType(id, dri2ReferenceRes, FALSE);
+    if (pid == 0) {
+        DRI2DrawablePtr pPriv;
+        DRI2DrawableRefPtr ref;
+
+        pPriv = DRI2GetDrawable(pDraw);
+        if (pPriv == NULL)
+            return BadDrawable;
+
+        ref = DRI2FindClientDrawableRef(client, pPriv);
+        if (ref == NULL)
+            return BadMatch;
+
+        if (--ref->refcnt == 0)
+            pid = ref->pid;
+    }
+
+    if (pid != 0)
+        FreeResourceByType(pid, dri2ReferenceRes, FALSE);
+
     return Success;
 }
 
