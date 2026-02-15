@@ -44,17 +44,12 @@ glamor_poly_segment_solid_gl(DrawablePtr drawable, GCPtr gc,
     int off_x, off_y;
     xSegment *v;
     char *vbo_offset;
-    int box_index;
-    int add_last;
+    int box_index, i;
     Bool ret = FALSE;
 
     pixmap_priv = glamor_get_pixmap_private(pixmap);
     if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(pixmap_priv))
         goto bail;
-
-    add_last = 0;
-    if (gc->capStyle != CapNotLast)
-        add_last = 1;
 
     glamor_make_current(glamor_priv);
 
@@ -67,26 +62,24 @@ glamor_poly_segment_solid_gl(DrawablePtr drawable, GCPtr gc,
 
     /* Set up the vertex buffers for the points */
 
+    /* We need 1.5 times the space in case of CapNotLast,
+     * so let's just always allocate 2 times the space. */
     v = glamor_get_vbo_space(drawable->pScreen,
-                             (nseg << add_last) * sizeof (xSegment),
+                             nseg * sizeof (xSegment) * 2,,
                              &vbo_offset);
 
     glEnableVertexAttribArray(GLAMOR_VERTEX_POS);
     glVertexAttribPointer(GLAMOR_VERTEX_POS, 2, GL_SHORT, GL_FALSE,
                           sizeof(DDXPointRec), vbo_offset);
 
-    if (add_last) {
-        int i, j;
-        for (i = 0, j=0; i < nseg; i++) {
-            v[j++] = segs[i];
-            v[j].x1 = segs[i].x2;
-            v[j].y1 = segs[i].y2;
-            v[j].x2 = segs[i].x2+1;
-            v[j].y2 = segs[i].y2;
-            j++;
+    memcpy(v, segs, nseg * sizeof (xSegment));
+
+    /* In case of CapNotLast, copy the line starting points for later */
+    if (gc->capStyle != CapNotLast) {
+        for (i = 0; i < nseg; i++) {
+            v[2 * nseg + i] = v[2 * i];
         }
-    } else
-        memcpy(v, segs, nseg * sizeof (xSegment));
+    }
 
     glamor_put_vbo_space(screen);
 
@@ -106,7 +99,19 @@ glamor_poly_segment_solid_gl(DrawablePtr drawable, GCPtr gc,
                       box->x2 - box->x1,
                       box->y2 - box->y1);
             box++;
-            glDrawArrays(GL_LINES, 0, nseg << (1 + add_last));
+            glDrawArrays(GL_LINES, 0, nseg * 2);
+
+            /* Draw the first and last pixel of each line, as OpenGL
+             * implementations are allowed to be inaccurate there.
+             * Since we're drawing all line ends, we can just reuse
+             * the array of all line starts and ends. */
+            if (gc->capStyle != CapNotLast) {
+                glDrawArrays(GL_POINTS, 0, nseg * 2);
+            } else {
+                /* With CapNotLast, we only want to draw the starting points.
+                 * That's why we copied them earlier. */
+                glDrawArrays(GL_POINTS, nseg, nseg);
+            }
         }
     }
 
