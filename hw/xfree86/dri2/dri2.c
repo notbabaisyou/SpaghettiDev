@@ -69,16 +69,16 @@ static DevPrivateKeyRec dri2PixmapPrivateKeyRec;
 
 static DevPrivateKeyRec dri2ClientPrivateKeyRec;
 
-#define dri2ClientPrivateKey (&dri2ClientPrivateKeyRec)
-
-#define dri2ClientPrivate(_pClient) (dixLookupPrivate(&(_pClient)->devPrivates, \
-                                                      dri2ClientPrivateKey))
-
 typedef struct _DRI2Client {
     int prime_id;
 } DRI2ClientRec, *DRI2ClientPtr;
 
-static RESTYPE dri2DrawableRes;
+static DRI2ClientPtr dri2ClientPrivate(ClientPtr pClient)
+{
+    return dixLookupPrivate(&pClient->devPrivates, &dri2ClientPrivateKeyRec);
+}
+
+static RESTYPE dri2DrawableRes, dri2ReferenceRes;
 
 typedef struct _DRI2Screen *DRI2ScreenPtr;
 
@@ -245,6 +245,11 @@ DRI2AllocateDrawable(DrawablePtr pDraw)
     if (pPriv == NULL)
         return NULL;
 
+    if (!AddResource(pDraw->id, dri2DrawableRes, pPriv)) {
+        free(pPriv);
+        return NULL;
+    }
+
     pPriv->dri2_screen = ds;
     pPriv->drawable = pDraw;
     pPriv->width = pDraw->width;
@@ -304,49 +309,37 @@ DRI2SwapLimit(DrawablePtr pDraw, int swap_limit)
 }
 
 typedef struct DRI2DrawableRefRec {
-    XID id;
-    XID dri2_id;
+    XID pid;
     DRI2InvalidateProcPtr invalidate;
     void *priv;
     struct xorg_list link;
 } DRI2DrawableRefRec, *DRI2DrawableRefPtr;
 
-static DRI2DrawableRefPtr
-DRI2LookupDrawableRef(DRI2DrawablePtr pPriv, XID id)
-{
-    DRI2DrawableRefPtr ref;
-
-    xorg_list_for_each_entry(ref, &pPriv->reference_list, link) {
-        if (ref->id == id)
-            return ref;
-    }
-
-    return NULL;
-}
-
-static int
-DRI2AddDrawableRef(DRI2DrawablePtr pPriv, XID id, XID dri2_id,
+int
+DRI2CreateDrawable(ClientPtr client, DrawablePtr pDraw, XID pid,
                    DRI2InvalidateProcPtr invalidate, void *priv)
 {
+    DRI2DrawablePtr pPriv;
     DRI2DrawableRefPtr ref;
 
+    pPriv = DRI2GetDrawable(pDraw);
+    if (pPriv == NULL)
+        pPriv = DRI2AllocateDrawable(pDraw);
+
+    if (pPriv == NULL)
+        return BadAlloc;
+
+    pPriv->prime_id = dri2ClientPrivate(client)->prime_id;
     ref = malloc(sizeof *ref);
     if (ref == NULL)
         return BadAlloc;
 
-    if (!AddResource(dri2_id, dri2DrawableRes, pPriv)) {
+    if (!AddResource(pid, dri2ReferenceRes, ref)) {
         free(ref);
         return BadAlloc;
     }
-    if (!DRI2LookupDrawableRef(pPriv, id))
-        if (!AddResource(id, dri2DrawableRes, pPriv)) {
-            FreeResourceByType(dri2_id, dri2DrawableRes, TRUE);
-            free(ref);
-            return BadAlloc;
-        }
 
-    ref->id = id;
-    ref->dri2_id = dri2_id;
+    ref->pid = pid;
     ref->invalidate = invalidate;
     ref->priv = priv;
     xorg_list_add(&ref->link, &pPriv->reference_list);
@@ -355,72 +348,49 @@ DRI2AddDrawableRef(DRI2DrawablePtr pPriv, XID id, XID dri2_id,
 }
 
 int
-DRI2CreateDrawable2(ClientPtr client, DrawablePtr pDraw, XID id,
+DRI2CreateDrawable2(ClientPtr client, DrawablePtr pDraw, XID pid,
                     DRI2InvalidateProcPtr invalidate, void *priv,
                     XID *dri2_id_out)
 {
-    DRI2DrawablePtr pPriv;
-    DRI2ClientPtr dri2_client;
-    XID dri2_id;
-    int rc;
+    /* Compatibility stub. */
+    
+    int ret = DRI2CreateDrawable(client, pDraw, pid, invalidate, priv);
+    if (ret != Success) {
+        return ret;
+    } else {
+        if (dri2_id_out)
+            *dri2_id_out = pid;
 
-    if (!dixPrivateKeyRegistered(dri2ScreenPrivateKey))
-        return BadValue;
-
-    dri2_client = dri2ClientPrivate(client);
-
-    pPriv = DRI2GetDrawable(pDraw);
-    if (pPriv == NULL)
-        pPriv = DRI2AllocateDrawable(pDraw);
-    if (pPriv == NULL)
-        return BadAlloc;
-
-    pPriv->prime_id = dri2_client->prime_id;
-
-    dri2_id = FakeClientID(client->index);
-    rc = DRI2AddDrawableRef(pPriv, id, dri2_id, invalidate, priv);
-    if (rc != Success)
-        return rc;
-
-    if (dri2_id_out)
-        *dri2_id_out = dri2_id;
-
-    return Success;
+        return Success;
+    }
 }
 
 int
-DRI2CreateDrawable(ClientPtr client, DrawablePtr pDraw, XID id,
-                   DRI2InvalidateProcPtr invalidate, void *priv)
+DRI2DestroyDrawable(ClientPtr client, DrawablePtr pDraw, XID id)
 {
-    return DRI2CreateDrawable2(client, pDraw, id, invalidate, priv, NULL);
+    FreeResourceByType(id, dri2ReferenceRes, FALSE);
+    return Success;
 }
 
 static int
 DRI2DrawableGone(void *p, XID id)
 {
     DRI2DrawablePtr pPriv = p;
-    DRI2DrawableRefPtr ref, next;
     WindowPtr pWin;
     PixmapPtr pPixmap;
     DrawablePtr pDraw;
     int i;
 
-    xorg_list_for_each_entry_safe(ref, next, &pPriv->reference_list, link) {
-        if (ref->dri2_id == id) {
-            xorg_list_del(&ref->link);
-            /* If this was the last ref under this X drawable XID,
-             * unregister the X drawable resource. */
-            if (!DRI2LookupDrawableRef(pPriv, ref->id))
-                FreeResourceByType(ref->id, dri2DrawableRes, TRUE);
-            free(ref);
-            break;
-        }
+    while (!xorg_list_is_empty(&pPriv->reference_list)) {
+        DRI2DrawableRefPtr ref;
 
-        if (ref->id == id) {
-            xorg_list_del(&ref->link);
-            FreeResourceByType(ref->dri2_id, dri2DrawableRes, TRUE);
-            free(ref);
-        }
+        ref = xorg_list_first_entry(&pPriv->reference_list,
+                                    DRI2DrawableRefRec,
+                                    link);
+        xorg_list_del(&ref->link);
+
+        FreeResourceByType(ref->pid, dri2ReferenceRes, TRUE);
+        free(ref);
     }
 
     if (!xorg_list_is_empty(&pPriv->reference_list))
@@ -458,6 +428,20 @@ DRI2DrawableGone(void *p, XID id)
     dri2WakeAll(CLIENT_SIGNAL_ANY, pPriv, WAKE_SBC);
 
     free(pPriv);
+
+    return Success;
+}
+
+static int
+DRI2ReferenceGone(void *p, XID id)
+{
+    DRI2DrawableRefPtr ref = p;
+    DRI2DrawablePtr pPriv = ref->priv;
+
+    xorg_list_del(&ref->link);
+    if (xorg_list_is_empty(&pPriv->reference_list))
+        FreeResourceByType(pPriv->drawable->id, dri2DrawableRes, FALSE);
+    free(ref);
 
     return Success;
 }
@@ -728,7 +712,7 @@ DRI2InvalidateDrawable(DrawablePtr pDraw)
     pPriv->needInvalidate = FALSE;
 
     xorg_list_for_each_entry(ref, &pPriv->reference_list, link)
-        ref->invalidate(pDraw, ref->priv, ref->id);
+        ref->invalidate(pDraw, ref->priv);
 }
 
 /*
@@ -1685,6 +1669,10 @@ DRI2ModuleSetup(void)
 {
     dri2DrawableRes = CreateNewResourceType(DRI2DrawableGone, "DRI2Drawable");
     if (!dri2DrawableRes)
+        return FALSE;
+
+    dri2ReferenceRes = CreateNewResourceType(DRI2ReferenceGone, "DRI2Reference");
+    if (!dri2ReferenceRes)
         return FALSE;
 
     return TRUE;

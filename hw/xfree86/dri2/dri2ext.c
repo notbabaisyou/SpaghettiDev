@@ -160,12 +160,12 @@ ProcDRI2Authenticate(ClientPtr client)
 }
 
 static void
-DRI2InvalidateBuffersEvent(DrawablePtr pDraw, void *priv, XID id)
+DRI2InvalidateBuffersEvent(DrawablePtr pDraw, void *priv, _X_UNUSED XID id)
 {
     ClientPtr client = priv;
     xDRI2InvalidateBuffers event = {
         .type = DRI2EventBase + DRI2_InvalidateBuffers,
-        .drawable = id
+        .drawable = pDraw->id
     };
 
     WriteEventsToClient(client, 1, (xEvent *) &event);
@@ -184,7 +184,8 @@ ProcDRI2CreateDrawable(ClientPtr client)
                        &pDrawable, &status))
         return status;
 
-    status = DRI2CreateDrawable(client, pDrawable, stuff->drawable,
+    status = DRI2CreateDrawable(client, pDrawable,
+                                FakeClientID(client->index),
                                 DRI2InvalidateBuffersEvent, client);
     if (status != Success)
         return status;

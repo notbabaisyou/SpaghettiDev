@@ -124,7 +124,7 @@ __glXDRIdrawableDestroy(__GLXdrawable * drawable)
     __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
     const __DRIcoreExtension *core = private->screen->core;
 
-    FreeResource(private->dri2_id, FALSE);
+    DRI2DestroyDrawable(NULL, private->base.pDraw, private->dri2_id);
 
     (*core->destroyDrawable) (private->driDrawable);
 
@@ -574,7 +574,7 @@ __glXDRIscreenCreateContext(__GLXscreen * baseScreen,
 }
 
 static void
-__glXDRIinvalidateBuffers(DrawablePtr pDraw, void *priv, XID id)
+__glXDRIinvalidateBuffers(DrawablePtr pDraw, void *priv, _X_UNUSED XID id)
 {
     __GLXDRIdrawable *private = priv;
     __GLXDRIscreen *screen = private->screen;
@@ -613,9 +613,9 @@ __glXDRIscreenCreateDrawable(ClientPtr client,
     private->base.waitGL = __glXDRIdrawableWaitGL;
     private->base.waitX = __glXDRIdrawableWaitX;
 
-    ret = DRI2CreateDrawable2(client, pDraw, drawId,
-                              __glXDRIinvalidateBuffers, private,
-                              &private->dri2_id);
+    private->dri2_id = FakeClientID(client->index);
+    ret = DRI2CreateDrawable(client, pDraw, private->dri2_id,
+                             __glXDRIinvalidateBuffers, private);
     if (cx != lastGLContext) {
         lastGLContext = cx;
         cx->makeCurrent(cx);

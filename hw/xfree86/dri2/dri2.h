@@ -270,16 +270,20 @@ extern _X_EXPORT Bool DRI2Authenticate(ClientPtr client, ScreenPtr pScreen, uint
 
 extern _X_EXPORT int DRI2CreateDrawable(ClientPtr client,
                                         DrawablePtr pDraw,
-                                        XID id,
+                                        XID pid,
                                         DRI2InvalidateProcPtr invalidate,
                                         void *priv);
 
 extern _X_EXPORT int DRI2CreateDrawable2(ClientPtr client,
                                          DrawablePtr pDraw,
-                                         XID id,
+                                         XID pid,
                                          DRI2InvalidateProcPtr invalidate,
                                          void *priv,
                                          XID *dri2_id_out);
+
+extern _X_EXPORT int DRI2DestroyDrawable(ClientPtr client,
+                                         DrawablePtr pDraw,
+                                         XID id);
 
 extern _X_EXPORT DRI2BufferPtr *DRI2GetBuffers(DrawablePtr pDraw,
                                                int *width,
