@@ -530,6 +530,12 @@ vfbStoreColors(ColormapPtr pmap, int ndef, xColorItem * pdefs)
     }
 }
 
+static Bool
+vfbSaveScreen(ScreenPtr pScreen, int on)
+{
+    return TRUE;
+}
+
 #ifdef HAVE_MMAP
 
 /* this flushes any changes to the screens out to the mmapped file */
@@ -1036,6 +1042,7 @@ vfbScreenInit(ScreenPtr pScreen, int argc, char **argv)
        return FALSE;
 
     pScreen->InstallColormap = vfbInstallColormap;
+    pScreen->SaveScreen = vfbSaveScreen;
     pScreen->StoreColors = vfbStoreColors;
 
     miDCInitialize(pScreen, &vfbPointerCursorFuncs);
