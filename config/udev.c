@@ -30,6 +30,7 @@
 #include <libudev.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <sys/sysmacros.h>
 
 #include "input.h"
 #include "inputstr.h"
