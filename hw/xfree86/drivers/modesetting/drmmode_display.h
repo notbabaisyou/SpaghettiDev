@@ -53,6 +53,7 @@ enum drmmode_plane_property {
     DRMMODE_PLANE_CRTC_Y,
     DRMMODE_PLANE_CRTC_W,
     DRMMODE_PLANE_CRTC_H,
+    DRMMODE_PLANE_ROTATION,
     DRMMODE_PLANE__COUNT
 };
 
@@ -209,13 +210,14 @@ typedef struct {
     drmmode_prop_info_rec props[DRMMODE_CRTC__COUNT];
     drmmode_prop_info_rec props_plane[DRMMODE_PLANE__COUNT];
     uint32_t plane_id;
-    drmmode_mode_ptr current_mode;
     uint32_t num_formats;
+    drmmode_mode_ptr current_mode;
     drmmode_format_rec *formats;
     drmmode_format_rec *formats_async;
 
     drmmode_bo rotate_bo;
     unsigned rotate_fb_id;
+    unsigned rotate_caps;
     drmmode_tearfree_rec tearfree;
 
     PixmapPtr prime_pixmap;
@@ -240,13 +242,13 @@ typedef struct {
     int cursor_width, cursor_height;
 
     Bool need_modeset;
+    Bool use_gamma_lut;
     struct xorg_list mode_list;
 
     Bool enable_flipping;
     Bool flipping_active;
 
     Bool vrr_enabled;
-    Bool use_gamma_lut;
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
 typedef struct {
@@ -355,6 +357,8 @@ int drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
                       uint32_t flags, void *data);
 
 Bool drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y);
+
+Bool drmmode_crtc_set_rotation(xf86CrtcPtr crtc, uint32_t rotation);
 
 void drmmode_crtc_set_vrr(xf86CrtcPtr crtc, Bool enabled);
 

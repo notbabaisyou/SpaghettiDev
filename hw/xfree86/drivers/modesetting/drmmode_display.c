@@ -1510,6 +1510,37 @@ static void drmmode_prepare_modeset(ScrnInfoPtr scrn)
 }
 
 static Bool
+drmmode_handle_rotation(drmmode_crtc_private_ptr drmmode_crtc, xf86CrtcPtr crtc, Rotation rotation)
+{
+#if 1
+    int scrnIndex = drmmode_crtc->drmmode->scrn->scrnIndex;
+#endif
+    /* We cannot do things we don't support. */
+    if (!(drmmode_crtc->rotate_caps & rotation)) {
+#if 1
+        xf86DrvMsg(scrnIndex, X_ERROR, "Unsupported rotation bitmask: %u\n", rotation);
+#endif
+        return FALSE;
+    }
+
+    /**
+     * We're cool enough to handle the rotation by ourselves,
+     * Xorg doesn't need to do any babysitting for us.
+     */
+    if (rotation != RR_Rotate_0) {
+        crtc->driverIsPerformingTransform =
+            (XF86DriverTransformOutput | XF86DriverTransformCursorImage | XF86DriverTransformCursorPosition);
+    } else {
+        crtc->driverIsPerformingTransform = XF86DriverTransformNone;
+    }
+
+#if 1
+    xf86DrvMsg(scrnIndex, X_DEBUG, "Calling xf86CrtcRotate...\n");
+#endif
+    return xf86CrtcRotate(crtc);
+}
+
+static Bool
 drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
                        Rotation rotation, int x, int y)
 {
@@ -1537,9 +1568,8 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
         crtc->y = y;
         crtc->rotation = rotation;
 
-        if (!xf86CrtcRotate(crtc)) {
+        if (!drmmode_crtc_set_rotation(crtc, rotation))
             goto done;
-        }
 
         crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
                                crtc->gamma_blue, crtc->gamma_size);
@@ -2246,6 +2276,18 @@ fail:
 }
 #endif
 
+static inline void
+populate_rotation_caps(drmmode_crtc_private_ptr drmmode_crtc, uint32_t rotation_caps)
+{
+    /* The DRM rotation caps are 1:1 to RANDR. */
+    drmmode_crtc->rotate_caps = rotation_caps;
+
+#if 1
+    int scrnIndex = drmmode_crtc->drmmode->scrn->scrnIndex;
+    xf86DrvMsg(scrnIndex, X_DEBUG, "rotation caps: %u\n", rotation_caps);
+#endif
+}
+
 static void
 drmmode_crtc_create_planes(xf86CrtcPtr crtc, int num)
 {
@@ -2255,6 +2297,7 @@ drmmode_crtc_create_planes(xf86CrtcPtr crtc, int num)
     drmModePlane *kplane, *best_kplane = NULL;
     drmModeObjectProperties *props;
     uint32_t i, type, blob_id, async_blob_id;
+    uint32_t rotation_caps;
     int current_crtc, best_plane = 0;
 
     static drmmode_prop_enum_info_rec plane_type_enums[] = {
@@ -2287,6 +2330,7 @@ drmmode_crtc_create_planes(xf86CrtcPtr crtc, int num)
         [DRMMODE_PLANE_CRTC_Y] = { .name = "CRTC_Y", },
         [DRMMODE_PLANE_CRTC_W] = { .name = "CRTC_W", },
         [DRMMODE_PLANE_CRTC_H] = { .name = "CRTC_H", },
+        [DRMMODE_PLANE_ROTATION] = { .name = "rotation" }
     };
     drmmode_prop_info_rec tmp_props[DRMMODE_PLANE__COUNT];
 
@@ -2354,6 +2398,8 @@ drmmode_crtc_create_planes(xf86CrtcPtr crtc, int num)
                             &tmp_props[DRMMODE_PLANE_IN_FORMATS], props, 0);
                         async_blob_id = drmmode_prop_get_value(
                             &tmp_props[DRMMODE_PLANE_IN_FORMATS_ASYNC], props, 0);
+                        rotation_caps = (unsigned)drmmode_prop_get_value(
+                            &tmp_props[DRMMODE_PLANE_ROTATION], props, RR_Rotate_0);
                         drmmode_prop_info_copy(drmmode_crtc->props_plane, tmp_props,
                                        DRMMODE_PLANE__COUNT, 1);
                         drmModeFreeObjectProperties(props);
@@ -2368,6 +2414,8 @@ drmmode_crtc_create_planes(xf86CrtcPtr crtc, int num)
                         &tmp_props[DRMMODE_PLANE_IN_FORMATS], props, 0);
                     async_blob_id = drmmode_prop_get_value(
                         &tmp_props[DRMMODE_PLANE_IN_FORMATS_ASYNC], props, 0);
+                    rotation_caps = (unsigned)drmmode_prop_get_value(
+                        &tmp_props[DRMMODE_PLANE_ROTATION], props, RR_Rotate_0);
                     drmmode_prop_info_copy(drmmode_crtc->props_plane, tmp_props,
                                        DRMMODE_PLANE__COUNT, 1);
                 } else {
@@ -2415,6 +2463,8 @@ drmmode_crtc_create_planes(xf86CrtcPtr crtc, int num)
                 drmmode_crtc->formats_async = NULL;
             }
         }
+
+        populate_rotation_caps(drmmode_crtc, rotation_caps);
         drmModeFreePlane(best_kplane);
     }
 
@@ -2496,6 +2546,9 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, drmModeResPtr mode_res
     xorg_list_init(&drmmode_crtc->mode_list);
     xorg_list_init(&drmmode_crtc->tearfree.dri_flip_list);
     drmmode_crtc->next_msc = UINT64_MAX;
+    
+    /* Un-rotated is always supported. */
+    drmmode_crtc->rotate_caps = RR_Rotate_0;
 
     /* Setup the fallback cursor immediately. */
     drmmode_crtc->cursor.num_dimensions = 1;
@@ -3959,7 +4012,8 @@ drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode, Bool set_hw,
             crtc->rotation = crtc->desiredRotation;
             crtc->x = crtc->desiredX;
             crtc->y = crtc->desiredY;
-            if (!xf86CrtcRotate(crtc))
+
+            if (!drmmode_handle_rotation(drmmode_crtc, crtc, crtc->desiredRotation))
                 return FALSE;
         }
     }
@@ -4486,6 +4540,30 @@ drmmode_get_default_bpp(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int *depth,
  out:
     drmModeFreeResources(mode_res);
     return;
+}
+
+Bool
+drmmode_crtc_set_rotation(xf86CrtcPtr crtc, uint32_t rotation)
+{
+    ScrnInfoPtr pScrn = crtc->scrn;
+    modesettingPtr ms = modesettingPTR(pScrn);
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+    int ret = 0;
+
+    if (!drmmode_handle_rotation(drmmode_crtc, crtc, (Rotation)rotation))
+        return FALSE;
+
+    /* XXX: Should this be also applied to the cursor plane? */
+    ret = drmModeObjectSetProperty(ms->fd, drmmode_crtc->plane_id, DRM_MODE_OBJECT_PLANE,
+                                   drmmode_crtc->props_plane[DRMMODE_PLANE_ROTATION].prop_id,
+                                   /* The DRM rotation caps are 1:1 to RANDR. */
+                                   rotation);
+
+#if 1
+    int scrnIndex = drmmode_crtc->drmmode->scrn->scrnIndex;
+    xf86DrvMsg(scrnIndex, X_DEBUG, "drmModeObjectSetProperty(rotate) returned: %d\n", ret);
+#endif
+    return ret == 0;
 }
 
 void
