@@ -4775,6 +4775,9 @@ DeviceEnterLeaveEvent(DeviceIntPtr mouse,
     len = sizeof(xXIEnterEvent) + btlen * 4;
 
     event = calloc(1, len);
+    if (!event)
+        return;
+
     event->type = GenericEvent;
     event->extension = IReqCode;
     event->evtype = type;
