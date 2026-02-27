@@ -105,14 +105,14 @@ static const glamor_facet glamor_facet_xv_planar_3 = {
                 "uniform vec4 vco;\n"
                 "in vec2 tcs;\n"),
     .fs_exec = (
-                "        float sample;\n"
+                "        float smp;\n"
                 "        vec4 temp1;\n"
-                "        sample = texture(y_sampler, tcs).w;\n"
-                "        temp1.xyz = offsetyco.www * vec3(sample) + offsetyco.xyz;\n"
-                "        sample = texture(u_sampler, tcs).w;\n"
-                "        temp1.xyz = ucogamma.xyz * vec3(sample) + temp1.xyz;\n"
-                "        sample = texture(v_sampler, tcs).w;\n"
-                "        temp1.xyz = clamp(vco.xyz * vec3(sample) + temp1.xyz, 0.0, 1.0);\n"
+                "        smp = texture(y_sampler, tcs).w;\n"
+                "        temp1.xyz = offsetyco.www * vec3(smp) + offsetyco.xyz;\n"
+                "        smp = texture(u_sampler, tcs).w;\n"
+                "        temp1.xyz = ucogamma.xyz * vec3(smp) + temp1.xyz;\n"
+                "        smp = texture(v_sampler, tcs).w;\n"
+                "        temp1.xyz = clamp(vco.xyz * vec3(smp) + temp1.xyz, 0.0, 1.0);\n"
                 "        temp1.w = 1.0;\n"
                 "        frag_color = temp1;\n"
                 ),
