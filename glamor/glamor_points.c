@@ -29,6 +29,15 @@
 #include "glamor_priv.h"
 #include "glamor_transform.h"
 
+static const glamor_facet glamor_facet_point_300es = {
+    .name = "poly_point",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = "in vec2 primitive;\n",
+    .vs_exec = (GLAMOR_DEFAULT_POINT_SIZE
+                GLAMOR_POS(gl_Position, primitive)),
+};
+
 static const glamor_facet glamor_facet_point = {
     .name = "poly_point",
     .vs_vars = "attribute vec2 primitive;\n",
@@ -60,11 +69,19 @@ glamor_poly_point_gl(DrawablePtr drawable, GCPtr gc, int mode, int npt, DDXPoint
         goto bail;
 
     if (!prog->prog) {
-        if (!glamor_build_program(screen, prog,
-                                  &glamor_facet_point,
-                                  &glamor_fill_solid,
-                                  NULL, NULL))
-            goto bail;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300) {
+            if (!glamor_build_program(screen, prog,
+                                      &glamor_facet_point_300es,
+                                      &glamor_fill_solid_300es,
+                                      NULL, NULL))
+                goto bail;
+        } else {
+            if (!glamor_build_program(screen, prog,
+                                      &glamor_facet_point,
+                                      &glamor_fill_solid,
+                                      NULL, NULL))
+                goto bail;
+        }
     }
 
     if (!glamor_use_program(drawable, gc, prog, NULL))
