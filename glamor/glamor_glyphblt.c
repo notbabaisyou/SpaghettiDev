@@ -30,6 +30,16 @@
 #include <dixfontstr.h>
 #include "glamor_transform.h"
 
+static const glamor_facet glamor_facet_poly_glyph_blt_300es = {
+    .name = "poly_glyph_blt",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = "in vec2 primitive;\n",
+    .vs_exec = ("       vec2 pos = vec2(0,0);\n"
+                GLAMOR_DEFAULT_POINT_SIZE
+                GLAMOR_POS(gl_Position, primitive)),
+};
+
 static const glamor_facet glamor_facet_poly_glyph_blt = {
     .name = "poly_glyph_blt",
     .vs_vars = "attribute vec2 primitive;\n",
@@ -58,9 +68,15 @@ glamor_poly_glyph_blt_gl(DrawablePtr drawable, GCPtr gc,
 
     glamor_make_current(glamor_priv);
 
-    prog = glamor_use_program_fill(drawable, gc,
-                                   &glamor_priv->poly_glyph_blt_progs,
-                                   &glamor_facet_poly_glyph_blt);
+    if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+        prog = glamor_use_program_fill(drawable, gc,
+                                       &glamor_priv->poly_glyph_blt_progs,
+                                       &glamor_facet_poly_glyph_blt_300es);
+    else
+        prog = glamor_use_program_fill(drawable, gc,
+                                       &glamor_priv->poly_glyph_blt_progs,
+                                       &glamor_facet_poly_glyph_blt);
+
     if (!prog)
         goto bail;
 

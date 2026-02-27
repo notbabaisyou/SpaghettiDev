@@ -99,6 +99,7 @@ typedef struct {
 } glamor_program_fill;
 
 extern const glamor_facet glamor_fill_solid;
+extern const glamor_facet glamor_fill_solid_300es;
 
 Bool
 glamor_build_program(ScreenPtr          screen,
