@@ -61,9 +61,9 @@ static const glamor_facet glamor_facet_xv_planar_2 = {
     .name = "xv_planar_2",
 
     .source_name = "v_texcoord0",
-    .vs_vars = ("in vec2 position;\n"
-                "in vec2 v_texcoord0;\n"
-                "out vec2 tcs;\n"),
+    .vs_vars = ("attribute vec2 position;\n"
+                "attribute vec2 v_texcoord0;\n"
+                "varying vec2 tcs;\n"),
     .vs_exec = (GLAMOR_POS(gl_Position, position)
                 "        tcs = v_texcoord0;\n"),
 
@@ -72,18 +72,18 @@ static const glamor_facet glamor_facet_xv_planar_2 = {
                 "uniform vec4 offsetyco;\n"
                 "uniform vec4 ucogamma;\n"
                 "uniform vec4 vco;\n"
-                "in vec2 tcs;\n"),
+                "varying vec2 tcs;\n"),
     .fs_exec = (
                 "        float sample;\n"
                 "        vec2 sample_uv;\n"
                 "        vec4 temp1;\n"
-                "        sample = texture(y_sampler, tcs).w;\n"
+                "        sample = texture2D(y_sampler, tcs).w;\n"
                 "        temp1.xyz = offsetyco.www * vec3(sample) + offsetyco.xyz;\n"
-                "        sample_uv = texture(u_sampler, tcs).xy;\n"
+                "        sample_uv = texture2D(u_sampler, tcs).xy;\n"
                 "        temp1.xyz = ucogamma.xyz * vec3(sample_uv.x) + temp1.xyz;\n"
                 "        temp1.xyz = clamp(vco.xyz * vec3(sample_uv.y) + temp1.xyz, 0.0, 1.0);\n"
                 "        temp1.w = 1.0;\n"
-                "        frag_color = temp1;\n"
+                "        gl_FragColor = temp1;\n"
                 ),
 };
 
@@ -91,9 +91,9 @@ static const glamor_facet glamor_facet_xv_planar_3 = {
     .name = "xv_planar_3",
 
     .source_name = "v_texcoord0",
-    .vs_vars = ("in vec2 position;\n"
-                "in vec2 v_texcoord0;\n"
-                "out vec2 tcs;\n"),
+    .vs_vars = ("attribute vec2 position;\n"
+                "attribute vec2 v_texcoord0;\n"
+                "varying vec2 tcs;\n"),
     .vs_exec = (GLAMOR_POS(gl_Position, position)
                 "        tcs = v_texcoord0;\n"),
 
@@ -103,7 +103,7 @@ static const glamor_facet glamor_facet_xv_planar_3 = {
                 "uniform vec4 offsetyco;\n"
                 "uniform vec4 ucogamma;\n"
                 "uniform vec4 vco;\n"
-                "in vec2 tcs;\n"),
+                "varying vec2 tcs;\n"),
     .fs_exec = (
                 "        float smp;\n"
                 "        vec4 temp1;\n"
@@ -140,20 +140,14 @@ static const glamor_facet glamor_facet_xv_uyvy = {
                 ),
     .fs_exec = (
                 "        vec4 temp1;\n"
-                "        vec2 xy = texture(sampler, tcs.st).xy;\n"
-                "        vec2 prev_xy = texture(sampler, vec2(tcs.s - texelSize.x, tcs.t)).xy;\n"
-                "        vec2 next_xy = texture(sampler, vec2(tcs.s + texelSize.x, tcs.t)).xy;\n"
-                "\n"
-                "        vec3 sample_yuv;\n"
-                "        int odd = int(mod(tcs.x / texelSize.x, 2.0));\n"
-                "        int even = 1 - odd;\n"
-                "        sample_yuv.yxz = float(even)*vec3(xy, next_xy.x) + float(odd)*vec3(prev_xy.x, xy.yx);\n"
-                "\n"
-                "        temp1.xyz = offsetyco.www * vec3(sample_yuv.x) + offsetyco.xyz;\n"
-                "        temp1.xyz = ucogamma.xyz * vec3(sample_yuv.y) + temp1.xyz;\n"
-                "        temp1.xyz = clamp(vco.xyz * vec3(sample_yuv.z) + temp1.xyz, 0.0, 1.0);\n"
+                "        sample = texture2D(y_sampler, tcs).w;\n"
+                "        temp1.xyz = offsetyco.www * vec3(sample) + offsetyco.xyz;\n"
+                "        sample = texture2D(u_sampler, tcs).w;\n"
+                "        temp1.xyz = ucogamma.xyz * vec3(sample) + temp1.xyz;\n"
+                "        sample = texture2D(v_sampler, tcs).w;\n"
+                "        temp1.xyz = clamp(vco.xyz * vec3(sample) + temp1.xyz, 0.0, 1.0);\n"
                 "        temp1.w = 1.0;\n"
-                "        frag_color = temp1;\n"
+                "        gl_FragColor = temp1;\n"
                 ),
 };
 
