@@ -60,6 +60,7 @@
 #define GLX_SLOW_CONFIG             0x8001
 #define GLX_TRUE_COLOR              0x8002
 #define GLX_DIRECT_COLOR            0x8003
+#define GLX_STATIC_GRAY             0x8007
 #define GLX_TRANSPARENT_RGB         0x8008
 #define GLX_NON_CONFORMANT_CONFIG   0x800D
 #define GLX_DONT_CARE               0xFFFFFFFF
@@ -199,10 +200,13 @@ eglConfigToGLXConfig(EGLDisplay disp, struct egl_config_meta meta,
     eglGetConfigAttrib(disp, egl_config, EGL_DEPTH_SIZE, &glx_config->depthBits);
     eglGetConfigAttrib(disp, egl_config, EGL_STENCIL_SIZE, &glx_config->stencilBits);
 
-    if (meta.direct_color)
+    if (glx_config->redBits >= 16) {
+        glx_config->visualType = GLX_STATIC_GRAY;
+    } else if (meta.direct_color) {
         glx_config->visualType = GLX_DIRECT_COLOR;
-    else
+    } else {
         glx_config->visualType = GLX_TRUE_COLOR;
+    }
 
     /* This is duplicated. */
     glx_config->doubleBufferMode = meta.double_buffer;
