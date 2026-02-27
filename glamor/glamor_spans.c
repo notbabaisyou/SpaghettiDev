@@ -26,6 +26,15 @@
 
 glamor_program  fill_spans_progs[4];
 
+static const glamor_facet glamor_facet_fillspans_300es = {
+    .name = "fill_spans",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars =  "in vec3 primitive;\n",
+    .vs_exec = ("       vec2 pos = vec2(primitive.z,1) * vec2(gl_VertexID&1, (gl_VertexID&2)>>1);\n"
+                GLAMOR_POS(gl_Position, (primitive.xy + pos))),
+};
+
 static const glamor_facet glamor_facet_fillspans_130 = {
     .name = "fill_spans",
     .version = 130,
@@ -65,8 +74,12 @@ glamor_fill_spans_gl(DrawablePtr drawable,
     glamor_make_current(glamor_priv);
 
     if (glamor_glsl_has_ints(glamor_priv)) {
-        prog = glamor_use_program_fill(drawable, gc, &glamor_priv->fill_spans_program,
-                                       &glamor_facet_fillspans_130);
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            prog = glamor_use_program_fill(drawable, gc, &glamor_priv->fill_spans_program,
+                                           &glamor_facet_fillspans_300es);
+        else
+            prog = glamor_use_program_fill(drawable, gc, &glamor_priv->fill_spans_program,
+                                           &glamor_facet_fillspans_130);
 
         if (!prog)
             goto bail;

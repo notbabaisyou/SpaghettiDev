@@ -56,14 +56,15 @@ typedef Bool (*glamor_use_render) (CARD8 op, PicturePtr src, PicturePtr dst, gla
 
 typedef struct {
     const char                          *name;
-    const int                           version;
+    const uint16_t                      version;
+    const uint16_t                      is_gles;
+    const glamor_program_location       locations;
     char                                *vs_extensions;
     const char                          *fs_extensions;
     const char                          *vs_vars;
     const char                          *vs_exec;
     const char                          *fs_vars;
     const char                          *fs_exec;
-    const glamor_program_location       locations;
     const glamor_program_flag           flags;
     const char                          *source_name;
     glamor_use                          use;

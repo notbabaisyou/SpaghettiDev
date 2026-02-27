@@ -1361,7 +1361,7 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
 
     if (glamor_egl->context == EGL_NO_CONTEXT) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                    "glamor: Failed to create GL or GLES2 contexts\n");
+                    "glamor: Failed to create GL or GLES contexts\n");
         goto error;
     }
 
