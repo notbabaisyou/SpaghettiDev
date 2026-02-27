@@ -74,16 +74,49 @@ static const glamor_facet glamor_facet_xv_planar_2 = {
                 "uniform vec4 vco;\n"
                 "varying vec2 tcs;\n"),
     .fs_exec = (
-                "        float sample;\n"
+                "        float samp;\n"
                 "        vec2 sample_uv;\n"
                 "        vec4 temp1;\n"
-                "        sample = texture2D(y_sampler, tcs).w;\n"
-                "        temp1.xyz = offsetyco.www * vec3(sample) + offsetyco.xyz;\n"
+                "        samp = texture2D(y_sampler, tcs).w;\n"
+                "        temp1.xyz = offsetyco.www * vec3(samp) + offsetyco.xyz;\n"
                 "        sample_uv = texture2D(u_sampler, tcs).xy;\n"
                 "        temp1.xyz = ucogamma.xyz * vec3(sample_uv.x) + temp1.xyz;\n"
                 "        temp1.xyz = clamp(vco.xyz * vec3(sample_uv.y) + temp1.xyz, 0.0, 1.0);\n"
                 "        temp1.w = 1.0;\n"
                 "        gl_FragColor = temp1;\n"
+                ),
+};
+
+static const glamor_facet glamor_facet_xv_planar_2_300es = {
+    .version = 300,
+    .is_gles = TRUE,
+    .name = "xv_planar_2",
+
+    .source_name = "v_texcoord0",
+    .vs_vars = ("in vec2 position;\n"
+                "in vec2 v_texcoord0;\n"
+                "out vec2 tcs;\n"),
+    .vs_exec = (GLAMOR_POS(gl_Position, position)
+                "        tcs = v_texcoord0;\n"),
+
+    .fs_vars = ("uniform sampler2D y_sampler;\n"
+                "uniform sampler2D u_sampler;\n"
+                "uniform vec4 offsetyco;\n"
+                "uniform vec4 ucogamma;\n"
+                "uniform vec4 vco;\n"
+                "in vec2 tcs;\n"
+                "out vec4 myFragColor;\n"),
+    .fs_exec = (
+                "        float samp;\n"
+                "        vec2 sample_uv;\n"
+                "        vec4 temp1;\n"
+                "        samp = texture(y_sampler, tcs).w;\n"
+                "        temp1.xyz = offsetyco.www * vec3(samp) + offsetyco.xyz;\n"
+                "        sample_uv = texture(u_sampler, tcs).xy;\n"
+                "        temp1.xyz = ucogamma.xyz * vec3(sample_uv.x) + temp1.xyz;\n"
+                "        temp1.xyz = clamp(vco.xyz * vec3(sample_uv.y) + temp1.xyz, 0.0, 1.0);\n"
+                "        temp1.w = 1.0;\n"
+                "        myFragColor = temp1;\n"
                 ),
 };
 
@@ -114,12 +147,14 @@ static const glamor_facet glamor_facet_xv_planar_3 = {
                 "        smp = texture2D(v_sampler, tcs).w;\n"
                 "        temp1.xyz = clamp(vco.xyz * vec3(smp) + temp1.xyz, 0.0, 1.0);\n"
                 "        temp1.w = 1.0;\n"
-                "        frag_color = temp1;\n"
+                "        gl_FragColor = temp1;\n"
                 ),
 };
 
-static const glamor_facet glamor_facet_xv_uyvy = {
-    .name = "xv_uyvy",
+static const glamor_facet glamor_facet_xv_planar_3_300es = {
+    .version = 300,
+    .is_gles = TRUE,
+    .name = "xv_planar_3",
 
     .source_name = "v_texcoord0",
     .vs_vars = ("in vec2 position;\n"
@@ -128,15 +163,44 @@ static const glamor_facet glamor_facet_xv_uyvy = {
     .vs_exec = (GLAMOR_POS(gl_Position, position)
                 "        tcs = v_texcoord0;\n"),
 
-    .fs_vars = ("#ifdef GL_ES\n"
-                "precision highp float;\n"
-                "#endif\n"
-                "uniform sampler2D sampler;\n"
-                "uniform vec2 texelSize;\n"
+    .fs_vars = ("uniform sampler2D y_sampler;\n"
+                "uniform sampler2D u_sampler;\n"
+                "uniform sampler2D v_sampler;\n"
                 "uniform vec4 offsetyco;\n"
                 "uniform vec4 ucogamma;\n"
                 "uniform vec4 vco;\n"
                 "in vec2 tcs;\n"
+                "out vec4 myFragColor;\n"),
+    .fs_exec = (
+                "        float smp;\n"
+                "        vec4 temp1;\n"
+                "        smp = texture(y_sampler, tcs).w;\n"
+                "        temp1.xyz = offsetyco.www * vec3(smp) + offsetyco.xyz;\n"
+                "        smp = texture(u_sampler, tcs).w;\n"
+                "        temp1.xyz = ucogamma.xyz * vec3(smp) + temp1.xyz;\n"
+                "        smp = texture(v_sampler, tcs).w;\n"
+                "        temp1.xyz = clamp(vco.xyz * vec3(smp) + temp1.xyz, 0.0, 1.0);\n"
+                "        temp1.w = 1.0;\n"
+                "        myFragColor = temp1;\n"
+                ),
+};
+
+static const glamor_facet glamor_facet_xv_uyvy = {
+    .name = "xv_uyvy",
+
+    .source_name = "v_texcoord0",
+    .vs_vars = ("attribute vec2 position;\n"
+                "attribute vec2 v_texcoord0;\n"
+                "varying vec2 tcs;\n"),
+    .vs_exec = (GLAMOR_POS(gl_Position, position)
+                "        tcs = v_texcoord0;\n"),
+
+    .fs_vars = ("uniform sampler2D sampler;\n"
+                "uniform vec2 texelSize;\n"
+                "uniform vec4 offsetyco;\n"
+                "uniform vec4 ucogamma;\n"
+                "uniform vec4 vco;\n"
+                "varying vec2 tcs;\n"
                 ),
     .fs_exec = (
                 "        vec4 temp1;\n"
@@ -151,21 +215,73 @@ static const glamor_facet glamor_facet_xv_uyvy = {
                 ),
 };
 
+static const glamor_facet glamor_facet_xv_uyvy_300es = {
+    .version = 300,
+    .is_gles = TRUE,
+    .name = "xv_uyvy",
+    .source_name = "v_texcoord0",
+    .vs_vars = (
+        "in vec2 position;\n"
+        "in vec2 v_texcoord0;\n"
+        "out vec2 tcs;\n"
+    ),
+    .vs_exec = (
+        GLAMOR_POS(gl_Position, position)
+        "        tcs = v_texcoord0;\n"
+    ),
+    .fs_vars = (
+        "uniform sampler2D sampler;\n"
+        "uniform vec2 texelSize;\n"
+        "uniform vec4 offsetyco;\n"
+        "uniform vec4 ucogamma;\n"
+        "uniform vec4 vco;\n"
+        "in vec2 tcs;\n"
+        "out vec4 myFragColor;\n"
+    ),
+    .fs_exec = (
+        "    vec4 temp1;\n"
+        "    sample = texture(y_sampler, tcs).w;\n"
+        "    temp1.xyz = offsetyco.www * vec3(sample) + offsetyco.xyz;\n"
+        "    sample = texture(u_sampler, tcs).w;\n"
+        "    temp1.xyz = ucogamma.xyz * vec3(sample) + temp1.xyz;\n"
+        "    sample = texture(v_sampler, tcs).w;\n"
+        "    temp1.xyz = clamp(vco.xyz * vec3(sample) + temp1.xyz, 0.0, 1.0);\n"
+        "    temp1.w = 1.0;\n"
+        "    myFragColor = temp1;\n"
+    ),
+};
+
 static const glamor_facet glamor_facet_xv_rgb_raw = {
     .name = "xv_rgb",
 
+    .source_name = "v_texcoord0",
+    .vs_vars = ("attribute vec2 position;\n"
+                "attribute vec2 v_texcoord0;\n"
+                "varying vec2 tcs;\n"),
+    .vs_exec = (GLAMOR_POS(gl_Position, position)
+                "        tcs = v_texcoord0;\n"),
+
+    .fs_vars = ("uniform sampler2D sampler;\n"
+                "varying vec2 tcs;\n"),
+    .fs_exec = (
+                "        gl_FragColor = texture2D(sampler, tcs);\n"
+                ),
+};
+
+static const glamor_facet glamor_facet_xv_rgb_raw_300es = {
+    .version = 300,
+    .is_gles = TRUE,
+    .name = "xv_rgb",
     .source_name = "v_texcoord0",
     .vs_vars = ("in vec2 position;\n"
                 "in vec2 v_texcoord0;\n"
                 "out vec2 tcs;\n"),
     .vs_exec = (GLAMOR_POS(gl_Position, position)
                 "        tcs = v_texcoord0;\n"),
-
     .fs_vars = ("uniform sampler2D sampler;\n"
-                "in vec2 tcs;\n"),
-    .fs_exec = (
-                "        frag_color = texture2D(sampler, tcs);\n"
-                ),
+                "in vec2 tcs;\n"
+                "out vec4 myFragColor;\n"),
+    .fs_exec = ("        myFragColor = texture(sampler, tcs);\n"),
 };
 
 #define MAKE_ATOM(a) MakeAtom(a, sizeof(a) - 1, TRUE)
@@ -197,22 +313,35 @@ static void
 glamor_init_xv_shader(ScreenPtr screen, glamor_port_private *port_priv, int id)
 {
     GLint sampler_loc;
+    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     const glamor_facet *glamor_facet_xv_planar = NULL;
 
     switch (id) {
     case FOURCC_YV12:
     case FOURCC_I420:
-        glamor_facet_xv_planar = &glamor_facet_xv_planar_3;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            glamor_facet_xv_planar = &glamor_facet_xv_planar_3_300es;
+        else
+            glamor_facet_xv_planar = &glamor_facet_xv_planar_3;
         break;
     case FOURCC_NV12:
-        glamor_facet_xv_planar = &glamor_facet_xv_planar_2;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            glamor_facet_xv_planar = &glamor_facet_xv_planar_2_300es;
+        else
+            glamor_facet_xv_planar = &glamor_facet_xv_planar_2;
         break;
     case FOURCC_UYVY:
-        glamor_facet_xv_planar = &glamor_facet_xv_uyvy;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            glamor_facet_xv_planar = &glamor_facet_xv_uyvy_300es;
+        else
+            glamor_facet_xv_planar = &glamor_facet_xv_uyvy;
         break;
     case FOURCC_RGBA32:
     case FOURCC_RGB565:
-        glamor_facet_xv_planar = &glamor_facet_xv_rgb_raw;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            glamor_facet_xv_planar = &glamor_facet_xv_rgb_raw_300es;
+        else
+            glamor_facet_xv_planar = &glamor_facet_xv_rgb_raw;
         break;
     default:
         break;
