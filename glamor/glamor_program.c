@@ -98,6 +98,63 @@ static const glamor_facet *glamor_facet_fill[4] = {
     &glamor_fill_opaque_stipple,
 };
 
+const glamor_facet glamor_fill_solid_300es = {
+    .name = "solid",
+    .version = 300,
+    .is_gles = TRUE,
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec = "       myFragColor = fg;\n",
+    .locations = glamor_program_location_fg,
+    .use = use_solid,
+};
+
+static const glamor_facet glamor_fill_tile_300es = {
+    .name = "tile",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_exec =  "       fill_pos = (fill_offset + primitive.xy + pos) * fill_size_inv;\n",
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec =  "       myFragColor = texture(sampler, fill_pos);\n",
+    .locations = glamor_program_location_fillsamp | glamor_program_location_fillpos,
+    .use = use_tile,
+};
+
+static const glamor_facet glamor_fill_stipple_300es = {
+    .name = "stipple",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_exec =  "       fill_pos = (fill_offset + primitive.xy + pos) * fill_size_inv;\n",
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec = ("       float a = texture(sampler, fill_pos).w;\n"
+                "       if (a == 0.0)\n"
+                "               discard;\n"
+                "       myFragColor = fg;\n"),
+    .locations = glamor_program_location_fg | glamor_program_location_fillsamp | glamor_program_location_fillpos,
+    .use = use_stipple,
+};
+
+static const glamor_facet glamor_fill_opaque_stipple_300es = {
+    .name = "opaque_stipple",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_exec =  "       fill_pos = (fill_offset + primitive.xy + pos) * fill_size_inv;\n",
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec = ("       float a = texture(sampler, fill_pos).w;\n"
+                "       if (a == 0.0)\n"
+                "               myFragColor = bg;\n"
+                "       else\n"
+                "               myFragColor = fg;\n"),
+    .locations = glamor_program_location_fg | glamor_program_location_bg | glamor_program_location_fillsamp | glamor_program_location_fillpos,
+    .use = use_opaque_stipple
+};
+
+static const glamor_facet *glamor_facet_fill_300es[4] = {
+    &glamor_fill_solid_300es,
+    &glamor_fill_tile_300es,
+    &glamor_fill_stipple_300es,
+    &glamor_fill_opaque_stipple_300es,
+};
+
 typedef struct {
     glamor_program_location     location;
     const char                  *vs_vars;
@@ -144,6 +201,46 @@ static glamor_location_var location_vars[] = {
     },
 };
 
+static glamor_location_var location_vars_300es[] = {
+    {
+        .location = glamor_program_location_fg,
+        .fs_vars = "uniform vec4 fg;\n"
+    },
+    {
+        .location = glamor_program_location_bg,
+        .fs_vars = "uniform vec4 bg;\n"
+    },
+    {
+        .location = glamor_program_location_fillsamp,
+        .fs_vars = "uniform sampler2D sampler;\n"
+    },
+    {
+        .location = glamor_program_location_fillpos,
+        .vs_vars = ("uniform vec2 fill_offset;\n"
+                    "uniform vec2 fill_size_inv;\n"
+                    "out vec2 fill_pos;\n"),
+        .fs_vars = ("in vec2 fill_pos;\n")
+    },
+    {
+        .location = glamor_program_location_font,
+        .fs_vars = "uniform mediump usampler2D font;\n",
+    },
+    {
+        .location = glamor_program_location_bitplane,
+        .fs_vars = ("uniform uvec4 bitplane;\n"
+                    "uniform vec4 bitmul;\n"),
+    },
+    {
+        .location = glamor_program_location_dash,
+        .vs_vars = "uniform float dash_length;\n",
+        .fs_vars = "uniform sampler2D dash;\n",
+    },
+    {
+        .location = glamor_program_location_atlas,
+        .fs_vars = "uniform sampler2D atlas;\n",
+    },
+};
+
 static char *
 add_var(char *cur, const char *add)
 {
@@ -162,26 +259,32 @@ add_var(char *cur, const char *add)
 }
 
 static char *
-vs_location_vars(glamor_program_location locations)
+vs_location_vars(glamor_program_location locations, int version, Bool is_gles)
 {
     int l;
     char *vars = strdup("");
+    glamor_location_var *lvars = (is_gles && version >= 300) ?
+                                     location_vars_300es :
+                                     location_vars;
 
     for (l = 0; vars && l < ARRAY_SIZE(location_vars); l++)
-        if (locations & location_vars[l].location)
-            vars = add_var(vars, location_vars[l].vs_vars);
+        if (locations & lvars[l].location)
+            vars = add_var(vars, lvars[l].vs_vars);
     return vars;
 }
 
 static char *
-fs_location_vars(glamor_program_location locations)
+fs_location_vars(glamor_program_location locations, int version, Bool is_gles)
 {
     int l;
     char *vars = strdup("");
+    glamor_location_var *lvars = (is_gles && version >= 300) ?
+                                     location_vars_300es :
+                                     location_vars;
 
     for (l = 0; vars && l < ARRAY_SIZE(location_vars); l++)
-        if (locations & location_vars[l].location)
-            vars = add_var(vars, location_vars[l].fs_vars);
+        if (locations & lvars[l].location)
+            vars = add_var(vars, lvars[l].fs_vars);
     return vars;
 }
 
@@ -276,21 +379,17 @@ glamor_build_program(ScreenPtr          screen,
     version = MAX(version, fill->version);
 
     if (version > glamor_priv->glsl_version) {
-        if (version == 130 && !glamor_priv->use_gpu_shader4)
+        if (glamor_priv->is_gles ||
+           (version == 130 && !glamor_priv->use_gpu_shader4))
             goto fail;
         else {
             version = 120;
             gpu_shader4 = TRUE;
         }
     }
-    /* For now, fix shader version to GLES as 100. We will fall with 130 shaders
-     * in previous check due to forcibly set 120 glsl for GLES. But this patch
-     * makes xv shaders to work */
-    if(version && glamor_priv->is_gles)
-        version = 100;
 
-    vs_vars = vs_location_vars(locations);
-    fs_vars = fs_location_vars(locations);
+    vs_vars = vs_location_vars(locations, version, prim->is_gles);
+    fs_vars = fs_location_vars(locations, version, prim->is_gles);
 
     if (!vs_vars)
         goto fail;
@@ -298,8 +397,14 @@ glamor_build_program(ScreenPtr          screen,
         goto fail;
 
     if (version) {
-        if (asprintf(&version_string, "#version %d\n", version) < 0)
-            version_string = NULL;
+        if (prim->is_gles && version >= 300) {
+                if (asprintf(&version_string, "#version %d es\n", version) < 0)
+                    version_string = NULL;
+        } else {
+            if (asprintf(&version_string, "#version %d\n", version) < 0)
+                version_string = NULL;
+        }
+
         if (!version_string)
             goto fail;
     }
@@ -434,7 +539,11 @@ glamor_use_program_fill(DrawablePtr             drawable,
         return FALSE;
 
     if (!prog->prog) {
-        fill = glamor_facet_fill[fill_style];
+        if (prim->is_gles && prim->version >= 300)
+            fill = glamor_facet_fill_300es[fill_style];
+        else
+            fill = glamor_facet_fill[fill_style];
+
         if (!fill)
             return NULL;
 
@@ -591,10 +700,54 @@ static const glamor_facet *glamor_facet_source[glamor_program_source_count] = {
     [glamor_program_source_1x1_picture] = &glamor_source_1x1_picture,
 };
 
+static const glamor_facet glamor_source_solid_300es = {
+    .name = "render_solid",
+    .version = 300,
+    .is_gles = TRUE,
+    .fs_exec = "       vec4 source = fg;\n",
+    .locations = glamor_program_location_fg,
+    .use_render = use_source_solid,
+};
+
+static const glamor_facet glamor_source_picture_300es = {
+    .name = "render_picture",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_exec =  "       fill_pos = (fill_offset + primitive.xy + pos) * fill_size_inv;\n",
+    .fs_exec =  "       vec4 source = texture(sampler, fill_pos);\n",
+    .locations = glamor_program_location_fillsamp | glamor_program_location_fillpos,
+    .use_render = use_source_picture,
+};
+
+static const glamor_facet glamor_source_1x1_picture_300es = {
+    .name = "render_picture",
+    .version = 300,
+    .is_gles = TRUE,
+    .fs_exec =  "       vec4 source = texture(sampler, vec2(0.5));\n",
+    .locations = glamor_program_location_fillsamp,
+    .use_render = use_source_1x1_picture,
+};
+
+static const glamor_facet *glamor_facet_source_300es[glamor_program_source_count] = {
+    [glamor_program_source_solid] = &glamor_source_solid_300es,
+    [glamor_program_source_picture] = &glamor_source_picture_300es,
+    [glamor_program_source_1x1_picture] = &glamor_source_1x1_picture_300es,
+};
+
 static const char *glamor_combine[] = {
     [glamor_program_alpha_normal]    = "        gl_FragColor = source * mask.a;\n",
     [glamor_program_alpha_ca_first]  = "        gl_FragColor = source.a * mask;\n",
     [glamor_program_alpha_ca_second] = "        gl_FragColor = source * mask;\n",
+    [glamor_program_alpha_dual_blend] = "       color0 = source * mask;\n"
+                                        "       color1 = source.a * mask;\n",
+    [glamor_program_alpha_dual_blend_gles2] = " gl_FragColor = source * mask;\n"
+                                              " gl_SecondaryFragColorEXT = source.a * mask;\n"
+};
+
+static const char *glamor_combine_300es[] = {
+    [glamor_program_alpha_normal]    = "       myFragColor = source * mask.a;\n",
+    [glamor_program_alpha_ca_first]  = "       myFragColor = source.a * mask;\n",
+    [glamor_program_alpha_ca_second] = "       myFragColor = source * mask;\n",
     [glamor_program_alpha_dual_blend] = "       color0 = source * mask;\n"
                                         "       color1 = source.a * mask;\n",
     [glamor_program_alpha_dual_blend_gles2] = " gl_FragColor = source * mask;\n"
@@ -613,13 +766,22 @@ glamor_setup_one_program_render(ScreenPtr               screen,
         return FALSE;
 
     if (!prog->prog) {
-        const glamor_facet      *fill = glamor_facet_source[source_type];
+        const glamor_facet *fill;
+        const char *combine;
+ 
+        if (prim->is_gles && prim->version >= 300) {
+            fill = glamor_facet_source_300es[source_type];
+            combine = glamor_combine_300es[alpha];
+        } else {
+            fill = glamor_facet_source[source_type];
+            combine = glamor_combine[alpha];
+        }
 
-        if (!fill)
+        if (!fill || !combine)
             return FALSE;
 
         prog->alpha = alpha;
-        if (!glamor_build_program(screen, prog, prim, fill, glamor_combine[alpha], defines))
+        if (!glamor_build_program(screen, prog, prim, fill, combine, defines))
             return FALSE;
     }
 

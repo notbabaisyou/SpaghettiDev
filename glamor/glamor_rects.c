@@ -24,6 +24,17 @@
 #include "glamor_program.h"
 #include "glamor_transform.h"
 
+static const glamor_facet glamor_facet_polyfillrect_300es = {
+    .name = "poly_fill_rect",
+    .version = 300,
+    .is_gles = TRUE,
+    .source_name = "size",
+    .vs_vars = "in vec2 primitive;\n"
+               "in vec2 size;\n",
+    .vs_exec = ("       vec2 pos = size * vec2(gl_VertexID&1, (gl_VertexID&2)>>1);\n"
+                GLAMOR_POS(gl_Position, (primitive.xy + pos))),
+};
+
 static const glamor_facet glamor_facet_polyfillrect_130 = {
     .name = "poly_fill_rect",
     .version = 130,
@@ -70,9 +81,14 @@ glamor_poly_fill_rect_gl(DrawablePtr drawable,
     }
 
     if (glamor_glsl_has_ints(glamor_priv)) {
-        prog = glamor_use_program_fill(drawable, gc,
-                                       &glamor_priv->poly_fill_rect_program,
-                                       &glamor_facet_polyfillrect_130);
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            prog = glamor_use_program_fill(drawable, gc,
+                                           &glamor_priv->poly_fill_rect_program,
+                                           &glamor_facet_polyfillrect_300es);
+        else
+            prog = glamor_use_program_fill(drawable, gc,
+                                           &glamor_priv->poly_fill_rect_program,
+                                           &glamor_facet_polyfillrect_130);
 
         if (!prog)
             goto bail;

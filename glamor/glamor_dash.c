@@ -26,7 +26,7 @@
 #include "glamor_transfer.h"
 #include "glamor_prepare.h"
 
-static const char dash_vs_vars[] =
+static const char dash_vs_vars_130[] =
     "attribute vec3 primitive;\n"
     "varying float dash_offset;\n";
 
@@ -35,16 +35,16 @@ static const char dash_vs_exec[] =
     "       vec2 pos = vec2(0,0);\n"
     GLAMOR_POS(gl_Position, primitive.xy);
 
-static const char dash_fs_vars[] =
+static const char dash_fs_vars_130[] =
     "varying float dash_offset;\n";
 
-static const char on_off_fs_exec[] =
+static const char on_off_fs_exec_130[] =
     "       float pattern = texture2D(dash, vec2(dash_offset, 0.5)).w;\n"
     "       if (pattern == 0.0)\n"
     "               discard;\n";
 
 /* XXX deal with stippled double dashed lines once we have stippling support */
-static const char double_fs_exec[] =
+static const char double_fs_exec_130[] =
     "       float pattern = texture2D(dash, vec2(dash_offset, 0.5)).w;\n"
     "       if (pattern == 0.0)\n"
     "               gl_FragColor = bg;\n"
@@ -52,25 +52,74 @@ static const char double_fs_exec[] =
     "               gl_FragColor = fg;\n";
 
 
-static const glamor_facet glamor_facet_on_off_dash_lines = {
+static const glamor_facet glamor_facet_on_off_dash_lines_130 = {
     .version = 130,
     .name = "poly_lines_on_off_dash",
-    .vs_vars = dash_vs_vars,
+    .vs_vars = dash_vs_vars_130,
     .vs_exec = dash_vs_exec,
-    .fs_vars = dash_fs_vars,
-    .fs_exec = on_off_fs_exec,
+    .fs_vars = dash_fs_vars_130,
+    .fs_exec = on_off_fs_exec_130,
     .locations = glamor_program_location_dash,
 };
 
-static const glamor_facet glamor_facet_double_dash_lines = {
+static const glamor_facet glamor_facet_double_dash_lines_130 = {
     .version = 130,
     .name = "poly_lines_double_dash",
-    .vs_vars = dash_vs_vars,
+    .vs_vars = dash_vs_vars_130,
     .vs_exec = dash_vs_exec,
-    .fs_vars = dash_fs_vars,
-    .fs_exec = double_fs_exec,
-    .locations = (glamor_program_location_dash|
-                  glamor_program_location_fg|
+    .fs_vars = dash_fs_vars_130,
+    .fs_exec = double_fs_exec_130,
+    .locations = (glamor_program_location_dash |
+                  glamor_program_location_fg |
+                  glamor_program_location_bg),
+};
+
+static const char dash_vs_vars_300es[] =
+    "in vec3 primitive;\n"
+    "out float dash_offset;\n";
+
+static const char on_off_fs_vars_300es[] =
+    "in float dash_offset;\n";
+
+static const char on_off_fs_exec_300es[] =
+    "       float pattern = texture(dash, vec2(dash_offset, 0.5)).w;\n"
+    "       if (pattern == 0.0)\n"
+    "               discard;\n";
+
+static const char double_fs_vars_300es[] =
+    "in float dash_offset;\n"
+    "out vec4 myFragColor;\n";
+
+/* XXX deal with stippled double dashed lines once we have stippling support */
+static const char double_fs_exec_300es[] =
+    "       float pattern = texture(dash, vec2(dash_offset, 0.5)).w;\n"
+    "       if (pattern == 0.0)\n"
+    "               myFragColor = bg;\n"
+    "       else\n"
+    "               myFragColor = fg;\n";
+
+
+static const glamor_facet glamor_facet_on_off_dash_lines_300es = {
+    .version = 300,
+    .is_gles = TRUE,
+    .name = "poly_lines_on_off_dash",
+    .vs_vars = dash_vs_vars_300es,
+    .vs_exec = dash_vs_exec,
+    .fs_vars = on_off_fs_vars_300es,
+    .fs_exec = on_off_fs_exec_300es,
+    .locations = glamor_program_location_dash,
+};
+
+static const glamor_facet glamor_facet_double_dash_lines_300es = {
+    .version = 300,
+    .is_gles = TRUE,
+    .name = "poly_lines_double_dash",
+    .vs_vars = dash_vs_vars_300es,
+    .vs_exec = dash_vs_exec,
+    .fs_vars = double_fs_vars_300es,
+    .fs_exec = double_fs_exec_300es,
+    .locations = (glamor_program_location_dash |
+                  glamor_program_location_fg |
                   glamor_program_location_bg),
 };
 
@@ -159,9 +208,15 @@ glamor_dash_setup(DrawablePtr drawable, GCPtr gc)
 
     switch (gc->lineStyle) {
     case LineOnOffDash:
-        prog = glamor_use_program_fill(drawable, gc,
-                                       &glamor_priv->on_off_dash_line_progs,
-                                       &glamor_facet_on_off_dash_lines);
+	    if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            prog = glamor_use_program_fill(drawable, gc,
+                                           &glamor_priv->on_off_dash_line_progs,
+                                           &glamor_facet_on_off_dash_lines_300es);
+        else
+            prog = glamor_use_program_fill(drawable, gc,
+                                           &glamor_priv->on_off_dash_line_progs,
+                                           &glamor_facet_on_off_dash_lines_130);
+
         if (!prog)
             goto bail;
         break;
@@ -172,10 +227,17 @@ glamor_dash_setup(DrawablePtr drawable, GCPtr gc)
         prog = &glamor_priv->double_dash_line_prog;
 
         if (!prog->prog) {
-            if (!glamor_build_program(screen, prog,
-                                      &glamor_facet_double_dash_lines,
-                                      NULL, NULL, NULL))
+	        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300) {
+                if (!glamor_build_program(screen, prog,
+                                          &glamor_facet_double_dash_lines_300es,
+                                          NULL, NULL, NULL))
                 goto bail;
+            } else {
+                if (!glamor_build_program(screen, prog,
+                                          &glamor_facet_double_dash_lines_130,
+                                          NULL, NULL, NULL))
+                goto bail;
+            }
         }
 
         if (!glamor_use_program(drawable, gc, prog, NULL))

@@ -673,7 +673,7 @@ glamor_init(ScreenPtr screen, unsigned int flags)
 
     glamor_priv->glsl_version = epoxy_glsl_version();
 
-    if (glamor_priv->is_gles) {
+    if (glamor_priv->is_gles && gl_version < 30) {
         /* Force us back to the base version of our programs on an ES
          * context, anyway.  Basically glamor only uses desktop 1.20
          * or 1.30 currently.  1.30's new features are also present in

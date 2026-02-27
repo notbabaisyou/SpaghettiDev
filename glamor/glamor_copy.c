@@ -47,7 +47,20 @@ use_copyarea(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
     return TRUE;
 }
 
-static const glamor_facet glamor_facet_copyarea = {
+static const glamor_facet glamor_facet_copyarea_300es = {
+    "copy_area",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = "in vec2 primitive;\n",
+    .vs_exec = (GLAMOR_POS(gl_Position, primitive.xy)
+                "       fill_pos = (fill_offset + primitive.xy) * fill_size_inv;\n"),
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec = "       myFragColor = texture(sampler, fill_pos);\n",
+    .locations = glamor_program_location_fillsamp | glamor_program_location_fillpos,
+    .use = use_copyarea,
+};
+
+static const glamor_facet glamor_facet_copyarea_100 = {
     "copy_area",
     .vs_vars = "attribute vec2 primitive;\n",
     .vs_exec = (GLAMOR_POS(gl_Position, primitive.xy)
@@ -138,7 +151,24 @@ use_copyplane(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
     return TRUE;
 }
 
-static const glamor_facet glamor_facet_copyplane = {
+static const glamor_facet glamor_facet_copyplane_300es = {
+    "copy_plane",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = "in vec2 primitive;\n",
+    .vs_exec = (GLAMOR_POS(gl_Position, (primitive.xy))
+                "       fill_pos = (fill_offset + primitive.xy) * fill_size_inv;\n"),
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec = ("       uvec4 bits = uvec4(round(texture(sampler, fill_pos) * bitmul));\n"
+                "       if ((bits & bitplane) != uvec4(0,0,0,0))\n"
+                "               myFragColor = fg;\n"
+                "       else\n"
+                "               myFragColor = bg;\n"),
+    .locations = glamor_program_location_fillsamp|glamor_program_location_fillpos|glamor_program_location_fg|glamor_program_location_bg|glamor_program_location_bitplane,
+    .use = use_copyplane,
+};
+
+static const glamor_facet glamor_facet_copyplane_130 = {
     "copy_plane",
     .version = 130,
     .vs_vars = "attribute vec2 primitive;\n",
@@ -386,10 +416,16 @@ glamor_copy_fbo_fbo_draw(DrawablePtr src,
 
     if (bitplane) {
         prog = &glamor_priv->copy_plane_prog;
-        copy_facet = &glamor_facet_copyplane;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            copy_facet = &glamor_facet_copyplane_300es;
+        else
+            copy_facet = &glamor_facet_copyplane_130;
     } else {
         prog = &glamor_priv->copy_area_prog;
-        copy_facet = &glamor_facet_copyarea;
+        if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+            copy_facet = &glamor_facet_copyarea_300es;
+        else
+            copy_facet = &glamor_facet_copyarea_100;
     }
 
     if (prog->failed)

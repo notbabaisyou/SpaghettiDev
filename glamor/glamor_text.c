@@ -274,6 +274,55 @@ static const glamor_facet glamor_facet_poly_text = {
     .locations = glamor_program_location_font,
 };
 
+static const char vs_vars_text_300es[] =
+    "in vec4 primitive;\n"
+    "in vec2 source;\n"
+    "out vec2 glyph_pos;\n";
+
+static const char vs_exec_text_300es[] =
+    "       vec2 pos = primitive.zw * vec2(gl_VertexID&1, (gl_VertexID&2)>>1);\n"
+    GLAMOR_POS(gl_Position, (primitive.xy + pos))
+    "       glyph_pos = source + pos;\n";
+
+static const char fs_vars_text_300es[] =
+    "in vec2 glyph_pos;\n";
+
+static const char fs_exec_text_300es[] =
+    "       ivec2 itile_texture = ivec2(glyph_pos);\n"
+    "       uint x = uint(itile_texture.x & 7);\n"
+    "       itile_texture.x >>= 3;\n"
+    "       uint texel = texelFetch(font, itile_texture, 0).x;\n"
+    "       uint bit = (texel >> x) & uint(1);\n"
+    "       if (bit == uint(0))\n"
+    "               discard;\n";
+
+static const char fs_vars_te_300es[] =
+    "in vec2 glyph_pos;\n"
+    "out vec4 myFragColor;\n";
+
+static const char fs_exec_te_300es[] =
+    "       ivec2 itile_texture = ivec2(glyph_pos);\n"
+    "       uint x = uint(itile_texture.x & 7);\n"
+    "       itile_texture.x >>= 3;\n"
+    "       uint texel = texelFetch(font, itile_texture, 0).x;\n"
+    "       uint bit = (texel >> x) & uint(1);\n"
+    "       if (bit == uint(0))\n"
+    "               myFragColor = bg;\n"
+    "       else\n"
+    "               myFragColor = fg;\n";
+
+static const glamor_facet glamor_facet_poly_text_300es = {
+    .name = "poly_text",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = vs_vars_text_300es,
+    .vs_exec = vs_exec_text_300es,
+    .fs_vars = fs_vars_text_300es,
+    .fs_exec = fs_exec_text_300es,
+    .source_name = "source",
+    .locations = glamor_program_location_font,
+};
+
 static Bool
 glamor_poly_text(DrawablePtr drawable, GCPtr gc,
                  int x, int y, int count, char *chars, Bool sixteen, int *final_pos)
@@ -298,7 +347,10 @@ glamor_poly_text(DrawablePtr drawable, GCPtr gc,
 
     glamor_make_current(glamor_priv);
 
-    prog = glamor_use_program_fill(drawable, gc, &glamor_priv->poly_text_progs, &glamor_facet_poly_text);
+    if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300)
+        prog = glamor_use_program_fill(drawable, gc, &glamor_priv->poly_text_progs, &glamor_facet_poly_text_300es);
+    else
+        prog = glamor_use_program_fill(drawable, gc, &glamor_priv->poly_text_progs, &glamor_facet_poly_text);
 
     if (!prog)
         goto bail;
@@ -357,6 +409,18 @@ static const glamor_facet glamor_facet_image_text = {
     .locations = glamor_program_location_font,
 };
 
+static const glamor_facet glamor_facet_image_text_300es = {
+    .name = "image_text",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = vs_vars_text_300es,
+    .vs_exec = vs_exec_text_300es,
+    .fs_vars = fs_vars_text_300es,
+    .fs_exec = fs_exec_text_300es,
+    .source_name = "source",
+    .locations = glamor_program_location_font,
+};
+
 static Bool
 use_image_solid(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
 {
@@ -366,6 +430,16 @@ use_image_solid(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
 static const glamor_facet glamor_facet_image_fill = {
     .name = "solid",
     .fs_exec = "       gl_FragColor = fg;\n",
+    .locations = glamor_program_location_fg,
+    .use = use_image_solid,
+};
+
+static const glamor_facet glamor_facet_image_fill_300es = {
+    .name = "solid",
+    .version = 300,
+    .is_gles = TRUE,
+    .fs_vars = "out vec4 myFragColor;\n",
+    .fs_exec = "       myFragColor = fg;\n",
     .locations = glamor_program_location_fg,
     .use = use_image_solid,
 };
@@ -386,6 +460,19 @@ static const glamor_facet glamor_facet_te_text = {
     .vs_exec = vs_exec_text,
     .fs_vars = fs_vars_text,
     .fs_exec = fs_exec_te,
+    .locations = glamor_program_location_fg | glamor_program_location_bg | glamor_program_location_font,
+    .source_name = "source",
+    .use = glamor_te_text_use,
+};
+
+static const glamor_facet glamor_facet_te_text_300es = {
+    .name = "te_text",
+    .version = 300,
+    .is_gles = TRUE,
+    .vs_vars = vs_vars_text_300es,
+    .vs_exec = vs_exec_text_300es,
+    .fs_vars = fs_vars_te_300es,
+    .fs_exec = fs_exec_te_300es,
     .locations = glamor_program_location_fg | glamor_program_location_bg | glamor_program_location_font,
     .source_name = "source",
     .use = glamor_te_text_use,
@@ -428,11 +515,20 @@ glamor_image_text(DrawablePtr drawable, GCPtr gc,
 
     if (!prog->prog) {
         if (TERMINALFONT(gc->font)) {
-            prim_facet = &glamor_facet_te_text;
+            if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300) {
+                prim_facet = &glamor_facet_te_text_300es;
+            } else {
+                prim_facet = &glamor_facet_te_text;
+            }
             fill_facet = NULL;
         } else {
-            prim_facet = &glamor_facet_image_text;
-            fill_facet = &glamor_facet_image_fill;
+            if (glamor_priv->is_gles && glamor_priv->glsl_version >= 300) {
+                prim_facet = &glamor_facet_image_text_300es;
+                fill_facet = &glamor_facet_image_fill_300es;
+            } else {
+                prim_facet = &glamor_facet_image_text;
+                fill_facet = &glamor_facet_image_fill;
+            }
         }
 
         if (!glamor_build_program(screen, prog, prim_facet, fill_facet, NULL, NULL))
