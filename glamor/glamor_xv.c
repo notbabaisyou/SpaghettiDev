@@ -310,10 +310,10 @@ XvImageRec glamor_xv_images[] = {
 int glamor_xv_num_images = ARRAY_SIZE(glamor_xv_images);
 
 static void
-glamor_init_xv_shader(ScreenPtr screen, glamor_port_private *port_priv, int id)
+glamor_init_xv_shader(ScreenPtr screen, glamor_port_private *port_priv,
+                      glamor_screen_private *glamor_priv, int id)
 {
     GLint sampler_loc;
-    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     const glamor_facet *glamor_facet_xv_planar = NULL;
 
     switch (id) {
@@ -554,7 +554,7 @@ glamor_xv_render(glamor_port_private *port_priv, int id)
     DamageRegionAppend(port_priv->pDraw, &port_priv->clip);
 
     if (!port_priv->xv_prog.prog)
-        glamor_init_xv_shader(screen, port_priv, id);
+        glamor_init_xv_shader(screen, port_priv, glamor_priv, id);
 
     cont = RTFContrast(port_priv->contrast);
     bright = RTFBrightness(port_priv->brightness);
