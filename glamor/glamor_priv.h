@@ -180,6 +180,18 @@ enum gradient_shader {
     SHADER_GRADIENT_COUNT,
 };
 
+enum glamor_sampler {
+    GLAMOR_SAMPLER_NEAREST_EDGE,
+    GLAMOR_SAMPLER_NEAREST_BORDER,
+    GLAMOR_SAMPLER_NEAREST_REPEAT,
+    GLAMOR_SAMPLER_NEAREST_MIRRORED_REPEAT,
+    GLAMOR_SAMPLER_LINEAR_EDGE,
+    GLAMOR_SAMPLER_LINEAR_BORDER,
+    GLAMOR_SAMPLER_LINEAR_REPEAT,
+    GLAMOR_SAMPLER_LINEAR_MIRRORED_REPEAT,
+    GLAMOR_SAMPLER_COUNT,
+};
+
 struct glamor_screen_private;
 struct glamor_pixmap_private;
 
@@ -302,6 +314,8 @@ typedef struct glamor_screen_private {
     int                         glyph_atlas_dim;
     int                         glyph_max_dim;
     char                        *glyph_defines;
+
+    GLuint              samplers[GLAMOR_SAMPLER_COUNT];
 
     /** Vertex buffer for all GPU rendering. */
     GLuint vao;
@@ -664,6 +678,37 @@ glamor_pixmap_fbo *glamor_create_fbo_array(glamor_screen_private *glamor_priv,
 
 void glamor_gldrawarrays_quads_using_indices(glamor_screen_private *glamor_priv,
                                              unsigned count);
+
+void
+glamor_init_sampler(glamor_screen_private *glamor_priv,
+                    enum glamor_sampler sampler);
+
+static inline void
+glamor_set_sampler(glamor_screen_private *glamor_priv, GLuint unit,
+                   enum glamor_sampler sampler)
+{
+    if (_X_UNLIKELY(!glamor_priv->samplers[sampler]))
+        glamor_init_sampler(glamor_priv, sampler);
+    glBindSampler(unit, glamor_priv->samplers[sampler]);
+}
+
+/**
+ * Resets a texture unit's sampler to its default state.
+ *
+ * Glamor core rendering doesn't set the sampler, and the sampler
+ * object is bound to the unit not the texture object, so we reset it
+ * on the way out of operations doing filtering.
+ *
+ * Since the core rendering is all 1:1 it seems like it shouldn't
+ * matter, but some hardware will have wrong LSBs in 1:1 with linear,
+ * and on even more hardware than that we're probably spending extra
+ * power on doing no-op interpolating.
+ */
+static inline void
+glamor_reset_sampler(glamor_screen_private *glamor_priv, GLuint unit)
+{
+    glamor_set_sampler(glamor_priv, unit, GLAMOR_SAMPLER_NEAREST_REPEAT);
+}
 
 /* glamor_core.c */
 Bool glamor_get_drawable_location(const DrawablePtr drawable);

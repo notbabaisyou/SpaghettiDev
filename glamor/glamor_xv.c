@@ -479,39 +479,24 @@ glamor_xv_render(glamor_port_private *port_priv, int id)
     case FOURCC_I420:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[0]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 0, GLAMOR_SAMPLER_LINEAR_EDGE);
 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[1]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 1, GLAMOR_SAMPLER_LINEAR_EDGE);
 
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[2]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 2, GLAMOR_SAMPLER_LINEAR_EDGE);
         break;
     case FOURCC_NV12:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[0]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 0, GLAMOR_SAMPLER_LINEAR_EDGE);
 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[1]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 1, GLAMOR_SAMPLER_LINEAR_EDGE);
         break;
     case FOURCC_UYVY:
         uloc = glGetUniformLocation(port_priv->xv_prog.prog, "texelSize");
@@ -519,19 +504,13 @@ glamor_xv_render(glamor_port_private *port_priv, int id)
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[0]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 0, GLAMOR_SAMPLER_LINEAR_EDGE);
         break;
     case FOURCC_RGBA32:
     case FOURCC_RGB565:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[0]->fbo->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glamor_set_sampler(glamor_priv, 0, GLAMOR_SAMPLER_LINEAR_EDGE);
         break;
     default:
         break;
@@ -607,6 +586,10 @@ glamor_xv_render(glamor_port_private *port_priv, int id)
 
     glDisableVertexAttribArray(GLAMOR_VERTEX_POS);
     glDisableVertexAttribArray(GLAMOR_VERTEX_SOURCE);
+
+    glamor_reset_sampler(glamor_priv, 0);
+    glamor_reset_sampler(glamor_priv, 1);
+    glamor_reset_sampler(glamor_priv, 2);
 
     DamageRegionProcessPending(port_priv->pDraw);
 }

@@ -732,6 +732,12 @@ glamor_init(ScreenPtr screen, unsigned int flags)
         goto fail;
     }
 
+    if (!epoxy_has_gl_extension("GL_ARB_sampler_objects") &&
+        !epoxy_has_gl_extension("GL_MESA_sampler_objects")) {
+        ErrorF("GL_{ARB,MESA}_sampler_objects required\n");
+        goto fail;
+    }
+
     if (!glamor_priv->is_gles && glamor_priv->glsl_version == 120 &&
         epoxy_has_gl_extension("GL_ARB_instanced_arrays"))
         glamor_priv->use_gpu_shader4 = epoxy_has_gl_extension("GL_EXT_gpu_shader4");
@@ -802,6 +808,22 @@ glamor_init(ScreenPtr screen, unsigned int flags)
     glamor_setup_formats(screen);
 
     glamor_set_debug_level(&glamor_debug_level);
+
+    /* Set up the default samplers at screen init time.
+     *
+     * This makes sure that all glamor core operations, including
+     * pixmap allocation, have the default texture sampler bound.  If
+     * the texture unit doesn't have a sampler bound, then the
+     * texture's internal sampler will be used, which starts off in
+     * mipmap mode, and thus the texture would be considered
+     * incomplete.
+     *
+     * Additionally, at least on Mesa drivers, the relevant sampler
+     * object will be peeked at to guess at whether textures should
+     * have mipmap levels allocated at glTexImage2D time.
+     */
+    glamor_reset_sampler(glamor_priv, 0);
+    glamor_reset_sampler(glamor_priv, 1);
 
     if (!glamor_font_init(screen))
         goto fail;
@@ -1121,4 +1143,59 @@ glamor_finish(ScreenPtr screen)
 
     glamor_make_current(glamor_priv);
     glFinish();
+}
+
+static GLenum
+glamor_sampler_filter(enum glamor_sampler sampler)
+{
+    switch (sampler) {
+    case GLAMOR_SAMPLER_NEAREST_EDGE:
+    case GLAMOR_SAMPLER_NEAREST_BORDER:
+    case GLAMOR_SAMPLER_NEAREST_REPEAT:
+    case GLAMOR_SAMPLER_NEAREST_MIRRORED_REPEAT:
+        return GL_NEAREST;
+    case GLAMOR_SAMPLER_LINEAR_EDGE:
+    case GLAMOR_SAMPLER_LINEAR_BORDER:
+    case GLAMOR_SAMPLER_LINEAR_REPEAT:
+    case GLAMOR_SAMPLER_LINEAR_MIRRORED_REPEAT:
+    default:
+        return GL_LINEAR;
+    }
+}
+
+static GLenum
+glamor_sampler_wrap(enum glamor_sampler sampler)
+{
+    switch (sampler) {
+    case GLAMOR_SAMPLER_NEAREST_EDGE:
+    case GLAMOR_SAMPLER_LINEAR_EDGE:
+        return GL_CLAMP_TO_EDGE;
+    case GLAMOR_SAMPLER_NEAREST_BORDER:
+    case GLAMOR_SAMPLER_LINEAR_BORDER:
+        return GL_CLAMP_TO_BORDER;
+    case GLAMOR_SAMPLER_NEAREST_REPEAT:
+    case GLAMOR_SAMPLER_LINEAR_REPEAT:
+        return GL_REPEAT;
+    case GLAMOR_SAMPLER_NEAREST_MIRRORED_REPEAT:
+    case GLAMOR_SAMPLER_LINEAR_MIRRORED_REPEAT:
+    default:
+        return GL_MIRRORED_REPEAT;
+    }
+}
+
+void
+glamor_init_sampler(glamor_screen_private *glamor_priv,
+                    enum glamor_sampler state)
+{
+    GLuint sampler;
+
+    glGenSamplers(1, &sampler);
+    glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER,
+                        glamor_sampler_filter(state));
+    glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER,
+                        glamor_sampler_filter(state));
+    glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, glamor_sampler_wrap(state));
+    glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, glamor_sampler_wrap(state));
+
+    glamor_priv->samplers[state] = sampler;
 }
