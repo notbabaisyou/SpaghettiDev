@@ -732,8 +732,10 @@ glamor_init(ScreenPtr screen, unsigned int flags)
         goto fail;
     }
 
+    /* This sort of screws over non-Mesa GLES2 hardware... */
     if (!epoxy_has_gl_extension("GL_ARB_sampler_objects") &&
-        !epoxy_has_gl_extension("GL_MESA_sampler_objects")) {
+        !epoxy_has_gl_extension("GL_MESA_sampler_objects") &&
+        !(glamor_priv->is_gles && epoxy_gl_version() >= 30)) {
         ErrorF("GL_{ARB,MESA}_sampler_objects required\n");
         goto fail;
     }

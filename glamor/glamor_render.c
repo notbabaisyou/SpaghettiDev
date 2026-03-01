@@ -572,7 +572,6 @@ glamor_set_composite_op(ScreenPtr screen,
 
     return TRUE;
 }
-
 struct repeat_type_lut
 {
     int repeat_type;
@@ -583,7 +582,6 @@ struct repeat_type_lut
     { RepeatPad     , GLAMOR_SAMPLER_NEAREST_EDGE },
     { RepeatReflect , GLAMOR_SAMPLER_NEAREST_MIRRORED_REPEAT }
 };
-
 
 static void
 glamor_set_composite_texture(glamor_screen_private *glamor_priv, int unit,
