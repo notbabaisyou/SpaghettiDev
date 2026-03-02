@@ -421,10 +421,12 @@ miDCRestoreUnderCursor(DeviceIntPtr pDev, ScreenPtr pScreen,
     GCPtr pGC;
 
     pBuffer = miGetDCDevice(pDev, pScreen);
-    pSave = pBuffer->pSave;
+    if (_X_UNLIKELY(!pBuffer))
+        return FALSE;
 
+    pSave = pBuffer->pSave;
     pWin = pScreen->root;
-    if (!pSave)
+    if (_X_UNLIKELY(!pSave))
         return FALSE;
 
     pGC = pBuffer->pRestoreGC;
