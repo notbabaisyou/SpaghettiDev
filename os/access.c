@@ -1259,7 +1259,7 @@ AuthorizedClient(ClientPtr client)
         return Success;
 
     /* untrusted clients can't change host access */
-    rc = XaceHookServerAccess(client, DixManageAccess);
+    rc = XaceHook(XACE_SERVER_ACCESS, client, DixManageAccess);
     if (rc != Success)
         return rc;
 

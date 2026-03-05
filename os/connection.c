@@ -871,7 +871,7 @@ OnlyListenToOneClient(ClientPtr client)
 {
     int rc;
 
-    rc = XaceHookServerAccess(client, DixGrabAccess);
+    rc = XaceHook(XACE_SERVER_ACCESS, client, DixGrabAccess);
     if (rc != Success)
         return rc;
 
