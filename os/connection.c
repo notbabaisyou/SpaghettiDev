@@ -584,7 +584,7 @@ ClientAuthorized(ClientPtr client,
     XdmcpOpenDisplay(priv->fd);
 #endif                          /* XDMCP */
 
-    XaceHookAuthAvail(client, auth_id);
+    XaceHook(XACE_AUTH_AVAIL, client, auth_id);
 
     /* At this point, if the client is authorized to change the access control
      * list, we should getpeername() information, and add the client to
