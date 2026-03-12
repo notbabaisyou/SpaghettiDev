@@ -167,6 +167,7 @@ static const ExtensionModule staticExtensions[] = {
 #ifdef GLXEXT
     {GlxExtensionInit, "GLX", &noGlxExtension},
 #endif
+    {VRRExtensionInit, "SPAGHETTI-VRR", NULL}
 };
 
 void

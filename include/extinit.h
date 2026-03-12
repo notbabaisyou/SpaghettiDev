@@ -119,4 +119,6 @@ extern _X_EXPORT Bool noXvExtension;
 #include "presentext.h"
 #endif
 
+#include "vrr.h"
+
 #endif
