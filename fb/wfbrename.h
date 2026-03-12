@@ -51,6 +51,7 @@
 #define fbFixCoordModePrevious wfbFixCoordModePrevious
 #define fbGCFuncs wfbGCFuncs
 #define fbGCOps wfbGCOps
+#define fbGetGCPrivateKey wfbGetGCPrivateKey
 #define fbGeneration wfbGeneration
 #define fbGetImage wfbGetImage
 #define fbGetScreenPrivateKey wfbGetScreenPrivateKey

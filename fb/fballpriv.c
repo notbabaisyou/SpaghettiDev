@@ -25,11 +25,20 @@
 #include "fb.h"
 
 static DevPrivateKeyRec fbScreenPrivateKeyRec;
+
 DevPrivateKey
 fbGetScreenPrivateKey(void)
 {
     return &fbScreenPrivateKeyRec;
 }
+
+#ifdef LEGACY_ABI_COMPAT
+DevPrivateKey
+fbGetGCPrivateKey(GCPtr pGC)
+{
+    return &fbGetScreenPrivate((pGC)->pScreen)->gcPrivateKeyRec;
+}
+#endif
 
 Bool
 fbAllocatePrivates(ScreenPtr pScreen)
