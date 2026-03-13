@@ -1399,6 +1399,9 @@ PanoramiXPolyPoint(ClientPtr client)
     npoint = bytes_to_int32((client->req_len << 2) - sizeof(xPolyPointReq));
     if (npoint > 0) {
         origPts = xallocarray(npoint, sizeof(xPoint));
+        if (_X_UNLIKELY(!origPts))
+            return BadAlloc;
+
         memcpy((char *) origPts, (char *) &stuff[1], npoint * sizeof(xPoint));
         FOR_NSCREENS_FORWARD(j) {
 
@@ -1464,6 +1467,9 @@ PanoramiXPolyLine(ClientPtr client)
     npoint = bytes_to_int32((client->req_len << 2) - sizeof(xPolyLineReq));
     if (npoint > 0) {
         origPts = xallocarray(npoint, sizeof(xPoint));
+        if (_X_UNLIKELY(!origPts))
+            return BadAlloc;
+
         memcpy((char *) origPts, (char *) &stuff[1], npoint * sizeof(xPoint));
         FOR_NSCREENS_FORWARD(j) {
 
@@ -1533,6 +1539,9 @@ PanoramiXPolySegment(ClientPtr client)
     nsegs >>= 3;
     if (nsegs > 0) {
         origSegs = xallocarray(nsegs, sizeof(xSegment));
+        if (_X_UNLIKELY(!origSegs))
+            return BadAlloc;
+
         memcpy((char *) origSegs, (char *) &stuff[1], nsegs * sizeof(xSegment));
         FOR_NSCREENS_FORWARD(j) {
 
@@ -1601,6 +1610,9 @@ PanoramiXPolyRectangle(ClientPtr client)
     nrects >>= 3;
     if (nrects > 0) {
         origRecs = xallocarray(nrects, sizeof(xRectangle));
+        if (_X_UNLIKELY(!origRecs))
+            return BadAlloc;
+        
         memcpy((char *) origRecs, (char *) &stuff[1],
                nrects * sizeof(xRectangle));
         FOR_NSCREENS_FORWARD(j) {
@@ -1668,6 +1680,9 @@ PanoramiXPolyArc(ClientPtr client)
     narcs /= sizeof(xArc);
     if (narcs > 0) {
         origArcs = xallocarray(narcs, sizeof(xArc));
+        if (_X_UNLIKELY(!origArcs))
+            return BadAlloc;
+
         memcpy((char *) origArcs, (char *) &stuff[1], narcs * sizeof(xArc));
         FOR_NSCREENS_FORWARD(j) {
 
@@ -1730,6 +1745,9 @@ PanoramiXFillPoly(ClientPtr client)
     count = bytes_to_int32((client->req_len << 2) - sizeof(xFillPolyReq));
     if (count > 0) {
         locPts = xallocarray(count, sizeof(DDXPointRec));
+        if (_X_UNLIKELY(!locPts))
+            return BadAlloc;
+
         memcpy((char *) locPts, (char *) &stuff[1],
                count * sizeof(DDXPointRec));
         FOR_NSCREENS_FORWARD(j) {
@@ -1799,6 +1817,9 @@ PanoramiXPolyFillRectangle(ClientPtr client)
     things >>= 3;
     if (things > 0) {
         origRects = xallocarray(things, sizeof(xRectangle));
+        if (_X_UNLIKELY(!origRects))
+            return BadAlloc;
+
         memcpy((char *) origRects, (char *) &stuff[1],
                things * sizeof(xRectangle));
         FOR_NSCREENS_FORWARD(j) {
@@ -1866,6 +1887,9 @@ PanoramiXPolyFillArc(ClientPtr client)
     narcs /= sizeof(xArc);
     if (narcs > 0) {
         origArcs = xallocarray(narcs, sizeof(xArc));
+        if (_X_UNLIKELY(!origArcs))
+            return BadAlloc;
+
         memcpy((char *) origArcs, (char *) &stuff[1], narcs * sizeof(xArc));
         FOR_NSCREENS_FORWARD(j) {
 
