@@ -65,6 +65,9 @@ xnestCreateColormap(ColormapPtr pCmap)
     switch (pVisual->class) {
     case StaticGray:           /* read only */
         colors = xallocarray(ncolors, sizeof(XColor));
+        if (!colors)
+            return FALSE;
+
         for (i = 0; i < ncolors; i++)
             colors[i].pixel = i;
         XQueryColors(xnestDisplay, xnestColormap(pCmap), colors, ncolors);
@@ -78,6 +81,9 @@ xnestCreateColormap(ColormapPtr pCmap)
 
     case StaticColor:          /* read only */
         colors = xallocarray(ncolors, sizeof(XColor));
+        if (!colors)
+            return FALSE;
+
         for (i = 0; i < ncolors; i++)
             colors[i].pixel = i;
         XQueryColors(xnestDisplay, xnestColormap(pCmap), colors, ncolors);
@@ -91,6 +97,9 @@ xnestCreateColormap(ColormapPtr pCmap)
 
     case TrueColor:            /* read only */
         colors = xallocarray(ncolors, sizeof(XColor));
+        if (!colors)
+            return FALSE;
+
         red = green = blue = 0L;
         redInc = lowbit(pVisual->redMask);
         greenInc = lowbit(pVisual->greenMask);
@@ -197,11 +206,17 @@ xnestSetInstalledColormapWindows(ScreenPtr pScreen)
     int numWindows;
 
     icws.cmapIDs = xallocarray(pScreen->maxInstalledCmaps, sizeof(Colormap));
+    if (!icws.cmapIDs)
+        return;
+
     icws.numCmapIDs = xnestListInstalledColormaps(pScreen, icws.cmapIDs);
     icws.numWindows = 0;
     WalkTree(pScreen, xnestCountInstalledColormapWindows, (void *) &icws);
     if (icws.numWindows) {
         icws.windows = xallocarray(icws.numWindows + 1, sizeof(Window));
+        if (!icws.windows)
+            return;
+
         icws.index = 0;
         WalkTree(pScreen, xnestGetInstalledColormapWindows, (void *) &icws);
         icws.windows[icws.numWindows] = xnestDefaultWindows[pScreen->myNum];
@@ -221,6 +236,8 @@ xnestSetInstalledColormapWindows(ScreenPtr pScreen)
         {
             int i;
             Window64 *windows = xallocarray(numWindows, sizeof(Window64));
+            if (!windows)
+                return;
 
             for (i = 0; i < numWindows; ++i)
                 windows[i] = icws.windows[i];
@@ -393,6 +410,8 @@ xnestStoreColors(ColormapPtr pCmap, int nColors, xColorItem * pColors)
     {
         int i;
         XColor *pColors64 = xallocarray(nColors, sizeof(XColor));
+        if (!pColors64)
+            return;
 
         for (i = 0; i < nColors; ++i) {
             pColors64[i].pixel = pColors[i].pixel;
