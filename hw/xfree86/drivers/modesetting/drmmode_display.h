@@ -85,10 +85,12 @@ typedef struct {
 typedef struct {
     int fd;
     unsigned fb_id;
-    drmModeFBPtr mode_fb;
+    ScrnInfoPtr scrn;
+    Bool glamor;
+    /** Is Option "PageFlip" enabled? */
+    Bool pageflip;
     int cpp;
     int kbpp;
-    ScrnInfoPtr scrn;
 
     struct gbm_device *gbm;
 
@@ -98,16 +100,17 @@ typedef struct {
 #endif
     drmEventContext event_context;
     drmmode_bo front_bo;
+
     Bool sw_cursor;
+    /* Enable multi-plane modifiers on the front BO? */
+    Bool multiplanar;
 
     /* Broken-out options. */
     OptionInfoPtr Options;
 
-    Bool glamor;
     Bool shadow_enable;
     Bool shadow_enable2;
-    /** Is Option "PageFlip" enabled? */
-    Bool pageflip;
+    Bool dri2_flipping;
     Bool force_24_32;
     void *shadow_fb;
     void *shadow_fb2;
@@ -116,16 +119,16 @@ typedef struct {
     DevScreenPrivateKeyRec spritePrivateKeyRec;
     DevPrivateKeyRec vrrPrivateKeyRec;
     DevPrivateKeyRec asyncFlipPrivateKeyRec;
+
     /* Number of SW cursors currently visible on this screen */
     int sprites_visible;
 
     Bool reverse_prime_offload_mode;
-
     Bool is_secondary;
+    Bool pending_modeset;
 
     PixmapPtr fbcon_pixmap;
 
-    Bool dri2_flipping;
     Bool present_flipping;
     Bool flip_bo_import_failed;
 
@@ -137,8 +140,6 @@ typedef struct {
 
     uint32_t vrr_prop_id;
     Bool use_ctm;
-
-    Bool pending_modeset;
 } drmmode_rec, *drmmode_ptr;
 
 typedef struct {
