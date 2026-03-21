@@ -166,81 +166,6 @@ glamor_create_fbo(glamor_screen_private *glamor_priv,
                                       tex, flag);
 }
 
-/**
- * Create storage for the w * h region, using FBOs of the GL's maximum
- * supported size.
- */
-glamor_pixmap_fbo *
-glamor_create_fbo_array(glamor_screen_private *glamor_priv,
-                        PixmapPtr pixmap, int flag,
-                         int block_w, int block_h,
-                         glamor_pixmap_private *priv)
-{
-    int w = pixmap->drawable.width;
-    int h = pixmap->drawable.height;
-    int block_wcnt;
-    int block_hcnt;
-    glamor_pixmap_fbo **fbo_array;
-    BoxPtr box_array;
-    int i, j;
-
-    priv->block_w = block_w;
-    priv->block_h = block_h;
-
-    block_wcnt = (w + block_w - 1) / block_w;
-    block_hcnt = (h + block_h - 1) / block_h;
-
-    box_array = calloc(block_wcnt * block_hcnt, sizeof(box_array[0]));
-    if (box_array == NULL)
-        return NULL;
-
-    fbo_array = calloc(block_wcnt * block_hcnt, sizeof(glamor_pixmap_fbo *));
-    if (fbo_array == NULL) {
-        free(box_array);
-        return FALSE;
-    }
-    for (i = 0; i < block_hcnt; i++) {
-        int block_y1, block_y2;
-        int fbo_w, fbo_h;
-
-        block_y1 = i * block_h;
-        block_y2 = (block_y1 + block_h) > h ? h : (block_y1 + block_h);
-        fbo_h = block_y2 - block_y1;
-
-        for (j = 0; j < block_wcnt; j++) {
-            box_array[i * block_wcnt + j].x1 = j * block_w;
-            box_array[i * block_wcnt + j].y1 = block_y1;
-            box_array[i * block_wcnt + j].x2 =
-                (j + 1) * block_w > w ? w : (j + 1) * block_w;
-            box_array[i * block_wcnt + j].y2 = block_y2;
-            fbo_w =
-                box_array[i * block_wcnt + j].x2 - box_array[i * block_wcnt +
-                                                             j].x1;
-            fbo_array[i * block_wcnt + j] = glamor_create_fbo(glamor_priv,
-                                                              pixmap,
-                                                              fbo_w, fbo_h,
-                                                              GLAMOR_CREATE_PIXMAP_FIXUP);
-            if (fbo_array[i * block_wcnt + j] == NULL)
-                goto cleanup;
-        }
-    }
-
-    priv->box = box_array[0];
-    priv->box_array = box_array;
-    priv->fbo_array = fbo_array;
-    priv->block_wcnt = block_wcnt;
-    priv->block_hcnt = block_hcnt;
-    return fbo_array[0];
-
- cleanup:
-    for (i = 0; i < block_wcnt * block_hcnt; i++)
-        if (fbo_array[i])
-            glamor_destroy_fbo(glamor_priv, fbo_array[i]);
-    free(box_array);
-    free(fbo_array);
-    return NULL;
-}
-
 void
 glamor_pixmap_clear_fbo(glamor_screen_private *glamor_priv, glamor_pixmap_fbo *fbo,
                         const struct glamor_format *pixmap_format)
@@ -307,19 +232,9 @@ glamor_pixmap_destroy_fbo(PixmapPtr pixmap)
     glamor_pixmap_private *priv = glamor_get_pixmap_private(pixmap);
     glamor_pixmap_fbo *fbo;
 
-    if (glamor_pixmap_priv_is_large(priv)) {
-        int i;
-
-        for (i = 0; i < priv->block_wcnt * priv->block_hcnt; i++)
-            glamor_destroy_fbo(glamor_priv, priv->fbo_array[i]);
-        free(priv->fbo_array);
-        priv->fbo_array = NULL;
-    }
-    else {
-        fbo = glamor_pixmap_detach_fbo(priv);
-        if (fbo)
-            glamor_destroy_fbo(glamor_priv, fbo);
-    }
+    fbo = glamor_pixmap_detach_fbo(priv);
+    if (fbo)
+        glamor_destroy_fbo(glamor_priv, fbo);
 }
 
 Bool

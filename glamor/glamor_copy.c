@@ -465,8 +465,9 @@ glamor_copy_fbo_fbo_draw(DrawablePtr src,
                 .x2 = min(-args.dx + src_box->x2 - src_box->x1, bounds.x2),
                 .y2 = min(-args.dy + src_box->y2 - src_box->y1, bounds.y2),
             };
+
             if (scissor.x1 >= scissor.x2 || scissor.y1 >= scissor.y2)
-                continue;
+                goto out;
 
             if (!glamor_set_destination_drawable(dst, dst_box_index, FALSE, FALSE,
                                                  prog->matrix_uniform,
@@ -482,6 +483,7 @@ glamor_copy_fbo_fbo_draw(DrawablePtr src,
         }
     }
 
+out:
     ret = TRUE;
 
 bail_ctx:
