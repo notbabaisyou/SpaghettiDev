@@ -238,7 +238,7 @@ typedef struct glamor_screen_private {
 
     Bool is_gles;
     Bool dri3_enabled;
-    Bool dirty;
+    Bool fence_sync;
     Bool use_quads;
     Bool use_gpu_shader4;
     Bool can_copyplane;
@@ -253,7 +253,9 @@ typedef struct glamor_screen_private {
     Bool has_dual_blend;
     Bool has_clear_texture;
     Bool has_texture_swizzle;
-    Bool has_rg;
+
+    int         sync_id;
+    GLsync      sync[2];
 
     /**
      * Stores information about supported formats. Note, that this list contains all
