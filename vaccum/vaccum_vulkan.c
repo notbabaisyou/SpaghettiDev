@@ -1,7 +1,9 @@
 #include "vaccum_priv.h"
+
 #include <stdbool.h>
 
-void vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv)
+void
+vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv)
 {
     vkDestroyCommandPool(vaccum_priv->device, vaccum_priv->command_pool, NULL);
     vkDestroyDevice(vaccum_priv->device, NULL);
@@ -10,13 +12,14 @@ void vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv)
     free(vaccum_priv->queue_families);
 }
 
-Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv)
+Bool
+vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv)
 {
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "X.org server";
-    appInfo.pEngineName = "X.org server";
-    appInfo.apiVersion = 0;//apiVersion;
+    appInfo.pApplicationName = "Spaghetti";
+    appInfo.pEngineName = "vaccum";
+    appInfo.apiVersion = XORG_VERSION_CURRENT;
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -69,9 +72,11 @@ Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv)
     queue_info.queueCount = 1;
     queue_info.pQueuePriorities = &default_queue_priority;
 
-    VkPhysicalDeviceFeatures features = { .robustBufferAccess = true,
-                                          .dualSrcBlend = vaccum_priv->dev_features.dualSrcBlend,
-                                          .logicOp = vaccum_priv->dev_features.logicOp,
+    VkPhysicalDeviceFeatures features = {
+        /* Vulkan 1.0 */
+        .robustBufferAccess = true,
+        .dualSrcBlend = vaccum_priv->dev_features.dualSrcBlend,
+        .logicOp = vaccum_priv->dev_features.logicOp,
     };
 
     VkDeviceCreateInfo device_create_info = {};
@@ -79,6 +84,8 @@ Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv)
     device_create_info.queueCreateInfoCount = 1;
     device_create_info.pQueueCreateInfos = &queue_info;
     device_create_info.pEnabledFeatures = &features;
+    
+    vaccum_enable_extension(VK_KHR_MAINTENANCE_5_EXTENSION_NAME);
 
     result = vkCreateDevice(vaccum_priv->phys_device, &device_create_info, NULL, &vaccum_priv->device);
     if (result != VK_SUCCESS) {
@@ -109,12 +116,21 @@ vaccum_add_format(struct vaccum_screen_private *vaccum_priv, int depth, CARD32 r
     if ((f->format_props.optimalTilingFeatures & req_feats) != req_feats)
         return FALSE;
 
-    VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    VkResult result = vkGetPhysicalDeviceImageFormatProperties(vaccum_priv->phys_device, vk_format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_LINEAR, usage, 0, &f->linear_format_props);
+    VkImageUsageFlags usage = 
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    VkResult result = 
+        vkGetPhysicalDeviceImageFormatProperties(vaccum_priv->phys_device, vk_format,
+            VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_LINEAR, usage, 0, &f->linear_format_props);
 
     if (result != VK_SUCCESS)
         return FALSE;
-    result = vkGetPhysicalDeviceImageFormatProperties(vaccum_priv->phys_device, vk_format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, usage, 0, &f->tiled_format_props);
+
+    result = vkGetPhysicalDeviceImageFormatProperties(vaccum_priv->phys_device, vk_format, VK_IMAGE_TYPE_2D,
+                                                      VK_IMAGE_TILING_OPTIMAL, usage, 0, &f->tiled_format_props);
     if (result != VK_SUCCESS)
         return FALSE;
 
@@ -124,11 +140,16 @@ vaccum_add_format(struct vaccum_screen_private *vaccum_priv, int depth, CARD32 r
     return TRUE;
 }
 
-void vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv)
+void
+vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv, Bool has_maintenance5)
 {
     Bool ret;
 
-    ret = vaccum_add_format(vaccum_priv, 8, PICT_a8, VK_FORMAT_R8_UNORM);
+    if (has_maintenance5)
+        ret = vaccum_add_format(vaccum_priv, 8, PICT_a8, VK_FORMAT_A8_UNORM);
+    else
+        ret = vaccum_add_format(vaccum_priv, 8, PICT_a8, VK_FORMAT_R8_UNORM);
+    
     ret = vaccum_add_format(vaccum_priv, 15, PICT_x1r5g5b5, VK_FORMAT_A1R5G5B5_UNORM_PACK16);
 
     ret = vaccum_add_format(vaccum_priv, 16, PICT_r5g6b5, VK_FORMAT_R5G6B5_UNORM_PACK16);
@@ -139,9 +160,9 @@ void vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv)
     ret = vaccum_add_format(vaccum_priv, 30, PICT_x2r10g10b10, VK_FORMAT_A2R10G10B10_UNORM_PACK32);
 }
 
-void vaccum_alloc_cmd_buffer(struct vaccum_screen_private *screen_priv)
+void
+vaccum_alloc_cmd_buffer(struct vaccum_screen_private *screen_priv)
 {
-
     VkResult result;
     VkCommandBufferAllocateInfo allocate_info = {};
 

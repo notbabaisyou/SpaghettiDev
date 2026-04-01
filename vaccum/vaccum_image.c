@@ -5,6 +5,7 @@ vaccum_destroy_image(struct vaccum_screen_private *vaccum_priv, struct vaccum_im
 {
     if (image->image_view)
         vkDestroyImageView(vaccum_priv->device, image->image_view, NULL);
+
     vkDestroyImage(vaccum_priv->device, image->image, NULL);
     vkFreeMemory(vaccum_priv->device, image->memory, NULL);
 }
@@ -30,7 +31,10 @@ vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
     create_info.arrayLayers = 1;
     create_info.samples = VK_SAMPLE_COUNT_1_BIT;
     create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT;
 
     VkResult result = vkCreateImage(vaccum_priv->device, &create_info, NULL, &image->image);
     if (result != VK_SUCCESS) {
@@ -46,7 +50,12 @@ vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
     allocate_info.allocationSize = img_reqs.size;
     allocate_info.memoryTypeIndex = 0;
 
-    vkAllocateMemory(vaccum_priv->device, &allocate_info, NULL, &image->memory);
+    result = vkAllocateMemory(vaccum_priv->device, &allocate_info, NULL, &image->memory);
+    if (result != VK_SUCCESS) {
+        vkDestroyImage(image);
+        free(image);
+        return NULL;
+    }
 
     vkBindImageMemory(vaccum_priv->device, image->image, image->memory, 0);
 
