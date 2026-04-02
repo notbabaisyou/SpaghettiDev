@@ -582,18 +582,6 @@ __glXForceCurrent(__GLXclientState * cl, GLXContextTag tag, int *error)
         return 0;
     }
 
-    if (!cx->isDirect) {
-        if (cx->drawPriv == NULL) {
-            /*
-             ** The drawable has vanished.  It must be a window, because only
-             ** windows can be destroyed from under us; GLX pixmaps are
-             ** refcounted and don't go away until no one is using them.
-             */
-            *error = __glXError(GLXBadCurrentWindow);
-            return 0;
-        }
-    }
-
     if (cx->wait && (*cx->wait) (cx, cl, error))
         return NULL;
 
