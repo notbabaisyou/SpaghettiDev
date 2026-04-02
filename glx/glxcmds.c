@@ -215,6 +215,18 @@ __glXdirectContextLoseCurrent(__GLXcontext * context)
     return GL_TRUE;
 }
 
+static void
+__glXdirectContextFlush(__GLXcontext *context)
+{
+    return;
+}
+
+static void
+__glXdirectContextFinish(__GLXcontext *context)
+{
+    return;
+}
+
 _X_HIDDEN __GLXcontext *
 __glXdirectContextCreate(__GLXscreen * screen,
                          __GLXconfig * modes, __GLXcontext * shareContext)
@@ -228,6 +240,8 @@ __glXdirectContextCreate(__GLXscreen * screen,
     context->config = modes;
     context->destroy = __glXdirectContextDestroy;
     context->loseCurrent = __glXdirectContextLoseCurrent;
+    context->flush = __glXdirectContextFlush;
+    context->finish = __glXdirectContextFinish;
 
     return context;
 }
@@ -638,7 +652,8 @@ xorgGlxMakeCurrent(ClientPtr client, GLXContextTag tag, XID drawId, XID readId,
         if (need_flush) {
             if (!__glXForceCurrent(cl, tag, (int *) &error))
                 return error;
-            glFlush();
+            
+            prevglxc->flush(prevglxc);
         }
 
         /* Make the previous context not current. */
@@ -781,7 +796,7 @@ __glXDisp_WaitGL(__GLXclientState * cl, GLbyte * pc)
         if (!__glXForceCurrent(cl, req->contextTag, &error))
             return error;
 
-        glFinish();
+        glxc->finish(glxc);
     }
 
     if (glxc && glxc->drawPriv && glxc->drawPriv->waitGL)
@@ -874,7 +889,7 @@ __glXDisp_CopyContext(__GLXclientState * cl, GLbyte * pc)
              ** Do whatever is needed to make sure that all preceding requests
              ** in both streams are completed before the copy is executed.
              */
-            glFinish();
+            tagcx->finish(tagcx);
         }
         else {
             return error;
@@ -1628,7 +1643,7 @@ __glXDisp_SwapBuffers(__GLXclientState * cl, GLbyte * pc)
              ** Do whatever is needed to make sure that all preceding requests
              ** in both streams are completed before the swap is executed.
              */
-            glFinish();
+            glxc->finish(glxc);
         }
         else {
             return error;
@@ -1835,7 +1850,7 @@ __glXDisp_CopySubBufferMESA(__GLXclientState * cl, GLbyte * pc)
              ** Do whatever is needed to make sure that all preceding requests
              ** in both streams are completed before the swap is executed.
              */
-            glFinish();
+            glxc->finish(glxc);
         }
         else {
             return error;

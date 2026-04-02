@@ -81,6 +81,8 @@
 #include "glwindows.h"
 #include <glx/glxserver.h>
 #include <glx/glxutil.h>
+#include <glx/extension_string.h>
+#include <glx/indirect_util.h>
 #include <GL/glxtokens.h>
 
 #include <winpriv.h>
@@ -1566,6 +1568,8 @@ glxWinCreateContext(__GLXscreen * screen,
     context->base.makeCurrent = glxWinContextMakeCurrent;
     context->base.loseCurrent = glxWinContextLoseCurrent;
     context->base.copy = glxWinContextCopy;
+    context->base.flush = __glXIndirectContextFlush;
+    context->base.finish = __glXIndirectContextFinish;
     context->base.bindTexImage = glxWinBindTexImage;
     context->base.releaseTexImage = glxWinReleaseTexImage;
     context->base.config = modes;
