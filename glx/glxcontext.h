@@ -43,6 +43,8 @@ struct __GLXcontext {
     Bool (*wait) (__GLXcontext * context, __GLXclientState * cl, int *error);
     void (*flush) (__GLXcontext *context);
     void (*finish) (__GLXcontext *context);
+    void (*waitX) (__GLXcontext *);
+    void (*waitGL) (__GLXcontext *);
 
     /* EXT_texture_from_pixmap */
     int (*bindTexImage) (__GLXcontext * baseContext,

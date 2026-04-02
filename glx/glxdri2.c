@@ -103,6 +103,9 @@ copy_box(__GLXdrawable * drawable,
     RegionRec region;
     __GLXcontext *cx = lastGLContext;
 
+    if (_X_UNLIKELY(!drawable))
+        return;
+
     box.x1 = x;
     box.y1 = y;
     box.x2 = x + w;
@@ -146,8 +149,9 @@ __glXDRIdrawableCopySubBuffer(__GLXdrawable * drawable,
 }
 
 static void
-__glXDRIdrawableWaitX(__GLXdrawable * drawable)
+__glXDRIcontextWaitX(__GLXcontext *ctx)
 {
+    __GLXdrawable *drawable = ctx->drawPriv;
     __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
 
     copy_box(drawable, DRI2BufferFakeFrontLeft, DRI2BufferFrontLeft,
@@ -155,8 +159,9 @@ __glXDRIdrawableWaitX(__GLXdrawable * drawable)
 }
 
 static void
-__glXDRIdrawableWaitGL(__GLXdrawable * drawable)
+__glXDRIcontextWaitGL(__GLXcontext *ctx)
 {
+    __GLXdrawable *drawable = ctx->drawPriv;
     __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
 
     copy_box(drawable, DRI2BufferFrontLeft, DRI2BufferFakeFrontLeft,
@@ -578,6 +583,8 @@ __glXDRIscreenCreateContext(__GLXscreen * baseScreen,
     context->base.wait = __glXDRIcontextWait;
     context->base.flush = __glXIndirectContextFlush;
     context->base.finish = __glXIndirectContextFinish;
+    context->base.waitGL = __glXDRIcontextWaitGL;
+    context->base.waitX = __glXDRIcontextWaitX;
 
     create_driver_context(context, screen, config, driShare, num_attribs,
                           attribs, error);
@@ -626,8 +633,6 @@ __glXDRIscreenCreateDrawable(ClientPtr client,
     private->base.destroy = __glXDRIdrawableDestroy;
     private->base.swapBuffers = __glXDRIdrawableSwapBuffers;
     private->base.copySubBuffer = __glXDRIdrawableCopySubBuffer;
-    private->base.waitGL = __glXDRIdrawableWaitGL;
-    private->base.waitX = __glXDRIdrawableWaitX;
 
     ret = DRI2CreateDrawable2(client, pDraw, drawId,
                               __glXDRIinvalidateBuffers, private,
