@@ -84,6 +84,20 @@ ht_destroy(HashTable ht)
     free(ht);
 }
 
+void
+ht_walk(HashTable ht, int (*callback)(void *key, void *data, void *c), void *c)
+{
+    int i;
+    BucketPtr it, tmp;
+    int numBuckets = 1 << ht->bucketBits;
+    for (i = 0; i < numBuckets; ++i) {
+        xorg_list_for_each_entry_safe(it, tmp, &ht->buckets[i], l) {
+            if (callback(it->key, it->data, c))
+                return;
+        }
+    }
+}
+
 static Bool
 double_size(HashTable ht)
 {

@@ -134,4 +134,8 @@ extern _X_EXPORT int ht_resourceid_compare(void *cdata,
                                            const void *a,
                                            const void *b);
 
+/** @brief  Calls the callback function for every element of the hash table. */
+extern _X_EXPORT void
+ht_walk(HashTable ht, int (*callback)(void *key, void *data, void *c), void *c);
+
 #endif // HASHTABLE_H
