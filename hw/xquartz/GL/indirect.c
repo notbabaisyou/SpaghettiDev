@@ -49,6 +49,7 @@
 #include "visualConfigs.h"
 #include "dri.h"
 #include "extension_string.h"
+#include "indirect_util.h"
 
 #include "darwin.h"
 #define GLAQUA_DEBUG_MSG(msg, args ...) ASL_LOG(ASL_LEVEL_DEBUG, "GLXAqua", \
@@ -157,6 +158,8 @@ __glXAquaScreenCreateContext(__GLXscreen *screen,
     context->base.makeCurrent = __glXAquaContextMakeCurrent;
     context->base.loseCurrent = __glXAquaContextLoseCurrent;
     context->base.copy = __glXAquaContextCopy;
+    context->base.flush = __glXIndirectContextFlush;
+    context->base.finish = __glXIndirectContextFinish;
     /*FIXME verify that the context->base is fully initialized. */
 
     context->pixelFormat = makeFormat(conf);

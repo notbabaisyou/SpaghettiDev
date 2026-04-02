@@ -46,6 +46,7 @@
 #include "glxutil.h"
 #include "glxdricommon.h"
 
+#include "indirect_util.h"
 #include "extension_string.h"
 
 /* RTLD_LOCAL is not defined on Cygwin */
@@ -248,6 +249,8 @@ __glXDRIscreenCreateContext(__GLXscreen * baseScreen,
     context->base.makeCurrent = __glXDRIcontextMakeCurrent;
     context->base.loseCurrent = __glXDRIcontextLoseCurrent;
     context->base.copy = __glXDRIcontextCopy;
+    context->base.flush = __glXIndirectContextFlush;
+    context->base.finish = __glXIndirectContextFinish;
     context->base.bindTexImage = __glXDRIbindTexImage;
     context->base.releaseTexImage = __glXDRIreleaseTexImage;
 

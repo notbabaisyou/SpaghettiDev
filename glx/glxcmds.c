@@ -638,7 +638,9 @@ xorgGlxMakeCurrent(ClientPtr client, GLXContextTag tag, XID drawId, XID readId,
         if (need_flush) {
             if (!__glXForceCurrent(cl, tag, (int *) &error))
                 return error;
-            glFlush();
+            
+            if (prevglxc->flush)
+                prevglxc->flush(prevglxc);
         }
 
         /* Make the previous context not current. */
@@ -781,7 +783,8 @@ __glXDisp_WaitGL(__GLXclientState * cl, GLbyte * pc)
         if (!__glXForceCurrent(cl, req->contextTag, &error))
             return error;
 
-        glFinish();
+        if (glxc->finish)
+            glxc->finish(glxc);
     }
 
     if (glxc && glxc->drawPriv && glxc->drawPriv->waitGL)
@@ -874,7 +877,8 @@ __glXDisp_CopyContext(__GLXclientState * cl, GLbyte * pc)
              ** Do whatever is needed to make sure that all preceding requests
              ** in both streams are completed before the copy is executed.
              */
-            glFinish();
+            if (tagcx->finish)
+                tagcx->finish(tagcx);
         }
         else {
             return error;
@@ -1641,7 +1645,8 @@ __glXDisp_SwapBuffers(__GLXclientState * cl, GLbyte * pc)
              ** Do whatever is needed to make sure that all preceding requests
              ** in both streams are completed before the swap is executed.
              */
-            glFinish();
+            if (glxc->finish)
+                glxc->finish(glxc);
         }
         else {
             return error;
@@ -1839,7 +1844,8 @@ __glXDisp_CopySubBufferMESA(__GLXclientState * cl, GLbyte * pc)
              ** Do whatever is needed to make sure that all preceding requests
              ** in both streams are completed before the swap is executed.
              */
-            glFinish();
+            if (glxc->finish)
+                glxc->finish(glxc);
         }
         else {
             return error;

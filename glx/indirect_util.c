@@ -286,3 +286,15 @@ __glXGetProtocolSizeData(const struct __glXDispatchInfo *dispatch_info,
 
     return -1;
 }
+
+void
+__glXIndirectContextFlush(__GLXcontext *ctx)
+{
+    glFlush();
+}
+
+void
+__glXIndirectContextFinish(__GLXcontext *ctx)
+{
+    glFinish();
+}

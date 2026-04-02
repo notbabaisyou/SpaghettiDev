@@ -45,6 +45,7 @@
 #include "glxutil.h"
 #include "glxdricommon.h"
 
+#include "indirect_util.h"
 #include "extension_string.h"
 
 typedef struct __GLXDRIscreen __GLXDRIscreen;
@@ -575,6 +576,8 @@ __glXDRIscreenCreateContext(__GLXscreen * baseScreen,
     context->base.bindTexImage = __glXDRIbindTexImage;
     context->base.releaseTexImage = __glXDRIreleaseTexImage;
     context->base.wait = __glXDRIcontextWait;
+    context->base.flush = __glXIndirectContextFlush;
+    context->base.finish = __glXIndirectContextFinish;
 
     create_driver_context(context, screen, config, driShare, num_attribs,
                           attribs, error);

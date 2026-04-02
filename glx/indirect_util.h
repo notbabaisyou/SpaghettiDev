@@ -50,4 +50,7 @@ extern int __glXGetProtocolSizeData(const struct __glXDispatchInfo
                                     *dispatch_info, int opcode,
                                     __GLXrenderSizeData * data);
 
+extern void __glXIndirectContextFlush(__GLXcontext *ctx);
+extern void __glXIndirectContextFinish(__GLXcontext *ctx);
+
 #endif                          /* __GLX_INDIRECT_UTIL_H__ */
