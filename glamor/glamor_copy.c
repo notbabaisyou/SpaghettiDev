@@ -607,6 +607,126 @@ bail_ctx:
     return FALSE;
 }
 
+static inline void
+glamor_intersect_box(BoxPtr box1, BoxPtr box2)
+{
+    box1->x1 = max(box1->x1, box2->x1);
+    box1->x2 = min(box1->x2, box2->x2);
+    box1->y1 = max(box1->y1, box2->y1);
+    box1->y2 = min(box1->y2, box2->y2);
+}
+
+static Bool
+glamor_copy_fbo_fbo_blit(DrawablePtr src,
+                         DrawablePtr dst,
+                         GCPtr gc,
+                         BoxPtr box,
+                         int nbox,
+                         int dx,
+                         int dy,
+                         Bool reverse,
+                         Bool upsidedown,
+                         Pixel bitplane,
+                         void *closure)
+{
+    ScreenPtr screen = dst->pScreen;
+    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
+    PixmapPtr pixmap = glamor_get_drawable_pixmap(dst);
+    glamor_pixmap_private *priv = glamor_get_pixmap_private(pixmap);
+    int dst_off_x, dst_off_y;
+    int src_off_x, src_off_y;
+    int wcnt = glamor_pixmap_wcnt(priv);
+    int hcnt = glamor_pixmap_hcnt(priv);
+
+    if (!glamor_priv->has_copy_image)
+        return FALSE;
+
+    if (gc) {
+        if (gc->alu != GXcopy || !glamor_pm_is_solid(gc->depth, gc->planemask))
+            return FALSE;
+    }
+
+    if (bitplane)
+        return FALSE;
+
+    if (wcnt == 1 && hcnt == 1)
+        return FALSE;
+
+    /* This path is only for overlapping (src == dst) copies. */
+    assert(glamor_get_drawable_pixmap(src) == pixmap);
+
+    glamor_make_current(glamor_priv);
+
+    glamor_get_drawable_deltas(dst, pixmap, &dst_off_x, &dst_off_y);
+    glamor_get_drawable_deltas(src, pixmap, &src_off_x, &src_off_y);
+
+    for (int dst_box_yi = 0; dst_box_yi < hcnt; dst_box_yi++) {
+        int dst_box_y = (dy > 0) ? dst_box_yi : hcnt - 1 - dst_box_yi;
+        for (int dst_box_xi = 0; dst_box_xi < wcnt; dst_box_xi++) {
+            int dst_box_x = (dx > 0) ? dst_box_xi : wcnt - 1 - dst_box_xi;
+            int dst_box_i = dst_box_y * wcnt + dst_box_x;
+            BoxPtr dst_box = glamor_pixmap_box_at(priv, dst_box_i);
+            struct glamor_pixmap_fbo *dst_fbo =
+                glamor_pixmap_fbo_at(priv, dst_box_i);
+
+            for (int src_box_yi = 0; src_box_yi < hcnt; src_box_yi++) {
+                int src_box_y = (dy > 0) ? src_box_yi : hcnt - 1 - src_box_yi;
+                for (int src_box_xi = 0; src_box_xi < wcnt; src_box_xi++) {
+                    int src_box_x = (dx > 0) ? src_box_xi : wcnt - 1 - src_box_xi;
+                    int src_box_i = src_box_y * wcnt + src_box_x;
+                    BoxPtr src_box = glamor_pixmap_box_at(priv, src_box_i);
+                    struct glamor_pixmap_fbo *src_fbo =
+                        glamor_pixmap_fbo_at(priv, src_box_i);
+
+                    /* The src FBO's box, shifted into dst coordinates. */
+                    BoxRec src_box_in_dst = {
+                        .x1 = src_box->x1 - dx,
+                        .x2 = src_box->x2 - dx,
+                        .y1 = src_box->y1 - dy,
+                        .y2 = src_box->y2 - dy,
+                    };
+
+                    for (int draw_box_i = 0; draw_box_i < nbox; draw_box_i++) {
+                        BoxRec draw_box = box[draw_box_i];
+
+                        /* Incoming box is in drawable coordinates;
+                         * transform to pixmap coordinates.
+                         */
+                        draw_box.x1 += dst->x - dst_off_x;
+                        draw_box.x2 += dst->x - dst_off_x;
+                        draw_box.y1 += dst->y - dst_off_y;
+                        draw_box.y2 += dst->y - dst_off_y;
+
+                        glamor_intersect_box(&draw_box, dst_box);
+                        glamor_intersect_box(&draw_box, &src_box_in_dst);
+
+                        if (draw_box.x1 >= draw_box.x2 ||
+                            draw_box.y1 >= draw_box.y2)
+                            continue;
+
+                        /* Coordinates within each FBO/texture are relative
+                         * to that tile's origin in pixmap space.
+                         */
+                        glCopyImageSubData(src_fbo->tex, GL_TEXTURE_2D, 0,
+                                           draw_box.x1 + dx - src_box->x1,
+                                           draw_box.y1 + dy - src_box->y1,
+                                           0,
+                                           dst_fbo->tex, GL_TEXTURE_2D, 0,
+                                           draw_box.x1 - dst_box->x1,
+                                           draw_box.y1 - dst_box->y1,
+                                           0,
+                                           draw_box.x2 - draw_box.x1,
+                                           draw_box.y2 - draw_box.y1,
+                                           1);
+                    }
+                }
+            }
+        }
+    }
+
+    return TRUE;
+}
+
 /**
  * Returns TRUE if the copy has to be implemented with
  * glamor_copy_fbo_fbo_temp() instead of glamor_copy_fbo_fbo().
@@ -708,12 +828,18 @@ glamor_copy_gl(DrawablePtr src,
 
     if (GLAMOR_PIXMAP_PRIV_HAS_FBO(dst_priv)) {
         if (GLAMOR_PIXMAP_PRIV_HAS_FBO(src_priv)) {
-            if (glamor_copy_needs_temp(src, dst, box, nbox, dx, dy))
-                return glamor_copy_fbo_fbo_temp(src, dst, gc, box, nbox, dx, dy,
-                                                reverse, upsidedown, bitplane, closure);
-            else
+            if (glamor_copy_needs_temp(src, dst, box, nbox, dx, dy)) {
+                if (glamor_copy_fbo_fbo_blit(src, dst, gc, box, nbox, dx, dy,
+                                             reverse, upsidedown, bitplane, closure)) {
+                    return TRUE;
+                } else {
+                    return glamor_copy_fbo_fbo_temp(src, dst, gc, box, nbox, dx, dy,
+                                                    reverse, upsidedown, bitplane, closure);
+                }
+            } else {
                 return glamor_copy_fbo_fbo_draw(src, dst, gc, box, nbox, dx, dy,
                                                 reverse, upsidedown, bitplane, closure);
+            }
         }
 
         return glamor_copy_cpu_fbo(src, dst, gc, box, nbox, dx, dy,

@@ -770,6 +770,9 @@ glamor_init(ScreenPtr screen, unsigned int flags)
         (glamor_priv->is_gles && epoxy_gl_version() >= 30) ||
         epoxy_has_gl_extension("GL_EXT_texture_rg") ||
         epoxy_has_gl_extension("GL_ARB_texture_rg");
+    glamor_priv->has_copy_image =
+        epoxy_has_gl_extension("GL_ARB_copy_image") ||
+        epoxy_has_gl_extension("GL_EXT_copy_image");
 
     glamor_priv->can_copyplane = (gl_version >= 30);
 
