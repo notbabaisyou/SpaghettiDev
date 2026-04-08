@@ -294,6 +294,10 @@ typedef struct glamor_screen_private {
 
     /* glamor composite_glyphs shaders */
     glamor_program_render       glyphs_program;
+
+    /* glamor 24->32 bit alpha conversion */
+    glamor_program       conv_alpha_program;
+
     struct glamor_glyph_atlas   *glyph_atlas_a;
     struct glamor_glyph_atlas   *glyph_atlas_argb;
     int                         glyph_atlas_dim;
