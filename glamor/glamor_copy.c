@@ -210,7 +210,6 @@ glamor_copy_cpu_fbo(DrawablePtr src,
                     void *closure)
 {
     ScreenPtr screen = dst->pScreen;
-    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     PixmapPtr dst_pixmap = glamor_get_drawable_pixmap(dst);
     int dst_xoff, dst_yoff;
 
@@ -219,8 +218,6 @@ glamor_copy_cpu_fbo(DrawablePtr src,
 
     if (gc && !glamor_pm_is_solid(gc->depth, gc->planemask))
         goto bail;
-
-    glamor_make_current(glamor_priv);
 
     if (!glamor_prepare_access(src, GLAMOR_ACCESS_RO))
         goto bail;
@@ -233,8 +230,21 @@ glamor_copy_cpu_fbo(DrawablePtr src,
         int tmp_bpp;
         int tmp_xoff, tmp_yoff;
 
-        PixmapPtr tmp_pix = fbCreatePixmap(screen, dst_pixmap->drawable.width,
-                                           dst_pixmap->drawable.height,
+        /* Allocate a temp pixmap sized to the bounding box of the dirty
+         * boxes rather than the whole pixmap, to avoid wasting memory
+         * when only a small region is being copied.
+         */
+        BoxRec cp_bounds = box[0];
+        for (int cp_n = 1; cp_n < nbox; cp_n++) {
+            cp_bounds.x1 = min(cp_bounds.x1, box[cp_n].x1);
+            cp_bounds.y1 = min(cp_bounds.y1, box[cp_n].y1);
+            cp_bounds.x2 = max(cp_bounds.x2, box[cp_n].x2);
+            cp_bounds.y2 = max(cp_bounds.y2, box[cp_n].y2);
+        }
+
+        PixmapPtr tmp_pix = fbCreatePixmap(screen,
+                                           cp_bounds.x2 - cp_bounds.x1,
+                                           cp_bounds.y2 - cp_bounds.y1,
                                            glamor_drawable_effective_depth(dst), 0);
 
         if (!tmp_pix) {
@@ -242,8 +252,11 @@ glamor_copy_cpu_fbo(DrawablePtr src,
             goto bail;
         }
 
-        tmp_pix->drawable.x = dst_xoff;
-        tmp_pix->drawable.y = dst_yoff;
+        /* Set the drawable origin so that drawable-space box coordinates
+         * map correctly into the smaller backing store.
+         */
+        tmp_pix->drawable.x = cp_bounds.x1;
+        tmp_pix->drawable.y = cp_bounds.y1;
 
         fbGetDrawable(&tmp_pix->drawable, tmp_bits, tmp_stride, tmp_bpp, tmp_xoff,
                       tmp_yoff);
@@ -295,8 +308,6 @@ glamor_copy_fbo_cpu(DrawablePtr src,
                     Pixel bitplane,
                     void *closure)
 {
-    ScreenPtr screen = dst->pScreen;
-    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     PixmapPtr src_pixmap = glamor_get_drawable_pixmap(src);
     FbBits *dst_bits;
     FbStride dst_stride;
@@ -309,8 +320,6 @@ glamor_copy_fbo_cpu(DrawablePtr src,
 
     if (gc && !glamor_pm_is_solid(gc->depth, gc->planemask))
         goto bail;
-
-    glamor_make_current(glamor_priv);
 
     if (!glamor_prepare_access(dst, GLAMOR_ACCESS_RW))
         goto bail;
@@ -372,8 +381,6 @@ glamor_copy_fbo_fbo_draw(DrawablePtr src,
     int n;
     Bool ret = FALSE;
     BoxRec bounds = glamor_no_rendering_bounds();
-
-    glamor_make_current(glamor_priv);
 
     if (gc && !glamor_set_planemask(gc->depth, gc->planemask))
         goto bail_ctx;
@@ -516,95 +523,62 @@ glamor_copy_fbo_fbo_temp(DrawablePtr src,
                          void *closure)
 {
     ScreenPtr screen = dst->pScreen;
-    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     PixmapPtr tmp_pixmap;
-    BoxRec bounds;
     int n;
-    BoxPtr tmp_box;
 
     if (nbox == 0)
         return TRUE;
 
-    /* Sanity check state to avoid getting halfway through and bailing
-     * at the last second. Might be nice to have checks that didn't
-     * involve setting state.
+    /* Validate GL state before committing to any allocations, to avoid
+     * failing halfway through a multi-box loop.  The context is already
+     * current (set by glamor_copy_gl before dispatching here).
      */
-    glamor_make_current(glamor_priv);
-
     if (gc && !glamor_set_planemask(gc->depth, gc->planemask))
-        goto bail_ctx;
+        return FALSE;
 
     if (!glamor_set_alu(dst, gc ? gc->alu : GXcopy))
-        goto bail_ctx;
+        return FALSE;
 
-    /* Find the size of the area to copy
-     */
-    bounds = box[0];
-    for (n = 1; n < nbox; n++) {
-        bounds.x1 = min(bounds.x1, box[n].x1);
-        bounds.x2 = max(bounds.x2, box[n].x2);
-        bounds.y1 = min(bounds.y1, box[n].y1);
-        bounds.y2 = max(bounds.y2, box[n].y2);
-    }
-
-    /* Allocate a suitable temporary pixmap
-     */
-    tmp_pixmap = glamor_create_pixmap(screen,
-                                      bounds.x2 - bounds.x1,
-                                      bounds.y2 - bounds.y1,
-                                      glamor_drawable_effective_depth(src), 0);
-    if (!tmp_pixmap)
-        goto bail;
-
-    tmp_box = calloc(nbox, sizeof (BoxRec));
-    if (!tmp_box)
-        goto bail_pixmap;
-
-    /* Convert destination boxes into tmp pixmap boxes
+    /* Allocate a separate temporary pixmap for each destination box,
+     * sized exactly to that box.  This avoids wasting GPU memory when
+     * boxes are sparse, where the old bounding-box approach would
+     * allocate a large pixmap with mostly-unused space.
      */
     for (n = 0; n < nbox; n++) {
-        tmp_box[n].x1 = box[n].x1 - bounds.x1;
-        tmp_box[n].x2 = box[n].x2 - bounds.x1;
-        tmp_box[n].y1 = box[n].y1 - bounds.y1;
-        tmp_box[n].y2 = box[n].y2 - bounds.y1;
+        int bw = box[n].x2 - box[n].x1;
+        int bh = box[n].y2 - box[n].y1;
+        BoxRec tmp_box = { 0, 0, bw, bh };
+        Bool ok;
+
+        tmp_pixmap = glamor_create_pixmap(screen, bw, bh,
+                                          glamor_drawable_effective_depth(src), 0);
+        if (!tmp_pixmap)
+            return FALSE;
+
+        ok = glamor_copy_fbo_fbo_draw(src,
+                                      &tmp_pixmap->drawable,
+                                      NULL,
+                                      &tmp_box, 1,
+                                      dx + box[n].x1,
+                                      dy + box[n].y1,
+                                      FALSE, FALSE,
+                                      0, NULL) &&
+             glamor_copy_fbo_fbo_draw(&tmp_pixmap->drawable,
+                                      dst,
+                                      gc,
+                                      &box[n], 1,
+                                      -box[n].x1,
+                                      -box[n].y1,
+                                      FALSE, FALSE,
+                                      bitplane, closure);
+
+        glamor_destroy_pixmap(tmp_pixmap);
+
+        if (!ok)
+            return FALSE;
     }
 
-    if (!glamor_copy_fbo_fbo_draw(src,
-                                  &tmp_pixmap->drawable,
-                                  NULL,
-                                  tmp_box,
-                                  nbox,
-                                  dx + bounds.x1,
-                                  dy + bounds.y1,
-                                  FALSE, FALSE,
-                                  0, NULL))
-        goto bail_box;
-
-    if (!glamor_copy_fbo_fbo_draw(&tmp_pixmap->drawable,
-                                  dst,
-                                  gc,
-                                  box,
-                                  nbox,
-                                  -bounds.x1,
-                                  -bounds.y1,
-                                  FALSE, FALSE,
-                                  bitplane, closure))
-        goto bail_box;
-
-    free(tmp_box);
-
-    glamor_destroy_pixmap(tmp_pixmap);
-
     return TRUE;
-bail_box:
-    free(tmp_box);
-bail_pixmap:
-    glamor_destroy_pixmap(tmp_pixmap);
-bail:
-    return FALSE;
-
-bail_ctx:
-    return FALSE;
 }
 
 static inline void
@@ -629,8 +603,6 @@ glamor_copy_fbo_fbo_blit(DrawablePtr src,
                          Pixel bitplane,
                          void *closure)
 {
-    ScreenPtr screen = dst->pScreen;
-    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     PixmapPtr pixmap = glamor_get_drawable_pixmap(dst);
     glamor_pixmap_private *priv = glamor_get_pixmap_private(pixmap);
     int dst_off_x, dst_off_y;
@@ -638,7 +610,7 @@ glamor_copy_fbo_fbo_blit(DrawablePtr src,
     int wcnt = glamor_pixmap_wcnt(priv);
     int hcnt = glamor_pixmap_hcnt(priv);
 
-    if (!glamor_priv->has_copy_image)
+    if (!glamor_get_screen_private(dst->pScreen)->has_copy_image)
         return FALSE;
 
     if (gc) {
@@ -655,10 +627,25 @@ glamor_copy_fbo_fbo_blit(DrawablePtr src,
     /* This path is only for overlapping (src == dst) copies. */
     assert(glamor_get_drawable_pixmap(src) == pixmap);
 
-    glamor_make_current(glamor_priv);
-
     glamor_get_drawable_deltas(dst, pixmap, &dst_off_x, &dst_off_y);
     glamor_get_drawable_deltas(src, pixmap, &src_off_x, &src_off_y);
+
+    /* Pre-compute the bounding box of all requested boxes in pixmap
+     * coordinates so we can skip tile pairs that cannot possibly
+     * contribute before entering the inner per-box loop.
+     */
+    BoxRec bounds = box[0];
+    for (int n = 1; n < nbox; n++) {
+        bounds.x1 = min(bounds.x1, box[n].x1);
+        bounds.y1 = min(bounds.y1, box[n].y1);
+        bounds.x2 = max(bounds.x2, box[n].x2);
+        bounds.y2 = max(bounds.y2, box[n].y2);
+    }
+    /* Transform to pixmap coordinates (matches the draw_box transform below). */
+    bounds.x1 += dst->x - dst_off_x;
+    bounds.x2 += dst->x - dst_off_x;
+    bounds.y1 += dst->y - dst_off_y;
+    bounds.y2 += dst->y - dst_off_y;
 
     for (int dst_box_yi = 0; dst_box_yi < hcnt; dst_box_yi++) {
         int dst_box_y = (dy > 0) ? dst_box_yi : hcnt - 1 - dst_box_yi;
@@ -668,6 +655,13 @@ glamor_copy_fbo_fbo_blit(DrawablePtr src,
             BoxPtr dst_box = glamor_pixmap_box_at(priv, dst_box_i);
             struct glamor_pixmap_fbo *dst_fbo =
                 glamor_pixmap_fbo_at(priv, dst_box_i);
+
+            /* Skip this dst tile if it lies entirely outside the
+             * bounding box of all requested copy boxes.
+             */
+            if (dst_box->x2 <= bounds.x1 || dst_box->x1 >= bounds.x2 ||
+                dst_box->y2 <= bounds.y1 || dst_box->y1 >= bounds.y2)
+                continue;
 
             for (int src_box_yi = 0; src_box_yi < hcnt; src_box_yi++) {
                 int src_box_y = (dy > 0) ? src_box_yi : hcnt - 1 - src_box_yi;
@@ -685,6 +679,16 @@ glamor_copy_fbo_fbo_blit(DrawablePtr src,
                         .y1 = src_box->y1 - dy,
                         .y2 = src_box->y2 - dy,
                     };
+
+                    /* Skip this src tile if its projected position in
+                     * dst space cannot intersect the bounds of any
+                     * requested copy box.
+                     */
+                    if (src_box_in_dst.x2 <= bounds.x1 ||
+                        src_box_in_dst.x1 >= bounds.x2 ||
+                        src_box_in_dst.y2 <= bounds.y1 ||
+                        src_box_in_dst.y1 >= bounds.y2)
+                        continue;
 
                     for (int draw_box_i = 0; draw_box_i < nbox; draw_box_i++) {
                         BoxRec draw_box = box[draw_box_i];
@@ -760,7 +764,6 @@ glamor_copy_needs_temp(DrawablePtr src,
     int n;
     int dst_off_x, dst_off_y;
     int src_off_x, src_off_y;
-    BoxRec bounds;
 
     if (src_pixmap != dst_pixmap)
         return FALSE;
@@ -775,31 +778,24 @@ glamor_copy_needs_temp(DrawablePtr src,
         glamor_get_drawable_deltas(src, src_pixmap, &src_off_x, &src_off_y);
         glamor_get_drawable_deltas(dst, dst_pixmap, &dst_off_x, &dst_off_y);
 
-        bounds = box[0];
-        for (n = 1; n < nbox; n++) {
-            bounds.x1 = min(bounds.x1, box[n].x1);
-            bounds.y1 = min(bounds.y1, box[n].y1);
-
-            bounds.x2 = max(bounds.x2, box[n].x2);
-            bounds.y2 = max(bounds.y2, box[n].y2);
-        }
-
-        /* Check to see if the pixmap-relative boxes overlap in both X and Y,
-         * in which case we can't rely on NV_texture_barrier and must
-         * make a temporary copy
+        /* Check each box individually rather than the bounding box of
+         * all boxes; the bounding-box check produces false positives for
+         * sparse box sets (e.g. two small rects at opposite corners),
+         * unnecessarily forcing the slow temp-pixmap path.
          *
          *  dst.x1                     < src.x2 &&
          *  src.x1                     < dst.x2 &&
-         *
          *  dst.y1                     < src.y2 &&
          *  src.y1                     < dst.y2
          */
-        if (bounds.x1 + dst_off_x      < bounds.x2 + dx + src_off_x &&
-            bounds.x1 + dx + src_off_x < bounds.x2 + dst_off_x &&
+        for (n = 0; n < nbox; n++) {
+            if (box[n].x1 + dst_off_x      < box[n].x2 + dx + src_off_x &&
+                box[n].x1 + dx + src_off_x < box[n].x2 + dst_off_x &&
 
-            bounds.y1 + dst_off_y      < bounds.y2 + dy + src_off_y &&
-            bounds.y1 + dy + src_off_y < bounds.y2 + dst_off_y) {
-            return TRUE;
+                box[n].y1 + dst_off_y      < box[n].y2 + dy + src_off_y &&
+                box[n].y1 + dy + src_off_y < box[n].y2 + dst_off_y) {
+                return TRUE;
+            }
         }
     }
 
@@ -825,6 +821,12 @@ glamor_copy_gl(DrawablePtr src,
     PixmapPtr dst_pixmap = glamor_get_drawable_pixmap(dst);
     glamor_pixmap_private *src_priv = glamor_get_pixmap_private(src_pixmap);
     glamor_pixmap_private *dst_priv = glamor_get_pixmap_private(dst_pixmap);
+    glamor_screen_private *glamor_priv = glamor_get_screen_private(dst->pScreen);
+
+    /* Make the context current once here; all sub-functions rely on
+     * this and must not call glamor_make_current themselves.
+     */
+    glamor_make_current(glamor_priv);
 
     if (GLAMOR_PIXMAP_PRIV_HAS_FBO(dst_priv)) {
         if (GLAMOR_PIXMAP_PRIV_HAS_FBO(src_priv)) {
