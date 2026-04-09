@@ -51,10 +51,9 @@ glamor_poly_fill_rect_gl(DrawablePtr drawable,
     glamor_pixmap_private *pixmap_priv;
     glamor_program *prog;
     int off_x, off_y;
-    GLshort *v;
-    char *vbo_offset;
     int box_index;
     Bool ret = FALSE;
+    Bool use_ints;
     BoxRec bounds = glamor_no_rendering_bounds();
 
     pixmap_priv = glamor_get_pixmap_private(pixmap);
@@ -63,69 +62,40 @@ glamor_poly_fill_rect_gl(DrawablePtr drawable,
 
     glamor_make_current(glamor_priv);
 
-    if (nrect < 100) {
+    /*
+     * Compute the union bounding box of all rects so that each scissor
+     * region can be tightened against it (and skipped entirely if they
+     * don't overlap).  Always do this for small batches; for large ones
+     * only bother when there are multiple clip boxes, since the savings
+     * scale with clip complexity while the cost stays O(nrect).
+     */
+    if (nrect < 100 || RegionNumRects(gc->pCompositeClip) > 1) {
         bounds = glamor_start_rendering_bounds();
         for (int i = 0; i < nrect; i++)
             glamor_bounds_union_rect(&bounds, &prect[i]);
     }
 
-    if (glamor_glsl_has_ints(glamor_priv)) {
+    use_ints = glamor_glsl_has_ints(glamor_priv);
+
+    if (use_ints) {
         prog = glamor_use_program_fill(drawable, gc,
                                        &glamor_priv->poly_fill_rect_program,
                                        &glamor_facet_polyfillrect_130);
-
         if (!prog)
-            goto bail;
-
-        /* Set up the vertex buffers for the points */
-
-        v = glamor_get_vbo_space(drawable->pScreen, nrect * sizeof (xRectangle), &vbo_offset);
-        if (_X_UNLIKELY(v == 0))
             goto bail;
 
         glEnableVertexAttribArray(GLAMOR_VERTEX_POS);
         glVertexAttribDivisor(GLAMOR_VERTEX_POS, 1);
-        glVertexAttribPointer(GLAMOR_VERTEX_POS, 2, GL_SHORT, GL_FALSE,
-                              4 * sizeof (short), vbo_offset);
-
         glEnableVertexAttribArray(GLAMOR_VERTEX_SOURCE);
         glVertexAttribDivisor(GLAMOR_VERTEX_SOURCE, 1);
-        glVertexAttribPointer(GLAMOR_VERTEX_SOURCE, 2, GL_UNSIGNED_SHORT, GL_FALSE,
-                              4 * sizeof (short), vbo_offset + 2 * sizeof (short));
-
-        memcpy(v, prect, nrect * sizeof (xRectangle));
-
-        glamor_put_vbo_space(screen);
     } else {
-        int n;
-
         prog = glamor_use_program_fill(drawable, gc,
                                        &glamor_priv->poly_fill_rect_program,
                                        &glamor_facet_polyfillrect_120);
-
         if (!prog)
             goto bail;
 
-        /* Set up the vertex buffers for the points */
-
-        v = glamor_get_vbo_space(drawable->pScreen, nrect * 8 * sizeof (short), &vbo_offset);
-        if (_X_UNLIKELY(v == 0))
-            goto bail;
-
         glEnableVertexAttribArray(GLAMOR_VERTEX_POS);
-        glVertexAttribPointer(GLAMOR_VERTEX_POS, 2, GL_SHORT, GL_FALSE,
-                              2 * sizeof (short), vbo_offset);
-
-        for (n = 0; n < nrect; n++) {
-            v[0] = prect->x;                v[1] = prect->y;
-            v[2] = prect->x;                v[3] = prect->y + prect->height;
-            v[4] = prect->x + prect->width; v[5] = prect->y + prect->height;
-            v[6] = prect->x + prect->width; v[7] = prect->y;
-            prect++;
-            v += 8;
-        }
-
-        glamor_put_vbo_space(screen);
     }
 
     glEnable(GL_SCISSOR_TEST);
@@ -139,26 +109,101 @@ glamor_poly_fill_rect_gl(DrawablePtr drawable,
             goto bail;
 
         while (nbox--) {
+            GLshort *v;
+            char *vbo_offset;
+            int nfiltered = 0;
+
             BoxRec scissor = {
                 .x1 = max(box->x1, bounds.x1 + drawable->x),
                 .y1 = max(box->y1, bounds.y1 + drawable->y),
                 .x2 = min(box->x2, bounds.x2 + drawable->x),
                 .y2 = min(box->y2, bounds.y2 + drawable->y),
             };
-
             box++;
 
-            if (scissor.x1 >= scissor.x2 || scissor.y1 >= scissor.y2)
+            if (scissor.x1 >= scissor.x2 ||
+                scissor.y1 >= scissor.y2)
                 continue;
 
-            glScissor(scissor.x1 + off_x,
-                      scissor.y1 + off_y,
-                      scissor.x2 - scissor.x1,
-                      scissor.y2 - scissor.y1);
-            if (glamor_glsl_has_ints(glamor_priv))
-                glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, nrect);
-            else {
-                glamor_glDrawArrays_GL_QUADS(glamor_priv, nrect);
+            /*
+             * Rather than uploading all nrect rectangles and relying on the
+             * GPU's scissor test to discard the non-overlapping ones, we
+             * filter the list on the CPU first and upload only the rects
+             * that actually intersect this scissor box.  This reduces VBO
+             * bandwidth and GPU vertex-processing work, which pays off
+             * whenever a meaningful fraction of rects lie outside the
+             * current clip box.
+             */
+            int sx1 = scissor.x1 - drawable->x;
+            int sy1 = scissor.y1 - drawable->y;
+            int sx2 = scissor.x2 - drawable->x;
+            int sy2 = scissor.y2 - drawable->y;
+
+            if (use_ints) {
+                v = glamor_get_vbo_space(screen, nrect * sizeof(xRectangle), &vbo_offset);
+                if (_X_UNLIKELY(v == NULL))
+                    goto bail;
+
+                xRectangle *dst = (xRectangle *)v;
+                for (int i = 0; i < nrect; i++) {
+                    if (prect[i].x                    < sx2 &&
+                        prect[i].x + prect[i].width   > sx1 &&
+                        prect[i].y                    < sy2 &&
+                        prect[i].y + prect[i].height  > sy1)
+                        dst[nfiltered++] = prect[i];
+                }
+
+                if (nfiltered > 0) {
+                    glVertexAttribPointer(GLAMOR_VERTEX_POS, 2, GL_SHORT, GL_FALSE,
+                                          4 * sizeof(short), vbo_offset);
+                    glVertexAttribPointer(GLAMOR_VERTEX_SOURCE, 2, GL_UNSIGNED_SHORT, GL_FALSE,
+                                          4 * sizeof(short), vbo_offset + 2 * sizeof(short));
+                }
+
+                glamor_put_vbo_space(screen);
+
+                if (nfiltered == 0)
+                    continue;
+
+                glScissor(scissor.x1 + off_x,
+                          scissor.y1 + off_y,
+                          scissor.x2 - scissor.x1,
+                          scissor.y2 - scissor.y1);
+                glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, nfiltered);
+            } else {
+                v = glamor_get_vbo_space(screen, nrect * 8 * sizeof(short), &vbo_offset);
+                if (_X_UNLIKELY(v == NULL))
+                    goto bail;
+
+                for (int i = 0; i < nrect; i++) {
+                    if (prect[i].x                    < sx2 &&
+                        prect[i].x + prect[i].width   > sx1 &&
+                        prect[i].y                    < sy2 &&
+                        prect[i].y + prect[i].height  > sy1) {
+                        v[0] = prect[i].x;                        v[1] = prect[i].y;
+                        v[2] = prect[i].x;                        v[3] = prect[i].y + prect[i].height;
+                        v[4] = prect[i].x + prect[i].width;       v[5] = prect[i].y + prect[i].height;
+                        v[6] = prect[i].x + prect[i].width;       v[7] = prect[i].y;
+                        v += 8;
+                        nfiltered++;
+                    }
+                }
+
+                if (nfiltered > 0) {
+                    glVertexAttribPointer(GLAMOR_VERTEX_POS, 2, GL_SHORT, GL_FALSE,
+                                          2 * sizeof(short), vbo_offset);
+                }
+
+                glamor_put_vbo_space(screen);
+
+                if (nfiltered == 0)
+                    continue;
+
+                glScissor(scissor.x1 + off_x,
+                          scissor.y1 + off_y,
+                          scissor.x2 - scissor.x1,
+                          scissor.y2 - scissor.y1);
+                glamor_glDrawArrays_GL_QUADS(glamor_priv, nfiltered);
             }
         }
     }
