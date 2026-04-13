@@ -5138,9 +5138,14 @@ drmmode_flip_fb(xf86CrtcPtr crtc, int *timeout)
         /* delay to exit external flip mode */
         if (diff_ms < 100)
             goto retry;
-    } else if (drmmode->fb_flip_rate) {
-        /* limit flip rate */
-        if (diff_ms < (1000 / drmmode->fb_flip_rate))
+    } else {
+        int rate = drmmode->fb_flip_rate;
+
+        if (rate == -1) {
+            rate = crtc->mode.VRefresh ? (int)(crtc->mode.VRefresh + 0.5f) : 60;
+        }
+
+        if (rate > 0 && diff_ms < (uint64_t)(1000 / rate))
             goto retry;
     }
 

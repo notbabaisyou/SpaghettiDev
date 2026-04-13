@@ -1405,13 +1405,24 @@ PreInit(ScrnInfoPtr pScrn, int flags)
 
     ret = -1;
     xf86GetOptValInteger(ms->drmmode.Options, OPTION_FLIP_FB_RATE, &ret);
-    ms->drmmode.fb_flip_rate = ret > 0 ? ret : 0;
+    ms->drmmode.fb_flip_rate = (ret > 0 || ret == -1) ? ret : 0;
 
-    if (ms->drmmode.fb_flip_mode != DRMMODE_FB_FLIP_NONE)
+    if (ms->drmmode.fb_flip_mode != DRMMODE_FB_FLIP_NONE) {
+        char rate_str[32];
+
+        if (ms->drmmode.fb_flip_rate == -1)
+            snprintf(rate_str, sizeof(rate_str), "screen refresh rate");
+        else if (ms->drmmode.fb_flip_rate > 0)
+            snprintf(rate_str, sizeof(rate_str), "%d fps", ms->drmmode.fb_flip_rate);
+        else
+            snprintf(rate_str, sizeof(rate_str), "unlimited");
+
         xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-                   "FlipFB: %s, limited to: %d fps\n",
-                   (ms->drmmode.fb_flip_mode == DRMMODE_FB_FLIP_ALWAYS ?
-                    "Always" : "Transformed"), ms->drmmode.fb_flip_rate ?: -1);
+                  "FlipFB: %s, limited to: %s\n",
+                  (ms->drmmode.fb_flip_mode == DRMMODE_FB_FLIP_ALWAYS ?
+                  "Always" : "Transformed"),
+                  rate_str);
+    }
 
     pScrn->capabilities = 0;
     ret = drmGetCap(ms->fd, DRM_CAP_PRIME, &value);
