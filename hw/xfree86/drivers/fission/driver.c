@@ -1396,10 +1396,10 @@ PreInit(ScrnInfoPtr pScrn, int flags)
         xf86ReturnOptValBool(ms->drmmode.Options, OPTION_PAGEFLIP, TRUE);
 
     str_value = xf86GetOptValString(ms->drmmode.Options, OPTION_FLIP_FB);
-    if (!str_value || !strcmp(str_value, "transformed"))
-        ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_TRANSFORMED;
-    else if (!strcmp(str_value, "always"))
+    if (!str_value || !strcmp(str_value, "always"))
         ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_ALWAYS;
+    else if (!strcmp(str_value, "transformed"))
+        ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_TRANSFORMED;
     else
         ms->drmmode.fb_flip_mode = DRMMODE_FB_FLIP_NONE;
 
