@@ -253,8 +253,17 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     for (i = 0; i < config->num_crtc; i++) {
         drmmode_crtc_private_ptr drmmode_crtc = config->crtc[i]->driver_private;
 
+#ifdef GLAMOR_HAS_GBM
         /* Don't do pageflipping if CRTCs are rotated. */
         if (drmmode_crtc->rotate_bo.gbm)
+            return FALSE;
+#endif
+
+        if (drmmode_crtc->rotate_bo.dumb)
+            return FALSE;
+
+        if (config->crtc[i]->driverIsPerformingTransform &
+            XF86DriverTransformOutput)
             return FALSE;
 
         if (xf86_crtc_on(config->crtc[i]))
@@ -380,8 +389,10 @@ ms_present_flip(RRCrtcPtr crtc,
     ret = ms_do_pageflip(screen, pixmap, event, drmmode_crtc->vblank_pipe, !sync_flip,
                          ms_present_flip_handler, ms_present_flip_abort,
                          "Present-flip");
-    if (ret)
+    if (ret) {
         ms->drmmode.present_flipping = TRUE;
+        drmmode_crtc->external_flipped = TRUE;
+    }
 
     return ret;
 }

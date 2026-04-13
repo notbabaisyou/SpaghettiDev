@@ -92,6 +92,12 @@ typedef struct {
 #endif
 } drmmode_bo;
 
+enum drmmode_fb_flip_mode {
+    DRMMODE_FB_FLIP_NONE,
+    DRMMODE_FB_FLIP_TRANSFORMED,
+    DRMMODE_FB_FLIP_ALWAYS
+};
+
 typedef struct {
     int fd;
     unsigned fb_id;
@@ -121,6 +127,9 @@ typedef struct {
     Bool force_24_32;
     void *shadow_fb;
     void *shadow_fb2;
+
+    enum drmmode_fb_flip_mode fb_flip_mode;
+    int fb_flip_rate;
 
     DevPrivateKeyRec pixmapPrivateKeyRec;
     DevScreenPrivateKeyRec spritePrivateKeyRec;
@@ -175,6 +184,16 @@ typedef struct {
     uint32_t num_modifiers;
     uint64_t *modifiers;
 } drmmode_format_rec, *drmmode_format_ptr;
+
+typedef struct {
+    drmmode_bo bo;
+
+    unsigned fb_id;
+    Bool need_clear;
+
+    PixmapPtr pixmap;
+    DamagePtr damage;
+} drmmode_fb;
 
 typedef struct {
     uint16_t width, height;
@@ -234,6 +253,18 @@ typedef struct {
 
     Bool vrr_enabled;
     Bool use_gamma_lut;
+
+    /** support fb flipping to avoid tearing */
+    unsigned fb_id;
+    drmmode_fb flip_fb[2];
+    unsigned current_fb;
+    Bool external_flipped; /* dri2 or present flip */
+    uint64_t flipping_time_ms; /* time of the latest fb flipping */
+    Bool can_flip_fb;
+    Bool flip_fb_width;
+    Bool flip_fb_height;
+    Bool flip_fb_enabled;
+    Bool flipping;
 
     drmmode_prop_info_rec props[DRMMODE_CRTC__COUNT];
     drmmode_prop_info_rec props_plane[DRMMODE_PLANE__COUNT];
@@ -349,5 +380,7 @@ Bool drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y);
 
 void drmmode_set_dpms(ScrnInfoPtr scrn, int PowerManagementMode, int flags);
 void drmmode_crtc_set_vrr(xf86CrtcPtr crtc, Bool enabled);
+
+Bool drmmode_flip_fb(xf86CrtcPtr crtc, int *timeout);
 
 #endif
