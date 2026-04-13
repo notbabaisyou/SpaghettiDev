@@ -73,6 +73,9 @@ static Bool drmmode_enable_flip_fb(xf86CrtcPtr crtc);
 static Bool drmmode_update_fb(xf86CrtcPtr crtc, drmmode_fb *fb);
 static Bool drmmode_apply_transform(xf86CrtcPtr crtc);
 
+static Bool ms_copy_area(PixmapPtr pSrc, PixmapPtr pDst,
+                         pixman_f_transform_t *transform, RegionPtr clip);
+
 static const struct drm_color_ctm ctm_identity = { {
     1ULL << 32, 0, 0,
     0, 1ULL << 32, 0,
@@ -1805,7 +1808,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 
         if (!drmmode_apply_transform(crtc))
             goto done;
-        }
 
         crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
                                crtc->gamma_blue, crtc->gamma_size);
@@ -4951,7 +4953,7 @@ drmmode_transform_region(xf86CrtcPtr crtc, RegionPtr src)
     return region;
 }
 
-Bool
+static Bool
 ms_copy_area(PixmapPtr pSrc, PixmapPtr pDst,
              pixman_f_transform_t *transform, RegionPtr clip)
 {
@@ -5008,7 +5010,6 @@ out:
 static Bool
 drmmode_update_fb(xf86CrtcPtr crtc, drmmode_fb *fb)
 {
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     ScrnInfoPtr scrn = crtc->scrn;
     modesettingPtr ms = modesettingPTR(scrn);
     ScreenPtr screen = xf86ScrnToScreen(scrn);

@@ -218,7 +218,6 @@ queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc,
                    int ref_crtc_vblank_pipe, uint32_t flags)
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    modesettingPtr ms = modesettingPTR(scrn);
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     struct ms_crtc_pageflip *flip;
     uint32_t seq;
@@ -243,8 +242,8 @@ queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc,
     /* take a reference on flipdata for use in flip */
     flipdata->flip_count++;
 
-    if (do_queue_flip_on_crtc(screen, crtc, flags, seq, ms->drmmode.fb_id,
-                              crtc->x, crtc->y))
+    if (do_queue_flip_on_crtc(screen, crtc, flags, seq,
+                              *flipdata->fb_id, crtc->x, crtc->y))
         return QUEUE_FLIP_DRM_FLUSH_FAILED;
 
     /* The page flip succeeded. */
@@ -372,17 +371,8 @@ ms_do_pageflip_bo(ScreenPtr screen,
     flipdata->old_fb_id = *flipdata->fb_id;
 
     if (drmmode_bo_import(&ms->drmmode, new_front_bo,
-                          flipdata->fb_id)) {
-        if (!ms->drmmode.flip_bo_import_failed) {
-            xf86DrvMsg(scrn->scrnIndex, X_WARNING, "fission: Import BO failed: %s\n", strerror(errno));
-            ms->drmmode.flip_bo_import_failed = TRUE;
-        }
+                          flipdata->fb_id))
         goto error_out;
-    } else {
-        if (ms->drmmode.flip_bo_import_failed &&
-            new_front != screen->GetScreenPixmap(screen))
-            ms->drmmode.flip_bo_import_failed = FALSE;
-    }
 
     /* Queue flips on all enabled CRTCs.
      *
@@ -396,7 +386,7 @@ ms_do_pageflip_bo(ScreenPtr screen,
     for (i = 0; i < config->num_crtc; i++) {
         enum queue_flip_status flip_status;
         xf86CrtcPtr crtc = config->crtc[i];
-        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+        drmmode_crtc = crtc->driver_private;
 
         if (!xf86_crtc_on(crtc))
             continue;
@@ -431,23 +421,20 @@ ms_do_pageflip_bo(ScreenPtr screen,
         switch (flip_status) {
             case QUEUE_FLIP_ALLOC_FAILED:
                 xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-                           "%s: carrier alloc for queue flip on CRTC %d failed.\n",
-                           log_prefix, i);
+                           "fission: carrier alloc for queue flip on CRTC %d failed.\n", i);
                 goto error_undo;
             case QUEUE_FLIP_QUEUE_ALLOC_FAILED:
                 xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-                           "%s: entry alloc for queue flip on CRTC %d failed.\n",
-                           log_prefix, i);
+                           "fission: entry alloc for queue flip on CRTC %d failed.\n", i);
                 goto error_undo;
             case QUEUE_FLIP_DRM_FLUSH_FAILED:
-                ms_print_pageflip_error(scrn->scrnIndex, log_prefix, i, flags, errno);
+                ms_print_pageflip_error(scrn->scrnIndex, "fission", i, flags, errno);
                 goto error_undo;
             case QUEUE_FLIP_SUCCESS:
                 break;
         }
 
         gettimeofday(&tv, NULL);
-        drmmode_crtc = crtc->driver_private;
         drmmode_crtc->flipping_time_ms = tv.tv_sec * 1000 + tv.tv_usec / 1000;
     }
 
@@ -529,4 +516,5 @@ ms_do_pageflip(ScreenPtr screen,
 
     return ret;
 #endif /* GLAMOR_HAS_GBM */
+}
 #endif

@@ -146,7 +146,6 @@ typedef struct {
 
     Bool dri2_flipping;
     Bool present_flipping;
-    Bool flip_bo_import_failed;
 
     Bool can_async_flip;
     Bool async_flip_secondaries;

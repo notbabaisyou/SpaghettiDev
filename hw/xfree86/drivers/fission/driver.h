@@ -251,8 +251,7 @@ Bool ms_do_pageflip(ScreenPtr screen,
                     int ref_crtc_vblank_pipe,
                     Bool async,
                     ms_pageflip_handler_proc pageflip_handler,
-                    ms_pageflip_abort_proc pageflip_abort,
-                    const char *log_prefix);
+                    ms_pageflip_abort_proc pageflip_abort);
 
 #endif
 
