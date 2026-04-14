@@ -692,9 +692,9 @@ drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y)
     }
     else if (drmmode_crtc->flip_fb_enabled) {
         drmmode_fb *fb = &drmmode_crtc->flip_fb[drmmode_crtc->current_fb];
-        
-        if (!drmmode_update_fb(crtc, fb))
-            goto bail;
+
+        if (!fb->pixmap)
+            drmmode_update_fb(crtc, fb);
 
         *fb_id = fb->fb_id;
         *x = *y = 0;
@@ -706,9 +706,6 @@ drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y)
     }
 
     return TRUE;
-bail:
-    ErrorF("failed to update flip fb\n");
-    return FALSE;
 }
 
 void
