@@ -217,7 +217,6 @@ queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc,
                    struct ms_flipdata *flipdata,
                    int ref_crtc_vblank_pipe, uint32_t flags)
 {
-    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     struct ms_crtc_pageflip *flip;
     uint32_t seq;
