@@ -328,7 +328,8 @@ ms_do_pageflip_bo(ScreenPtr screen,
                   xf86CrtcPtr target_crtc,
                   Bool async,
                   ms_pageflip_handler_proc pageflip_handler,
-                  ms_pageflip_abort_proc pageflip_abort)
+                  ms_pageflip_abort_proc pageflip_abort,
+                  const char* log_prefix)
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
@@ -342,7 +343,7 @@ ms_do_pageflip_bo(ScreenPtr screen,
     flipdata = calloc(1, sizeof(struct ms_flipdata));
     if (!flipdata) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                   "fission: Failed to allocate flipdata.\n");
+                   "%s: Failed to allocate flipdata.\n", log_prefix);
         goto error_free_event;
     }
 
@@ -421,14 +422,14 @@ ms_do_pageflip_bo(ScreenPtr screen,
         switch (flip_status) {
             case QUEUE_FLIP_ALLOC_FAILED:
                 xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-                           "fission: carrier alloc for queue flip on CRTC %d failed.\n", i);
+                           "%s: carrier alloc for queue flip on CRTC %d failed.\n", log_prefix, i);
                 goto error_undo;
             case QUEUE_FLIP_QUEUE_ALLOC_FAILED:
                 xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-                           "fission: entry alloc for queue flip on CRTC %d failed.\n", i);
+                           "%s: entry alloc for queue flip on CRTC %d failed.\n", log_prefix, i);
                 goto error_undo;
             case QUEUE_FLIP_DRM_FLUSH_FAILED:
-                ms_print_pageflip_error(scrn->scrnIndex, "fission", i, flags, errno);
+                ms_print_pageflip_error(scrn->scrnIndex, log_prefix, i, flags, errno);
                 goto error_undo;
             case QUEUE_FLIP_SUCCESS:
                 break;
@@ -483,7 +484,8 @@ ms_do_pageflip(ScreenPtr screen,
                int ref_crtc_vblank_pipe,
                Bool async,
                ms_pageflip_handler_proc pageflip_handler,
-               ms_pageflip_abort_proc pageflip_abort)
+               ms_pageflip_abort_proc pageflip_abort,
+               const char* log_prefix)
 {
 #ifndef GLAMOR_HAS_GBM
     return FALSE;
@@ -509,7 +511,7 @@ ms_do_pageflip(ScreenPtr screen,
 
     ret = ms_do_pageflip_bo(screen, &new_front_bo, event,
                             ref_crtc_vblank_pipe, NULL, async,
-                            pageflip_handler, pageflip_abort);
+                            pageflip_handler, pageflip_abort, log_prefix);
 
     new_front_bo.gbm = NULL;
     drmmode_bo_destroy(&ms->drmmode, &new_front_bo);
