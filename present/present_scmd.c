@@ -71,22 +71,36 @@ present_check_flip(RRCrtcPtr            crtc,
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
 
     if (crtc) {
-       screen_priv = present_screen_priv(crtc->pScreen);
-    }
-    if (reason)
-        *reason = PRESENT_FLIP_REASON_UNKNOWN;
-
-    if (!screen_priv)
+        if (!(screen_priv = present_screen_priv(crtc->pScreen)))
+            return FALSE;
+    } else {
         return FALSE;
+    }
 
     if (!screen_priv->info)
         return FALSE;
 
-    if (!crtc)
+    /* Source pixmap must align with window exactly */
+    if (x_off || y_off)
         return FALSE;
 
-    /* Check to see if the driver supports flips at all */
-    if (!screen_priv->info->flip)
+    /* Check for full-screen window */
+    if (!RegionEqual(&window->clipList, &root->winSize))
+        return FALSE;
+
+    /* Make sure the area marked as valid fills the screen */
+    if (valid && !RegionEqual(valid, &root->winSize))
+        return FALSE;
+
+    /* Does the window match the pixmap exactly? */
+    if (window->drawable.x != 0 ||
+        window->drawable.y != 0 ||
+#if defined(COMPOSITE) || defined(ROOTLESS)
+        window->drawable.x != pixmap->screen_x ||
+        window->drawable.y != pixmap->screen_y ||
+#endif
+        window->drawable.width != pixmap->drawable.width ||
+        window->drawable.height != pixmap->drawable.height)
         return FALSE;
 
     /* Make sure the window hasn't been redirected with Composite */
@@ -97,45 +111,19 @@ present_check_flip(RRCrtcPtr            crtc,
         window_pixmap != present_flip_pending_pixmap(screen))
         return FALSE;
 
-    /* Check for full-screen window */
-    if (!RegionEqual(&window->clipList, &root->winSize)) {
-        return FALSE;
-    }
+    DebugPresent(("\td %08" PRIx32 " -> %08" PRIx32 "\n", window->drawable.id, pixmap ? pixmap->drawable.id : 0));
 
-    /* Source pixmap must align with window exactly */
-    if (x_off || y_off) {
-        return FALSE;
-    }
-
-    /* Make sure the area marked as valid fills the screen */
-    if (valid && !RegionEqual(valid, &root->winSize)) {
-        return FALSE;
-    }
-
-    /* Does the window match the pixmap exactly? */
-    if (window->drawable.x != 0 || window->drawable.y != 0 ||
-#if defined(COMPOSITE) || defined(ROOTLESS)
-        window->drawable.x != pixmap->screen_x || window->drawable.y != pixmap->screen_y ||
-#endif
-        window->drawable.width != pixmap->drawable.width ||
-        window->drawable.height != pixmap->drawable.height) {
-        return FALSE;
-    }
+    if (reason)
+        *reason = PRESENT_FLIP_REASON_UNKNOWN;
 
     /* Ask the driver for permission. Do this now to see if there's TearFree. */
     if (screen_priv->info->version >= 1 && screen_priv->info->check_flip2) {
-        if (!(*screen_priv->info->check_flip2) (crtc, window, pixmap, sync_flip, reason)) {
-            DebugPresent(("\td %08" PRIx32 " -> %08" PRIx32 "\n", window->drawable.id, pixmap ? pixmap->drawable.id : 0));
-            return FALSE;
-        }
+        return (*screen_priv->info->check_flip2) (crtc, window, pixmap, sync_flip, reason);
     } else if (screen_priv->info->check_flip) {
-        if (!(*screen_priv->info->check_flip) (crtc, window, pixmap, sync_flip)) {
-            DebugPresent(("\td %08" PRIx32 " -> %08" PRIx32 "\n", window->drawable.id, pixmap ? pixmap->drawable.id : 0));
-            return FALSE;
-        }
+        return (*screen_priv->info->check_flip) (crtc, window, pixmap, sync_flip);
+    } else {
+        return FALSE;
     }
-
-    return TRUE;
 }
 
 static Bool
