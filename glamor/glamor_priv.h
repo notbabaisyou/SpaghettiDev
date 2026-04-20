@@ -394,6 +394,7 @@ typedef struct glamor_pixmap_private {
     BoxRec box;
     RegionRec prepare_region;
     Bool prepared;
+    Bool is_cbcr;
 #ifdef GLAMOR_HAS_GBM
     Bool used_modifiers;
     EGLImageKHR image;
@@ -407,8 +408,6 @@ typedef struct glamor_pixmap_private {
     int block_wcnt;
     /** block_hcnt: block count in one block column. */
     int block_hcnt;
-
-    Bool is_cbcr;
 
     /**
      * The list of boxes for the bounds of the FBOs making up the
