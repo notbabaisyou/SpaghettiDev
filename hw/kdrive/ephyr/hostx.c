@@ -61,7 +61,7 @@
 #include <epoxy/common.h>
 #include <epoxy/gl.h>
 #include "glamor.h"
-#include "glamor_glx_provider.h"
+#include "glxglamor.h"
 #include "ephyr_glamor.h"
 #endif
 #include "ephyrlog.h"
