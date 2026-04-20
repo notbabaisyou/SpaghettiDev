@@ -919,8 +919,6 @@ glamor_egl_destroy_pixmap(PixmapPtr pixmap)
 void
 glamor_egl_exchange_buffers(PixmapPtr front, PixmapPtr back)
 {
-    EGLImageKHR temp_img;
-    Bool temp_mod;
     struct glamor_pixmap_private *front_priv =
         glamor_get_pixmap_private(front);
     struct glamor_pixmap_private *back_priv =
@@ -928,12 +926,14 @@ glamor_egl_exchange_buffers(PixmapPtr front, PixmapPtr back)
 
     glamor_pixmap_exchange_fbos(front, back);
 
-    temp_img = back_priv->image;
-    temp_mod = back_priv->used_modifiers;
-    back_priv->image = front_priv->image;
-    back_priv->used_modifiers = front_priv->used_modifiers;
-    front_priv->image = temp_img;
-    front_priv->used_modifiers = temp_mod;
+    /* Swap all buffer related members */
+#ifdef GLAMOR_HAS_GBM
+    XORG_EXCHANGE(back_priv->image, front_priv->image);
+    XORG_EXCHANGE(back_priv->used_modifiers, front_priv->used_modifiers);
+#endif
+
+    XORG_EXCHANGE(back->devPrivate.ptr, front->devPrivate.ptr);
+    XORG_EXCHANGE(back->devKind, front->devKind);
 
     glamor_set_pixmap_type(front, GLAMOR_TEXTURE_DRM);
     glamor_set_pixmap_type(back, GLAMOR_TEXTURE_DRM);
