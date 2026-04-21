@@ -30,6 +30,8 @@
 #include "protocol-versions.h"
 #include "extinit.h"
 
+#include "dixstruct.h"
+
 #ifdef PANORAMIX
 #include "panoramiX.h"
 #include "panoramiXsrv.h"
@@ -61,6 +63,7 @@ DamageNoteCritical(ClientPtr pClient)
     if (pDamageClient->critical > 0) {
         SetCriticalOutputPending();
         pClient->smart_priority = SMART_MAX_PRIORITY;
+        mlfq_requeue_client(pClient);
     }
 }
 
