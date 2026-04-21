@@ -339,7 +339,7 @@ __glXScreenInit(__GLXscreen * pGlxScreen, ScreenPtr pScreen)
         return;
 
     pGlxScreen->pScreen = pScreen;
-    pGlxScreen->GLextensions = strdup(GLServerExtensions);
+    pGlxScreen->GLextensions = XNFstrdup(GLServerExtensions);
     pGlxScreen->GLXextensions = NULL;
 
     pGlxScreen->CloseScreen = pScreen->CloseScreen;
