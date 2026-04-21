@@ -237,21 +237,25 @@ UpdateCurrentTimeIf(void)
 
 #undef SMART_DEBUG
 
+#define SMART_PRIORITY_RANGE            (SMART_MAX_PRIORITY - SMART_MIN_PRIORITY + 1)
 /* in milliseconds */
 #define SMART_SCHEDULE_DEFAULT_INTERVAL	5
-#define SMART_SCHEDULE_MAX_SLICE	15
+#define SMART_SCHEDULE_MAX_SLICE	    15
 
 #ifdef HAVE_SETITIMER
 Bool SmartScheduleSignalEnable = TRUE;
 #endif
 
-long SmartScheduleSlice = SMART_SCHEDULE_DEFAULT_INTERVAL;
+long SmartScheduleSlice =    SMART_SCHEDULE_DEFAULT_INTERVAL;
 long SmartScheduleInterval = SMART_SCHEDULE_DEFAULT_INTERVAL;
 long SmartScheduleMaxSlice = SMART_SCHEDULE_MAX_SLICE;
 long SmartScheduleTime;
 int SmartScheduleLatencyLimited = 0;
 static ClientPtr SmartLastClient;
-static int SmartLastIndex[SMART_MAX_PRIORITY - SMART_MIN_PRIORITY + 1];
+
+static struct xorg_list mlfq_queues[SMART_PRIORITY_RANGE];
+static int              mlfq_nready;
+static long             mlfq_members[mskcnt];
 
 #ifdef SMART_DEBUG
 long SmartLastPrint;
@@ -259,14 +263,45 @@ long SmartLastPrint;
 
 void Dispatch(void);
 
-static struct xorg_list ready_clients;
 static struct xorg_list saved_ready_clients;
 struct xorg_list output_pending_clients;
+
+/* Insert client into the bucket matching its current smart_priority. */
+static void
+mlfq_enqueue(ClientPtr client)
+{
+    int idx = client->smart_priority - SMART_MIN_PRIORITY;
+
+    xorg_list_append(&client->ready, &mlfq_queues[idx]);
+    BITSET(mlfq_members, client->index);
+    mlfq_nready++;
+}
+
+/*
+ * Move a client to the bucket that matches its current smart_priority.
+ * Called after smart_priority has been adjusted (penalize or praise) while
+ * the client is already in the MLFQ.
+ */
+void
+mlfq_requeue_client(ClientPtr client)
+{
+    if (GETBIT(mlfq_members, client->index)) {
+        int idx = client->smart_priority - SMART_MIN_PRIORITY;
+        xorg_list_del(&client->ready);
+        xorg_list_append(&client->ready, &mlfq_queues[idx]);
+    }
+}
 
 static void
 init_client_ready(void)
 {
-    xorg_list_init(&ready_clients);
+    int i;
+
+    for (i = 0; i < SMART_PRIORITY_RANGE; i++)
+        xorg_list_init(&mlfq_queues[i]);
+    memset(mlfq_members, 0, sizeof(mlfq_members));
+    mlfq_nready = 0;
+
     xorg_list_init(&saved_ready_clients);
     xorg_list_init(&output_pending_clients);
 }
@@ -274,7 +309,7 @@ init_client_ready(void)
 Bool
 clients_are_ready(void)
 {
-    return !xorg_list_is_empty(&ready_clients);
+    return mlfq_nready > 0;
 }
 
 /* Client has requests queued or data on the network */
@@ -282,7 +317,7 @@ void
 mark_client_ready(ClientPtr client)
 {
     if (xorg_list_is_empty(&client->ready))
-        xorg_list_append(&client->ready, &ready_clients);
+        mlfq_enqueue(client);
 }
 
 /*
@@ -299,7 +334,15 @@ void mark_client_saved_ready(ClientPtr client)
 void
 mark_client_not_ready(ClientPtr client)
 {
-    xorg_list_del(&client->ready);
+    if (GETBIT(mlfq_members, client->index)) {
+        BITCLEAR(mlfq_members, client->index);
+        mlfq_nready--;
+    }
+
+    /* Only call del if the entry is actually still linked, to avoid
+     * corrupting whatever list it might have been re-added to. */
+    if (!xorg_list_is_empty(&client->ready))
+        xorg_list_del(&client->ready);
 }
 
 static void
@@ -307,10 +350,15 @@ mark_client_grab(ClientPtr grab)
 {
     ClientPtr   client, tmp;
 
-    xorg_list_for_each_entry_safe(client, tmp, &ready_clients, ready) {
-        if (client != grab) {
-            xorg_list_del(&client->ready);
-            xorg_list_append(&client->ready, &saved_ready_clients);
+    int i;
+    for (i = 0; i < SMART_PRIORITY_RANGE; i++) {
+        xorg_list_for_each_entry_safe(client, tmp, &mlfq_queues[i], ready) {
+            if (client != grab) {
+                BITCLEAR(mlfq_members, client->index);
+                mlfq_nready--;
+                xorg_list_del(&client->ready);
+                xorg_list_append(&client->ready, &saved_ready_clients);
+            }
         }
     }
 }
@@ -322,70 +370,71 @@ mark_client_ungrab(void)
 
     xorg_list_for_each_entry_safe(client, tmp, &saved_ready_clients, ready) {
         xorg_list_del(&client->ready);
-        xorg_list_append(&client->ready, &ready_clients);
+        mlfq_enqueue(client);
     }
 }
 
 static ClientPtr
 SmartScheduleClient(void)
 {
-    ClientPtr pClient, best = NULL;
-    int bestRobin, robin;
+    ClientPtr best = NULL;
     long now = SmartScheduleTime;
     long idle;
-    int nready = 0;
 
-    bestRobin = 0;
     idle = 2 * SmartScheduleSlice;
 
-    xorg_list_for_each_entry(pClient, &ready_clients, ready) {
-        nready++;
+    int i;
+    /* Scan bucket heads from highest to lowest smart_priority. */
+    for (i = SMART_PRIORITY_RANGE - 1; i >= 0; i--) {
+        ClientPtr head;
 
-        /* Praise clients which haven't run in a while */
-        if ((now - pClient->smart_stop_tick) >= idle) {
-            if (pClient->smart_priority < 0)
-                pClient->smart_priority++;
-        }
+        if (xorg_list_is_empty(&mlfq_queues[i]))
+            continue;
 
-        /* check priority to select best client */
-        robin =
-            (pClient->index -
-             SmartLastIndex[pClient->smart_priority -
-                            SMART_MIN_PRIORITY]) & 0xff;
+        head = xorg_list_entry(mlfq_queues[i].next, ClientRec, ready);
 
-        /* pick the best client */
-        if (!best ||
-            pClient->priority > best->priority ||
-            (pClient->priority == best->priority &&
-             (pClient->smart_priority > best->smart_priority ||
-              (pClient->smart_priority == best->smart_priority && robin > bestRobin))))
-        {
-            best = pClient;
-            bestRobin = robin;
-        }
+        /*
+         * A head in a higher bucket always beats a previously seen head
+         * at the same static priority (higher smart_priority wins).
+         * We only update best when the static priority is strictly higher,
+         * because when it is equal the current bucket's head is already in
+         * a lower smart_priority bucket than any earlier candidate.
+         */
+        if (!best || head->priority > best->priority)
+            best = head;
 #ifdef SMART_DEBUG
         if ((now - SmartLastPrint) >= 5000)
-            fprintf(stderr, " %2d: %3d", pClient->index, pClient->smart_priority);
+            fprintf(stderr, " [%d]: pri=%d smart=%d",
+                    head->index, head->priority, head->smart_priority);
 #endif
     }
 #ifdef SMART_DEBUG
     if ((now - SmartLastPrint) >= 5000) {
-        fprintf(stderr, " use %2d\n", best->index);
+        fprintf(stderr, " -> use %2d\n", best->index);
         SmartLastPrint = now;
     }
 #endif
-    SmartLastIndex[best->smart_priority - SMART_MIN_PRIORITY] = best->index;
     /*
-     * Set current client pointer
+     * Lazy praise: if the selected client has been idle for at least
+     * 2 * SmartScheduleSlice ms and was previously penalized, boost its
+     * smart_priority and move it to the higher bucket before running.
+     */
+    if ((now - best->smart_stop_tick) >= idle && best->smart_priority < 0) {
+        best->smart_priority++;
+        mlfq_requeue_client(best);
+    }
+
+    /* 
+     * Track context switches for smart_start_tick / slice widening. 
      */
     if (SmartLastClient != best) {
         best->smart_start_tick = now;
         SmartLastClient = best;
     }
-    /*
-     * Adjust slice
-     */
-    if (nready == 1 && SmartScheduleLatencyLimited == 0) {
+
+    /* Widen the slice when only one client is ready and it has been
+     * running continuously, to maximise throughput for batch workloads. */
+    if (mlfq_nready == 1 && SmartScheduleLatencyLimited == 0) {
         /*
          * If it's been a long time since another client
          * has run, bump the slice up to get maximal
@@ -514,6 +563,7 @@ Dispatch(void)
                     /* Penalize clients which consume ticks */
                     if (client->smart_priority > SMART_MIN_PRIORITY)
                         client->smart_priority--;
+                    mlfq_requeue_client(client);
                     break;
                 }
 
