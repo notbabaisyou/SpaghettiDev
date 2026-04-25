@@ -18,6 +18,12 @@ Yet _another_ fork of the X.Org Display Server.
 - Introduction of Meatball, an implementation of Wayland on X11 based upon 12to11.
 - Introduction of Fission, an improved version of modesetting designed for the Atomic Kernel Modesetting future.
 
+## Why does 26.1 and older differ from current versions?
+
+`26.1` and `26.0` use the old `master` branch that was a broken mess,
+all newer versions are based upon Xorg's `main` branch which has all
+the fallout and ABI breakage fixed up.
+
 ## Credits.
 
 The Spaghetti Display Server is licensed under the GPLv3.
