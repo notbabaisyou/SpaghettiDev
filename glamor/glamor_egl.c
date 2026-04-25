@@ -572,7 +572,7 @@ glamor_egl_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
          * gbm_bo_get_fd without losing information. If they point to different
          * objects we are out of luck and need to give up.
          */
-	if (first_handle == plane_handle.s32)
+        if (first_handle == plane_handle.s32)
             fds[i] = gbm_bo_get_fd(bo);
         else
             fds[i] = -1;
@@ -580,6 +580,7 @@ glamor_egl_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
         if (fds[i] == -1) {
             while (--i >= 0)
                 close(fds[i]);
+            gbm_bo_destroy(bo);
             return 0;
         }
         strides[i] = gbm_bo_get_stride_for_plane(bo, i);
@@ -953,8 +954,10 @@ glamor_egl_close_screen(ScreenPtr screen)
     screen_pixmap = screen->GetScreenPixmap(screen);
     pixmap_priv = glamor_get_pixmap_private(screen_pixmap);
 
-    eglDestroyImageKHR(glamor_egl->display, pixmap_priv->image);
-    pixmap_priv->image = NULL;
+    if (pixmap_priv->image) {
+        eglDestroyImageKHR(glamor_egl->display, pixmap_priv->image);
+        pixmap_priv->image = NULL;
+    }
 
     screen->CloseScreen = glamor_egl->saved_close_screen;
 
@@ -1178,18 +1181,17 @@ glamor_egl_try_big_gl_api(ScrnInfoPtr scrn)
             return FALSE;
         }
 
-        if (epoxy_gl_version() < 21)
-        {
+        if (epoxy_gl_version() < 21) {
             xf86DrvMsg(scrn->scrnIndex, X_INFO,
                        "glamor: Ignoring OpenGL < 2.1, falling back to GLES.\n");
             eglDestroyContext(glamor_egl->display, glamor_egl->context);
             glamor_egl->context = EGL_NO_CONTEXT;
+        } else {
+            xf86DrvMsg(scrn->scrnIndex, X_INFO,
+                "glamor: Using OpenGL %d.%d context.\n",
+                epoxy_gl_version() / 10,
+                epoxy_gl_version() % 10);
         }
-
-        xf86DrvMsg(scrn->scrnIndex, X_INFO,
-            "glamor: Using OpenGL %d.%d context.\n",
-            epoxy_gl_version() / 10,
-            epoxy_gl_version() % 10);
     }
     return TRUE;
 }
@@ -1283,7 +1285,7 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
     xf86ProcessOptions(scrn->scrnIndex, scrn->options, options);
 
     glamor_egl->provider_enabled = 
-        xf86ReturnOptValBool(GlamorEGLOptions, GLAMOREGLOPT_GLX_GLAMOR, TRUE);
+        xf86ReturnOptValBool(options, GLAMOREGLOPT_GLX_GLAMOR, TRUE);
 
     api = xf86GetOptValString(options, GLAMOREGLOPT_RENDERING_API);
     if (api && !strncasecmp(api, "es", 2))
