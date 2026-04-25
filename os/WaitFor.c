@@ -52,71 +52,12 @@ SOFTWARE.
  *
  *****************************************************************/
 
-#ifdef HAVE_DIX_CONFIG_H
-#include <dix-config.h>
-#endif
-
-#ifdef WIN32
-#include <X11/Xwinsock.h>
-#endif
-#include <X11/Xos.h>            /* for strings, fcntl, time */
-#include <errno.h>
-#include <stdio.h>
-#include <X11/X.h>
-
-#include "os/busfault.h"
-
-#include "misc.h"
-
-#include "osdep.h"
-#include "dixstruct.h"
-#include "opaque.h"
-#ifdef DPMSExtension
-#include "dpmsproc.h"
-#endif
-
-#ifdef WIN32
-/* Error codes from windows sockets differ from fileio error codes  */
-#undef EINTR
-#define EINTR WSAEINTR
-#undef EINVAL
-#define EINVAL WSAEINVAL
-#undef EBADF
-#define EBADF WSAENOTSOCK
-/* Windows select does not set errno. Use GetErrno as wrapper for
-   WSAGetLastError */
-#define GetErrno WSAGetLastError
-#else
-/* This is just a fallback to errno to hide the differences between unix and
-   Windows in the code */
-#define GetErrno() errno
-#endif
-
-#ifdef DPMSExtension
-#include <X11/extensions/dpmsconst.h>
-#endif
-
-struct _OsTimerRec {
-    struct xorg_list list;
-    CARD32 expires;
-    CARD32 delta;
-    OsTimerCallback callback;
-    void *arg;
-};
+#include "WaitFor.h"
 
 static void DoTimer(OsTimerPtr timer, CARD32 now);
 static void DoTimers(CARD32 now);
 static void CheckAllTimers(void);
 static volatile struct xorg_list timers;
-
-static inline OsTimerPtr
-first_timer(void)
-{
-    /* inline xorg_list_is_empty which can't handle volatile */
-    if (timers.next == &timers)
-        return NULL;
-    return xorg_list_first_entry(&timers, struct _OsTimerRec, list);
-}
 
 /*
  * Compute timeout until next timer, running
@@ -248,25 +189,19 @@ AdjustWaitForDelay(void *waitTime, int newdelay)
         *timeoutp = newdelay;
 }
 
-static inline Bool timer_pending(OsTimerPtr timer) {
-    return !xorg_list_is_empty(&timer->list);
-}
-
 /* If time has rewound, re-run every affected timer.
  * Timers might drop out of the list, so we have to restart every time. */
 static void
 CheckAllTimers(void)
 {
-    OsTimerPtr timer;
     CARD32 now;
 
     input_lock();
  start:
     now = GetTimeInMillis();
-
-    xorg_list_for_each_entry(timer, &timers, list) {
-        if (timer->expires - now > timer->delta + 250) {
-            DoTimer(timer, now);
+    for (int i = 0; i < heap_size; i++) {
+        if (heap[i]->expires - now > heap[i]->delta + 250) {
+            DoTimer(heap[i], now);
             goto start;
         }
     }
@@ -278,8 +213,10 @@ DoTimer(OsTimerPtr timer, CARD32 now)
 {
     CARD32 newTime;
 
-    xorg_list_del(&timer->list);
-    newTime = (*timer->callback) (timer, now, timer->arg);
+    if (timer_pending(timer))
+        heap_remove_at(timer_heap_index(timer));
+
+    newTime = (*timer->callback)(timer, now, timer->arg);
     if (newTime)
         TimerSet(timer, 0, newTime, timer->callback, timer->arg);
 }
@@ -302,19 +239,18 @@ OsTimerPtr
 TimerSet(OsTimerPtr timer, int flags, CARD32 millis,
          OsTimerCallback func, void *arg)
 {
-    OsTimerPtr existing;
     CARD32 now = GetTimeInMillis();
 
     if (!timer) {
         timer = calloc(1, sizeof(struct _OsTimerRec));
         if (!timer)
             return NULL;
-        xorg_list_init(&timer->list);
+        timer_set_heap_index(timer, -1);
     }
     else {
         input_lock();
         if (timer_pending(timer)) {
-            xorg_list_del(&timer->list);
+            heap_remove_at(timer_heap_index(timer));
             if (flags & TimerForceOld)
                 (void) (*timer->callback) (timer, now, timer->arg);
         }
@@ -322,24 +258,24 @@ TimerSet(OsTimerPtr timer, int flags, CARD32 millis,
     }
     if (!millis)
         return timer;
+
     if (flags & TimerAbsolute) {
-        timer->delta = millis - now;
-    }
-    else {
+        timer->delta = (millis > now) ? millis - now : 0;
+    } else {
         timer->delta = millis;
         millis += now;
     }
+
     timer->expires = millis;
     timer->callback = func;
     timer->arg = arg;
     input_lock();
 
     /* Sort into list */
-    xorg_list_for_each_entry(existing, &timers, list)
-        if ((int) (existing->expires - millis) > 0)
-            break;
-    /* This even works at the end of the list -- existing->list will be timers */
-    xorg_list_append(&timer->list, &existing->list);
+    if (!heap_insert(timer)) {
+        input_unlock();
+        return NULL;
+    }
 
     /* Check to see if the timer is ready to run now */
     if ((int) (millis - now) <= 0)
@@ -367,8 +303,10 @@ TimerCancel(OsTimerPtr timer)
 {
     if (!timer)
         return;
+
     input_lock();
-    xorg_list_del(&timer->list);
+    if (timer_pending(timer))
+        heap_remove_at(timer_heap_index(timer));
     input_unlock();
 }
 
@@ -390,18 +328,13 @@ TimerCheck(void)
 void
 TimerInit(void)
 {
-    static Bool been_here;
-    OsTimerPtr timer, tmp;
-
-    if (!been_here) {
-        been_here = TRUE;
-        xorg_list_init((struct xorg_list*) &timers);
+    input_lock();
+    for (int i = 0; i < heap_size; i++) {
+        timer_set_heap_index(heap[i], -1);
+        free(heap[i]);
     }
-
-    xorg_list_for_each_entry_safe(timer, tmp, &timers, list) {
-        xorg_list_del(&timer->list);
-        free(timer);
-    }
+    heap_size = 0;
+    input_unlock();
 }
 
 #ifdef DPMSExtension
