@@ -461,100 +461,81 @@ glamor_gbm_bo_from_pixmap(ScreenPtr screen, PixmapPtr pixmap)
     return glamor_gbm_bo_from_pixmap_internal(screen, pixmap);
 }
 
+#ifndef GBM_MAX_PLANES
+#define GBM_MAX_PLANES 4
+#endif
+
 int
 glamor_egl_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
                            uint32_t *strides, uint32_t *offsets,
                            uint64_t *modifier)
 {
-#ifdef GLAMOR_HAS_GBM
-    struct gbm_bo *bo;
-    int num_fds;
-#ifdef GBM_BO_WITH_MODIFIERS
-#ifndef GBM_BO_FD_FOR_PLANE
-    int32_t first_handle;
-#endif
-    int i;
-#endif
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
+    struct glamor_pixmap_private *pixmap_priv =
+        glamor_get_pixmap_private(pixmap);
+    EGLint num_fds, fourcc;
+    EGLuint64KHR mod;
 
     if (!glamor_make_pixmap_exportable(pixmap, TRUE))
         return 0;
 
-    bo = glamor_gbm_bo_from_pixmap_internal(screen, pixmap);
-    if (!bo)
+    if (!pixmap_priv->image)
         return 0;
 
-#ifdef GBM_BO_WITH_MODIFIERS
-    num_fds = gbm_bo_get_plane_count(bo);
-    for (i = 0; i < num_fds; i++) {
-#ifdef GBM_BO_FD_FOR_PLANE
-        fds[i] = gbm_bo_get_fd_for_plane(bo, i);
-#else
-        union gbm_bo_handle plane_handle = gbm_bo_get_handle_for_plane(bo, i);
+    if (!eglExportDMABUFImageQueryMESA(glamor_egl->display,
+                                       pixmap_priv->image,
+                                       &fourcc, &num_fds, &mod))
+        return 0;
 
-        if (i == 0)
-            first_handle = plane_handle.s32;
+    /*
+     * eglExportDMABUFImageMESA takes EGLint* for strides and offsets,
+     * but our callers use uint32_t*. Use local EGLint arrays and copy
+     * across to avoid aliasing the signed/unsigned types.
+     */
+    EGLint egl_strides[GBM_MAX_PLANES] = { 0 };
+    EGLint egl_offsets[GBM_MAX_PLANES] = { 0 };
 
-        /* If all planes point to the same object as the first plane, i.e. they
-         * all have the same handle, we can fall back to the non-planar
-         * gbm_bo_get_fd without losing information. If they point to different
-         * objects we are out of luck and need to give up.
-         */
-        if (first_handle == plane_handle.s32)
-            fds[i] = gbm_bo_get_fd(bo);
-        else
-            fds[i] = -1;
-#endif
-        if (fds[i] == -1) {
-            while (--i >= 0)
-                close(fds[i]);
-            gbm_bo_destroy(bo);
-            return 0;
-        }
-        strides[i] = gbm_bo_get_stride_for_plane(bo, i);
-        offsets[i] = gbm_bo_get_offset(bo, i);
+    if (!eglExportDMABUFImageMESA(glamor_egl->display,
+                                  pixmap_priv->image,
+                                  fds, egl_strides, egl_offsets)) {
+        return 0;
     }
-    *modifier = gbm_bo_get_modifier(bo);
-#else
-    num_fds = 1;
-    fds[0] = gbm_bo_get_fd(bo);
-    if (fds[0] == -1)
-        return 0;
-    strides[0] = gbm_bo_get_stride(bo);
-    offsets[0] = 0;
-    *modifier = DRM_FORMAT_MOD_INVALID;
-#endif
 
-    gbm_bo_destroy(bo);
+    for (int i = 0; i < num_fds; i++) {
+        strides[i] = (uint32_t)egl_strides[i];
+        offsets[i] = (uint32_t)egl_offsets[i];
+    }
+
+    *modifier = (uint64_t)mod;
     return num_fds;
-#else
-    return 0;
-#endif
 }
 
 int
 glamor_egl_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
                           CARD16 *stride, CARD32 *size)
 {
-#ifdef GLAMOR_HAS_GBM
-    struct gbm_bo *bo;
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
+    struct glamor_pixmap_private *pixmap_priv =
+        glamor_get_pixmap_private(pixmap);
     int fd;
+    EGLint egl_stride, egl_offset;
 
     if (!glamor_make_pixmap_exportable(pixmap, FALSE))
         return -1;
 
-    bo = glamor_gbm_bo_from_pixmap_internal(screen, pixmap);
-    if (!bo)
+    if (!pixmap_priv->image)
         return -1;
 
-    fd = gbm_bo_get_fd(bo);
-    *stride = gbm_bo_get_stride(bo);
-    *size = *stride * gbm_bo_get_height(bo);
-    gbm_bo_destroy(bo);
+    if (!eglExportDMABUFImageMESA(glamor_egl->display,
+                                  pixmap_priv->image,
+                                  &fd, &egl_stride, &egl_offset))
+        return -1;
 
+    *stride = (CARD16)egl_stride;
+    *size   = (CARD32)egl_stride * pixmap->drawable.height;
     return fd;
-#else
-    return -1;
-#endif
 }
 
 int
