@@ -238,8 +238,9 @@ UpdateCurrentTimeIf(void)
 #undef SMART_DEBUG
 
 /* in milliseconds */
-#define SMART_SCHEDULE_DEFAULT_INTERVAL	5
-#define SMART_SCHEDULE_MAX_SLICE	15
+#define SMART_STRIDE_BASE                   100000
+#define SMART_SCHEDULE_DEFAULT_INTERVAL     5
+#define SMART_SCHEDULE_MAX_SLICE            15
 
 #ifdef HAVE_SETITIMER
 Bool SmartScheduleSignalEnable = TRUE;
@@ -251,7 +252,9 @@ long SmartScheduleMaxSlice = SMART_SCHEDULE_MAX_SLICE;
 long SmartScheduleTime;
 int SmartScheduleLatencyLimited = 0;
 static ClientPtr SmartLastClient;
-static int SmartLastIndex[SMART_MAX_PRIORITY - SMART_MIN_PRIORITY + 1];
+
+static unsigned long client_stride[MAXCLIENTS];
+static unsigned long client_pass[MAXCLIENTS];
 
 #ifdef SMART_DEBUG
 long SmartLastPrint;
@@ -263,12 +266,71 @@ static struct xorg_list ready_clients;
 static struct xorg_list saved_ready_clients;
 struct xorg_list output_pending_clients;
 
+/*
+ * Map (priority, smart_priority) to a positive weight.
+ * priority is 0-7, smart_priority is SMART_MIN_PRIORITY(-20)..
+ * SMART_MAX_PRIORITY(+20), so the minimum result is 1.
+ */
+static inline int
+client_weight(ClientPtr client)
+{
+    int w = client->priority * 10 + client->smart_priority + 21;
+    return w < 1 ? 1 : w;
+}
+
+static inline void
+client_update_stride(ClientPtr client)
+{
+    client_stride[client->index] = SMART_STRIDE_BASE / client_weight(client);
+}
+
+/*
+ * Set the initial pass value for a client that is becoming ready.
+ * Use the current minimum pass across all ready clients so the new
+ * client doesn't monopolise the CPU by starting at 0, and doesn't
+ * get starved by starting far behind the pack after a long idle period.
+ */
+static void
+stride_client_init(ClientPtr client)
+{
+    ClientPtr c;
+    unsigned long min_pass = 0;
+    Bool found = FALSE;
+
+    xorg_list_for_each_entry(c, &ready_clients, ready) {
+        if (!found || (long)(client_pass[c->index] - min_pass) < 0) {
+            min_pass = client_pass[c->index];
+            found = TRUE;
+        }
+    }
+
+    client_pass[client->index] = found ? min_pass : 0;
+    client_update_stride(client);
+
+    xorg_list_append(&client->ready, &ready_clients);
+}
+
+/* Reset scheduler state when a client closes. */
+static void
+stride_client_reset(ClientPtr client)
+{
+    client_pass[client->index]   = 0;
+    client_stride[client->index] = 0;
+}
+
 static void
 init_client_ready(void)
 {
     xorg_list_init(&ready_clients);
     xorg_list_init(&saved_ready_clients);
     xorg_list_init(&output_pending_clients);
+}
+
+void
+stride_boost_client(ClientPtr client)
+{
+    client_update_stride(client);
+    client_pass[client->index] -= client_stride[client->index] * 4;
 }
 
 Bool
@@ -282,7 +344,7 @@ void
 mark_client_ready(ClientPtr client)
 {
     if (xorg_list_is_empty(&client->ready))
-        xorg_list_append(&client->ready, &ready_clients);
+        stride_client_init(client);
 }
 
 /*
@@ -329,62 +391,65 @@ mark_client_ungrab(void)
 static ClientPtr
 SmartScheduleClient(void)
 {
-    ClientPtr pClient, best = NULL;
-    int bestRobin, robin;
+    ClientPtr client, best = NULL;
     long now = SmartScheduleTime;
-    long idle;
     int nready = 0;
 
-    bestRobin = 0;
-    idle = 2 * SmartScheduleSlice;
-
-    xorg_list_for_each_entry(pClient, &ready_clients, ready) {
+    xorg_list_for_each_entry(client, &ready_clients, ready) {
         nready++;
 
         /* Praise clients which haven't run in a while */
-        if ((now - pClient->smart_stop_tick) >= idle) {
-            if (pClient->smart_priority < 0)
-                pClient->smart_priority++;
+        if (client->smart_priority < 0 &&
+            (now - client->smart_stop_tick) >= 2 * SmartScheduleSlice) {
+            client->smart_priority++;
         }
 
-        /* check priority to select best client */
-        robin =
-            (pClient->index -
-             SmartLastIndex[pClient->smart_priority -
-                            SMART_MIN_PRIORITY]) & 0xff;
+        /* Recompute stride in case smart_priority changed since last run */
+        client_update_stride(client);
 
-        /* pick the best client */
+        /* Pick the client with the lowest pass value */
         if (!best ||
-            pClient->priority > best->priority ||
-            (pClient->priority == best->priority &&
-             (pClient->smart_priority > best->smart_priority ||
-              (pClient->smart_priority == best->smart_priority && robin > bestRobin))))
-        {
-            best = pClient;
-            bestRobin = robin;
-        }
+            (long)(client_pass[client->index] - client_pass[best->index]) < 0)
+            best = client;
 #ifdef SMART_DEBUG
         if ((now - SmartLastPrint) >= 5000)
-            fprintf(stderr, " %2d: %3d", pClient->index, pClient->smart_priority);
+            fprintf(stderr, " %2d: pass=%lu stride=%lu pri=%d smart=%d",
+                    client->index,
+                    client_pass[client->index],
+                    client_stride[client->index],
+                    client->priority,
+                    client->smart_priority);
 #endif
     }
 #ifdef SMART_DEBUG
     if ((now - SmartLastPrint) >= 5000) {
-        fprintf(stderr, " use %2d\n", best->index);
+        fprintf(stderr, " -> use %2d\n", best->index);
         SmartLastPrint = now;
     }
 #endif
-    SmartLastIndex[best->smart_priority - SMART_MIN_PRIORITY] = best->index;
+    /* Advance winner's pass by its stride */
+    client_pass[best->index] += client_stride[best->index];
+
     /*
-     * Set current client pointer
+     * Normalize pass counters when the minimum drifts high to prevent
+     * unsigned long overflow. Subtracting the minimum from all values
+     * preserves relative ordering exactly.
      */
+    if (client_pass[best->index] > (unsigned long)SMART_STRIDE_BASE * 100000) {
+        ClientPtr c;
+        unsigned long min_pass = client_pass[best->index];
+        xorg_list_for_each_entry(c, &ready_clients, ready)
+            if ((long)(client_pass[c->index] - min_pass) < 0)
+                min_pass = client_pass[c->index];
+        xorg_list_for_each_entry(c, &ready_clients, ready)
+            client_pass[c->index] -= min_pass;
+    }
+
     if (SmartLastClient != best) {
         best->smart_start_tick = now;
         SmartLastClient = best;
     }
-    /*
-     * Adjust slice
-     */
+
     if (nready == 1 && SmartScheduleLatencyLimited == 0) {
         /*
          * If it's been a long time since another client
@@ -395,10 +460,10 @@ SmartScheduleClient(void)
             SmartScheduleSlice < SmartScheduleMaxSlice) {
             SmartScheduleSlice += SmartScheduleInterval;
         }
-    }
-    else {
+    } else {
         SmartScheduleSlice = SmartScheduleInterval;
     }
+
     return best;
 }
 
@@ -3484,9 +3549,11 @@ CloseDownClient(ClientPtr client)
         if (ClientIsAsleep(client))
             ClientSignal(client);
         ProcessWorkQueueZombies();
+
         CloseDownConnection(client);
         output_pending_clear(client);
         mark_client_not_ready(client);
+        stride_client_reset(client);
 
         /* If the client made it to the Running stage, nClients has
          * been incremented on its behalf, so we need to decrement it
