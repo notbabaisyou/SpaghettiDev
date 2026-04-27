@@ -155,6 +155,9 @@ static inline Bool client_is_ready(ClientPtr client)
 Bool
 clients_are_ready(void);
 
+void
+stride_boost_client(ClientPtr client);
+
 extern struct xorg_list output_pending_clients;
 
 static inline void
