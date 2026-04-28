@@ -298,6 +298,9 @@ typedef struct glamor_screen_private {
     int                         glyph_max_dim;
     char                        *glyph_defines;
 
+    /* glamor transfer shader */
+    glamor_program       transfer_24_to_32_prog;
+
     /** Vertex buffer for all GPU rendering. */
     GLuint vao;
     GLuint vbo;
