@@ -351,6 +351,9 @@ else
     build_glamor = glamor_option == 'true'
 endif
 
+# XXX: This should be guarded by something once we have something functional.
+build_passata = true
+
 gbm_dep = dependency('', required: false)
 epoxy_dep = dependency('', required: false)
 if build_glamor
