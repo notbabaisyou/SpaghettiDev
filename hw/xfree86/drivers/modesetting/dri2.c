@@ -1040,6 +1040,10 @@ ms_dri2_screen_init(ScreenPtr screen)
     DRI2InfoRec info;
     const char *driver_names[2] = { NULL, NULL };
 
+    /* XXX: TODO */
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_EXA)
+        return FALSE;
+
     if (!ms->glamor.supports_pixmap_import_export(screen)) {
         xf86DrvMsg(scrn->scrnIndex, X_WARNING,
                    "DRI2: glamor lacks support for pixmap import/export\n");

@@ -8,12 +8,17 @@ modesetting_srcs = [
     'vblank.c',
 ]
 
+exa_inc = []
+if build_passata
+    exa_inc += passata_inc
+endif
+
 shared_module(
     'modesetting_drv',
     modesetting_srcs,
     name_prefix: '',
 
-    include_directories: [inc, xorg_inc],
+    include_directories: [inc, xorg_inc, exa_inc],
     c_args: xorg_c_args,
     dependencies: [
         common_dep,

@@ -42,6 +42,8 @@
 #include <gbm.h>
 #endif
 
+#include "passata.h"
+
 #include "drmmode_display.h"
 #define MS_LOGLEVEL_DEBUG 4
 
@@ -187,6 +189,11 @@ typedef struct _modesettingRec {
         const char *(*egl_get_driver_name)(ScreenPtr);
     } glamor;
 #endif
+
+    struct {
+        Bool (*exa_init)(ScrnInfoPtr, int);
+        void (*finish)(ScrnInfoPtr);
+    } exa;
 } modesettingRec, *modesettingPtr;
 
 #define glamor_finish(screen) ms->glamor.finish(screen)
