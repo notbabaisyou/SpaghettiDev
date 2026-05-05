@@ -82,11 +82,17 @@ typedef struct {
 #endif
 } drmmode_bo;
 
+typedef enum {
+    MS_ACCEL_METHOD_NONE = 0,
+    MS_ACCEL_METHOD_GLAMOR = 1,
+    MS_ACCEL_METHOD_EXA = 2
+} ms_accel_method;
+
 typedef struct {
     int fd;
     unsigned fb_id;
     ScrnInfoPtr scrn;
-    Bool glamor;
+    ms_accel_method accel_method;
     /** Is Option "PageFlip" enabled? */
     Bool pageflip;
     int cpp;

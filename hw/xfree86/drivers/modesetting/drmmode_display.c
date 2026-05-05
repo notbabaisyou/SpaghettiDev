@@ -570,7 +570,7 @@ drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
 
 #ifdef GLAMOR_HAS_GBM
     /* Make sure any pending drawing will be visible in a new scanout buffer */
-    if (drmmode->glamor)
+    if (drmmode->accel_method == MS_ACCEL_METHOD_GLAMOR)
         glamor_finish(crtc->scrn->pScreen);
 #endif
 
@@ -787,7 +787,7 @@ drmmode_create_bo(drmmode_ptr drmmode, drmmode_bo *bo,
     bo->height = height;
 
 #ifdef GLAMOR_HAS_GBM
-    if (drmmode->glamor) {
+    if (drmmode->accel_method == MS_ACCEL_METHOD_GLAMOR) {
         uint32_t format;
         uint32_t num_modifiers;
         uint64_t *modifiers = NULL;
@@ -1967,7 +1967,7 @@ drmmode_clear_pixmap(PixmapPtr pixmap)
 #ifdef GLAMOR_HAS_GBM
     modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(screen));
 
-    if (ms->drmmode.glamor) {
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_GLAMOR) {
         ms->glamor.clear_pixmap(pixmap);
         return;
     }
@@ -3548,7 +3548,7 @@ drmmode_set_pixmap_bo(drmmode_ptr drmmode, PixmapPtr pixmap, drmmode_bo *bo)
     ScrnInfoPtr scrn = drmmode->scrn;
     modesettingPtr ms = modesettingPTR(scrn);
 
-    if (!drmmode->glamor)
+    if (drmmode->accel_method != MS_ACCEL_METHOD_GLAMOR)
         return TRUE;
 
     if (!ms->glamor.egl_create_textured_pixmap_from_gbm_bo(pixmap, bo->gbm,
@@ -3890,19 +3890,25 @@ drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp)
 Bool
 drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 {
-#ifdef GLAMOR_HAS_GBM
-    ScreenPtr pScreen = xf86ScrnToScreen(pScrn);
     modesettingPtr ms = modesettingPTR(pScrn);
 
-    if (drmmode->glamor) {
+#ifdef GLAMOR_HAS_GBM
+    ScreenPtr pScreen = xf86ScrnToScreen(pScrn);
+
+    if (drmmode->accel_method == MS_ACCEL_METHOD_GLAMOR) {
         if (!ms->glamor.init(pScreen, GLAMOR_USE_EGL_SCREEN)) {
             return FALSE;
         }
 #ifdef GBM_BO_WITH_MODIFIERS
         ms->glamor.set_drawable_modifiers_func(pScreen, get_drawable_modifiers);
 #endif
-    }
+    } else
 #endif
+    if (drmmode->accel_method == MS_ACCEL_METHOD_EXA) {
+        if (!ms->exa.exa_init(pScrn, ms->fd)) {
+            return FALSE;
+        }
+    }
 
     return TRUE;
 }

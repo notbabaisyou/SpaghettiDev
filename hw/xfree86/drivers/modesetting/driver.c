@@ -832,7 +832,7 @@ redisplay_dirty(ScreenPtr screen, PixmapDirtyUpdatePtr dirty, int *timeout)
          * copy to its own framebuffer (some secondarys scanout directly from
          * the shared pixmap, but not all).
          */
-        if (ms->drmmode.glamor)
+        if (ms->drmmode.accel_method == MS_ACCEL_METHOD_GLAMOR)
             ms->glamor.finish(screen);
 #endif
         /* Ensure the secondary processes the damage immediately */
@@ -1171,16 +1171,25 @@ load_glamor(ScrnInfoPtr pScrn)
 
 #endif
 
+static Bool
+load_passata(ScrnInfoPtr pScrn)
+{
+    void *mod = xf86LoadSubModule(pScrn, PASSATA_EGL_MODULE_NAME);
+    modesettingPtr ms = modesettingPTR(pScrn);
+
+    if (!mod)
+        return FALSE;
+
+    ms->exa.exa_init = LoaderSymbolFromModule(mod, "passata_init");
+    ms->exa.finish = LoaderSymbolFromModule(mod, "passata_fini");
+
+    return TRUE;
+}
+
 static void
 try_enable_glamor(ScrnInfoPtr pScrn)
 {
     modesettingPtr ms = modesettingPTR(pScrn);
-    const char *accel_method_str = xf86GetOptValString(ms->drmmode.Options,
-                                                       OPTION_ACCEL_METHOD);
-    Bool do_glamor = (!accel_method_str ||
-                      strcmp(accel_method_str, "glamor") == 0);
-
-    ms->drmmode.glamor = FALSE;
 
 #ifdef GLAMOR_HAS_GBM
     if (ms->drmmode.force_24_32) {
@@ -1188,15 +1197,10 @@ try_enable_glamor(ScrnInfoPtr pScrn)
         return;
     }
 
-    if (!do_glamor) {
-        xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "glamor disabled\n");
-        return;
-    }
-
     if (load_glamor(pScrn)) {
         if (ms->glamor.egl_init(pScrn, ms->fd)) {
             xf86DrvMsg(pScrn->scrnIndex, X_INFO, "glamor initialized\n");
-            ms->drmmode.glamor = TRUE;
+            ms->drmmode.accel_method = MS_ACCEL_METHOD_GLAMOR;
         } else {
             xf86DrvMsg(pScrn->scrnIndex, X_INFO,
                        "glamor initialization failed\n");
@@ -1206,11 +1210,28 @@ try_enable_glamor(ScrnInfoPtr pScrn)
                    "Failed to load glamor module.\n");
     }
 #else
-    if (do_glamor) {
-        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-                   "No glamor support in the X Server\n");
-    }
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+               "No glamor support in the X Server\n");
 #endif
+}
+
+static void
+try_enable_exa(ScrnInfoPtr pScrn)
+{
+    modesettingPtr ms = modesettingPTR(pScrn);
+
+    if (!xf86LoadSubModule(pScrn, "exa")) {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                   "Failed to load EXA module.\n");
+        return;
+    }
+
+    if (load_passata(pScrn)) {
+        ms->drmmode.accel_method = MS_ACCEL_METHOD_EXA;
+    } else {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                   "Failed to load passata module.\n");
+    }
 }
 
 static Bool
@@ -1416,9 +1437,20 @@ PreInit(ScrnInfoPtr pScrn, int flags)
         xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Using multi-plane modifiers for front BO.\n");
     }
 
-    try_enable_glamor(pScrn);
+    const char *accel_method_str = xf86GetOptValString(ms->drmmode.Options,
+                                                       OPTION_ACCEL_METHOD);
+    Bool do_glamor = (!accel_method_str ||
+                      strcmp(accel_method_str, "glamor") == 0);
+    Bool do_exa = (accel_method_str && strcmp(accel_method_str, "exa") == 0);
 
-    if (!ms->drmmode.glamor) {
+    if (do_glamor)
+        try_enable_glamor(pScrn);
+    else if (do_exa)
+        try_enable_exa(pScrn);
+    else
+        ms->drmmode.accel_method = MS_ACCEL_METHOD_NONE;
+
+    if (!ms->drmmode.accel_method) {
         Bool prefer_shadow = TRUE;
 
         if (ms->drmmode.force_24_32) {
@@ -1465,11 +1497,11 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     if (ret == 0) {
         if (connector_count && (value & DRM_PRIME_CAP_IMPORT)) {
             pScrn->capabilities |= RR_Capability_SinkOutput;
-            if (ms->drmmode.glamor)
+            if (ms->drmmode.accel_method)
                 pScrn->capabilities |= RR_Capability_SinkOffload;
         }
 #ifdef GLAMOR_HAS_GBM_LINEAR
-        if (value & DRM_PRIME_CAP_EXPORT && ms->drmmode.glamor)
+        if (value & DRM_PRIME_CAP_EXPORT && ms->drmmode.accel_method)
             pScrn->capabilities |= RR_Capability_SourceOutput | RR_Capability_SourceOffload;
 #endif
     }
@@ -1495,7 +1527,7 @@ PreInit(ScrnInfoPtr pScrn, int flags)
         if (pScrn->is_gpu) {
             xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
                        "TearFree cannot synchronize PRIME; use 'PRIME Synchronization' instead\n");
-        } else if (ms->drmmode.glamor) {
+        } else if (ms->drmmode.accel_method) {
             /* Atomic modesetting implicitly enables universal planes */
             if (!ms->drmmode.pageflip || ms->universal_planes) {
                 ms->drmmode.tearfree_enable = TRUE;
@@ -2050,7 +2082,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
         return FALSE;
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor)
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_GLAMOR)
         ms->drmmode.gbm = ms->glamor.egl_get_gbm_device(pScreen);
 #endif
 
@@ -2161,7 +2193,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
      * later memory should be bound when allocating, e.g rotate_mem */
     pScrn->vtSema = TRUE;
 
-    if (serverGeneration == 1 && bgNoneRoot && ms->drmmode.glamor) {
+    if (serverGeneration == 1 && bgNoneRoot && ms->drmmode.accel_method) {
         ms->CreateWindow = pScreen->CreateWindow;
         pScreen->CreateWindow = CreateWindow_oneshot;
     }
@@ -2194,7 +2226,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     xf86DPMSInit(pScreen, xf86DPMSSet, 0);
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor) {
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_GLAMOR) {
         ms->glamor_adaptor = ms->glamor.xv_init(pScreen, 16);
         if (ms->glamor_adaptor)
             xf86XVScreenInit(pScreen, &ms->glamor_adaptor, 1);
@@ -2214,7 +2246,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     }
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor) {
+    if (ms->drmmode.accel_method) {
         if (!(ms->drmmode.dri2_enable = ms_dri2_screen_init(pScreen))) {
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                        "Failed to initialize the DRI2 extension.\n");
@@ -2359,6 +2391,9 @@ CloseScreen(ScreenPtr pScreen)
     if (ms->glamor_adaptor)
         free(ms->glamor_adaptor);
 #endif
+
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_EXA)
+        ms->exa.finish(pScrn);
 
     ms_vblank_close_screen(pScreen);
 

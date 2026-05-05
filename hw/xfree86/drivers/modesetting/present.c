@@ -187,7 +187,7 @@ ms_present_flush(WindowPtr window)
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
 
-    if (ms->drmmode.glamor)
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_GLAMOR)
         ms->glamor.block_handler(screen);
 #endif
 }
@@ -282,7 +282,7 @@ ms_present_check_unflip(RRCrtcPtr crtc,
         pixmap->devKind != drmmode_bo_get_pitch(&ms->drmmode.front_bo))
         return FALSE;
 
-    if (!ms->drmmode.glamor)
+    if (ms->drmmode.accel_method != MS_ACCEL_METHOD_GLAMOR)
         return FALSE;
 
 #ifdef GBM_BO_WITH_MODIFIERS
@@ -516,10 +516,14 @@ ms_present_screen_init(ScreenPtr screen)
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
-    uint64_t value;
-    int ret;
+    uint64_t value = 0;
+    int ret = 0;
 
-    ret = drmGetCap(ms->fd, DRM_CAP_ASYNC_PAGE_FLIP, &value);
+    /* XXX: TODO */
+    if (ms->drmmode.accel_method == MS_ACCEL_METHOD_EXA)
+        return FALSE;
+
+    ret = drmGetCap(ms->fd, DRM_CAP_ASYNC_PAGE_FLIP, &value);    
     if (ret == 0 && value == 1) {
         ms_present_screen_info.capabilities |= PresentCapabilityAsync;
         ms->drmmode.can_async_flip = TRUE;
