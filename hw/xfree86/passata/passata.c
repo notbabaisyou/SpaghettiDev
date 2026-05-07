@@ -176,13 +176,12 @@ passata_prepare_access(PixmapPtr pPix, int index)
 static void
 passata_finish_access(PixmapPtr pPix, int index)
 {
-    pPix->devPrivate.ptr = NULL;
 }
 
 static Bool
 passata_pixmap_is_offscreen(PixmapPtr pPixmap)
 {
-    return exaGetPixmapDriverPrivate(pPixmap) != NULL;
+    return FALSE;
 }
 
 static void
