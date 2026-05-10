@@ -207,18 +207,15 @@ passata_modify_pixmap_header(PixmapPtr pPixmap, int width, int height,
 }
 
 static void
-passata_setup_exa(ExaDriverPtr exa)
+passata_setup_exa(ExaDriverPtr exa, passata_screen_priv *priv)
 {
     exa->exa_major = EXA_VERSION_MAJOR;
     exa->exa_minor = EXA_VERSION_MINOR;
 
     exa->flags = EXA_OFFSCREEN_PIXMAPS | EXA_HANDLES_PIXMAPS;
+    exa->maxX  = priv->max_texture_size;;
+    exa->maxY  = priv->max_texture_size;;
 
-    /*
-     * Temporary limits — will be replaced with GL_MAX_TEXTURE_SIZE
-     */
-    exa->maxX = 4096;
-    exa->maxY = 4096;
     exa->pixmapPitchAlign = 4;
 
     exa->PrepareSolid = passata_prepare_solid;
@@ -259,16 +256,21 @@ passata_init(ScrnInfoPtr scrn, int fd)
     if (!priv)
         return FALSE;
 
+    priv->display = EGL_NO_DISPLAY;
+    priv->context = EGL_NO_CONTEXT;
     priv->fd   = fd;
     priv->scrn = scrn;
     dixSetPrivate(&pScreen->devPrivates, &passata_screen_private_key, priv);
+ 
+    if (!passata_egl_init(scrn, fd))
+        goto bail;
 
     exa = exaDriverAlloc();
     if (!exa)
         goto bail;
 
     priv->exa = exa;
-    passata_setup_exa(exa);
+    passata_setup_exa(exa, priv);
 
     if (!exaDriverInit(pScreen, exa))
         goto bail;
@@ -295,6 +297,8 @@ passata_fini(ScrnInfoPtr scrn)
         exaDriverFini(pScreen);
         free(priv->exa);
     }
+
+    passata_egl_fini(scrn);
 
     free(priv);
     dixSetPrivate(&pScreen->devPrivates, &passata_screen_private_key, NULL);

@@ -1,5 +1,6 @@
 passata_sources = [
-    'passata.c',
+    'passata_egl.c',
+    'passata.c'
 ]
 
 passata_inc = [
@@ -13,6 +14,7 @@ shared_module('passata',
     dependencies: [
         common_dep,
         epoxy_dep,
+        dependency('libdrm', version: '>= 2.4.46'),
     ],
     link_with: [ libxserver_exa ],
     install: true,

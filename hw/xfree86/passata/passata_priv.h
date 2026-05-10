@@ -21,16 +21,30 @@
 
 #include "passata.h"
 
+#include <epoxy/egl.h>
+#include <epoxy/gl.h>
+#include <xf86.h>
 #include "exa.h"
 #include "privates.h"
-#include <xf86.h>
 
 #define PASSATA_LOG_PREFIX "passata"
 
 typedef struct _passata_screen_priv {
-    ScrnInfoPtr   scrn;
-    int           fd;
-    ExaDriverPtr  exa;
+    ScrnInfoPtr  scrn;
+    int          fd;
+    GLint        max_texture_size;
+    ExaDriverPtr exa;
+ 
+    EGLDisplay   display;
+    EGLContext   context;
+ 
+    Bool         has_fbo;
+    Bool         has_shaders;
+    Bool         has_npot;
+    Bool         has_texture_swizzle;
+    Bool         has_texture_barrier;
+    Bool         has_dma_buf_export;
+    Bool         has_dma_buf_modifiers;
 } passata_screen_priv;
 
 typedef struct {
@@ -40,5 +54,8 @@ typedef struct {
 } passata_pixmap_priv;
 
 passata_screen_priv *passata_get_screen_priv(ScreenPtr pScreen);
+
+Bool passata_egl_init(ScrnInfoPtr scrn, int fd);
+void passata_egl_fini(ScrnInfoPtr scrn);
 
 #endif /* PASSATA_PRIV_H */
