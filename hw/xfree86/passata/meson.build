@@ -1,5 +1,6 @@
 passata_sources = [
     'passata_egl.c',
+    'passata_pixmap.c',
     'passata.c'
 ]
 

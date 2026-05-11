@@ -41,21 +41,43 @@ typedef struct _passata_screen_priv {
     Bool         has_fbo;
     Bool         has_shaders;
     Bool         has_npot;
+    Bool         has_texture_rg;
     Bool         has_texture_swizzle;
     Bool         has_texture_barrier;
     Bool         has_dma_buf_export;
     Bool         has_dma_buf_modifiers;
 } passata_screen_priv;
 
-typedef struct {
-    void *ptr;   /* pixel data */
-    int   pitch; /* row stride in bytes */
-    Bool  owned; /* FALSE if ptr is owned externally (e.g. screen pixmap) */
+typedef struct _passata_pixmap_priv {
+    GLuint  tex;         /* GL texture name; 0 if no GPU copy (e.g. 1bpp) */
+    GLuint  fbo;         /* FBO with tex attached; 0 if format not renderable */
+    void   *sys_copy;    /* CPU-accessible buffer; NULL if zero-size pixmap */
+    int     pitch;       /* row stride in bytes */
+    Bool    gpu_valid;   /* tex has up-to-date data */
+    Bool    cpu_valid;   /* sys_copy has up-to-date data */
+    Bool    is_external; /* sys_copy is owned externally — do not free */
 } passata_pixmap_priv;
 
 passata_screen_priv *passata_get_screen_priv(ScreenPtr pScreen);
 
 Bool passata_egl_init(ScrnInfoPtr scrn, int fd);
 void passata_egl_fini(ScrnInfoPtr scrn);
+
+void passata_upload_to_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv);
+void passata_download_from_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv);
+ 
+void *passata_create_pixmap2(ScreenPtr pScreen, int width, int height,
+                             int depth, int usage_hint, int bitsPerPixel,
+                             int *new_fb_pitch);
+
+void passata_destroy_pixmap(ScreenPtr pScreen, void *driverPriv);
+
+Bool passata_modify_pixmap_header(PixmapPtr pPixmap, int width, int height,
+                                  int depth, int bitsPerPixel, int devKind,
+                                  void *pPixData);
+
+Bool passata_pixmap_is_offscreen(PixmapPtr pPixmap);
+Bool passata_prepare_access(PixmapPtr pPix, int index);
+void passata_finish_access(PixmapPtr pPix, int index);
 
 #endif /* PASSATA_PRIV_H */

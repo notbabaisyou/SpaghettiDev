@@ -151,6 +151,10 @@ passata_query_capabilities(ScrnInfoPtr scrn)
     priv->has_npot =
         passata_has_extension(gl_exts, "GL_ARB_texture_non_power_of_two");
 
+    priv->has_texture_rg =
+        passata_has_extension(gl_exts, "GL_ARB_texture_rg") ||
+        passata_has_extension(gl_exts, "GL_EXT_texture_rg");
+
     priv->has_texture_swizzle =
         passata_has_extension(gl_exts, "GL_ARB_texture_swizzle") ||
         passata_has_extension(gl_exts, "GL_EXT_texture_swizzle");

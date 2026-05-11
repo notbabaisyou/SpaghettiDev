@@ -112,98 +112,10 @@ passata_done_composite(PixmapPtr pDst)
 {
 }
 
-static void *
-passata_create_pixmap2(ScreenPtr pScreen, int width, int height,
-                       int depth, int usage_hint, int bitsPerPixel,
-                       int *new_fb_pitch)
-{
-    passata_pixmap_priv *priv;
-    int pitch;
-
-    priv = calloc(1, sizeof(*priv));
-    if (!priv)
-        return NULL;
-
-    if (width == 0 || height == 0 || bitsPerPixel == 0) {
-        *new_fb_pitch = 0;
-        return priv;
-    }
-
-    pitch = BitmapBytePad(width * bitsPerPixel);
-    *new_fb_pitch = pitch;
-
-    priv->ptr = calloc(1, pitch * height);
-    if (!priv->ptr) {
-        free(priv);
-        return NULL;
-    }
-
-    priv->pitch = pitch;
-    priv->owned = TRUE;
-    return priv;
-}
-
-static void
-passata_destroy_pixmap(ScreenPtr pScreen, void *driverPriv)
-{
-    passata_pixmap_priv *priv = driverPriv;
-
-    if (priv && priv->owned)
-        free(priv->ptr);
-
-    free(priv);
-}
-
-static Bool
-passata_prepare_access(PixmapPtr pPix, int index)
-{
-    passata_pixmap_priv *priv = exaGetPixmapDriverPrivate(pPix);
-
-    if (!priv || !priv->ptr)
-        return FALSE;
-
-    pPix->devPrivate.ptr = priv->ptr;
-    pPix->devKind        = priv->pitch;
-    return TRUE;
-}
-
-static void
-passata_finish_access(PixmapPtr pPix, int index)
-{
-    pPix->devPrivate.ptr = NULL;
-}
-
-static Bool
-passata_pixmap_is_offscreen(PixmapPtr pPixmap)
-{
-    return exaGetPixmapDriverPrivate(pPixmap) != NULL;
-}
-
 static void
 passata_wait_marker(ScreenPtr pScreen, int marker)
 {
     /* TODO: sync against outstanding GL work */
-}
-
-static Bool
-passata_modify_pixmap_header(PixmapPtr pPixmap, int width, int height,
-                              int depth, int bitsPerPixel, int devKind,
-                              void *pPixData)
-{
-    passata_pixmap_priv *priv = exaGetPixmapDriverPrivate(pPixmap);
-
-    if (!priv)
-        return FALSE;
-
-    if (devKind > 0)
-        priv->pitch = devKind;
-
-    if (pPixData) {
-        priv->ptr   = pPixData;
-        priv->owned = FALSE;
-    }
-
-    return FALSE;
 }
 
 static void
@@ -212,9 +124,10 @@ passata_setup_exa(ExaDriverPtr exa, passata_screen_priv *priv)
     exa->exa_major = EXA_VERSION_MAJOR;
     exa->exa_minor = EXA_VERSION_MINOR;
 
-    exa->flags = EXA_OFFSCREEN_PIXMAPS | EXA_HANDLES_PIXMAPS;
-    exa->maxX  = priv->max_texture_size;;
-    exa->maxY  = priv->max_texture_size;;
+    exa->flags = EXA_OFFSCREEN_PIXMAPS | EXA_HANDLES_PIXMAPS |
+                 EXA_SUPPORTS_PREPARE_AUX;
+    exa->maxX  = priv->max_texture_size;
+    exa->maxY  = priv->max_texture_size;
 
     exa->pixmapPitchAlign = 4;
 
