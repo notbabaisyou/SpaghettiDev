@@ -49,69 +49,6 @@ passata_get_screen_priv(ScreenPtr pScreen)
     return dixGetPrivate(&pScreen->devPrivates, &passata_screen_private_key);
 }
 
-static Bool
-passata_prepare_solid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
-{
-    return FALSE;
-}
-
-static void
-passata_solid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
-{
-}
-
-static void
-passata_done_solid(PixmapPtr pPixmap)
-{
-}
-
-static Bool
-passata_prepare_copy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
-                     int dx, int dy, int alu, Pixel planemask)
-{
-    return FALSE;
-}
-
-static void
-passata_copy(PixmapPtr pDstPixmap, int srcX, int srcY,
-             int dstX, int dstY, int width, int height)
-{
-}
-
-static void
-passata_done_copy(PixmapPtr pDstPixmap)
-{
-}
-
-static Bool
-passata_check_composite(int op, PicturePtr pSrcPicture,
-                        PicturePtr pMaskPicture, PicturePtr pDstPicture)
-{
-    return FALSE;
-}
-
-static Bool
-passata_prepare_composite(int op,
-                          PicturePtr pSrcPicture,
-                          PicturePtr pMaskPicture,
-                          PicturePtr pDstPicture,
-                          PixmapPtr pSrc, PixmapPtr pMask, PixmapPtr pDst)
-{
-    return FALSE;
-}
-
-static void
-passata_composite(PixmapPtr pDst, int srcX, int srcY,
-                  int maskX, int maskY, int dstX, int dstY,
-                  int width, int height)
-{
-}
-
-static void
-passata_done_composite(PixmapPtr pDst)
-{
-}
-
 static void
 passata_wait_marker(ScreenPtr pScreen, int marker)
 {

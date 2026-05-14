@@ -26,6 +26,8 @@
 #include <xf86.h>
 #include "exa.h"
 #include "privates.h"
+#include "picturestr.h"
+#include "windowstr.h"
 
 #define PASSATA_LOG_PREFIX "passata"
 
@@ -46,6 +48,22 @@ typedef struct _passata_screen_priv {
     Bool         has_texture_barrier;
     Bool         has_dma_buf_export;
     Bool         has_dma_buf_modifiers;
+
+    /* Per-operation state set in Prepare* and consumed in the operation hooks */
+    struct {
+        struct {
+            PixmapPtr pDstPixmap;
+            GLfloat   color[4];
+        } solid;
+        struct {
+            PixmapPtr pSrcPixmap;
+            PixmapPtr pDstPixmap;
+        } copy;
+        struct {
+            int        op;
+            PixmapPtr  pSrc;
+        } composite;
+    } prepare_args;
 } passata_screen_priv;
 
 typedef struct _passata_pixmap_priv {
@@ -66,6 +84,36 @@ void passata_egl_fini(ScrnInfoPtr scrn);
 void passata_upload_to_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv);
 void passata_download_from_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv);
  
+Bool passata_prepare_solid(PixmapPtr pPixmap, int alu, 
+                           Pixel planemask, Pixel fg);
+
+void passata_solid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2);
+void passata_done_solid(PixmapPtr pPixmap);
+ 
+Bool passata_prepare_copy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
+                          int dx, int dy, int alu, Pixel planemask);
+
+void passata_copy(PixmapPtr pDstPixmap, int srcX, int srcY,
+                  int dstX, int dstY, int width, int height);
+
+void passata_done_copy(PixmapPtr pDstPixmap);
+ 
+Bool passata_check_composite(int op, PicturePtr pSrcPicture,
+                             PicturePtr pMaskPicture,
+                             PicturePtr pDstPicture);
+
+Bool passata_prepare_composite(int op, PicturePtr pSrcPicture,
+                               PicturePtr pMaskPicture,
+                               PicturePtr pDstPicture,
+                               PixmapPtr pSrc, PixmapPtr pMask,
+                               PixmapPtr pDst);
+
+void passata_composite(PixmapPtr pDst, int srcX, int srcY,
+                       int maskX, int maskY, int dstX, int dstY,
+                       int width, int height);
+
+void passata_done_composite(PixmapPtr pDst);
+
 void *passata_create_pixmap2(ScreenPtr pScreen, int width, int height,
                              int depth, int usage_hint, int bitsPerPixel,
                              int *new_fb_pitch);
