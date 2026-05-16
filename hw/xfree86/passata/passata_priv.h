@@ -83,6 +83,13 @@ void passata_egl_fini(ScrnInfoPtr scrn);
 
 void passata_upload_to_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv);
 void passata_download_from_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv);
+
+Bool passata_upload_to_screen(PixmapPtr pDst,
+                              int x, int y, int w, int h,
+                              char *src, int src_pitch);
+Bool passata_download_from_screen(PixmapPtr pSrc,
+                                  int x, int y, int w, int h,
+                                  char *dst, int dst_pitch);
  
 Bool passata_prepare_solid(PixmapPtr pPixmap, int alu, 
                            Pixel planemask, Pixel fg);

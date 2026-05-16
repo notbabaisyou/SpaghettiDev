@@ -81,6 +81,9 @@ passata_setup_exa(ExaDriverPtr exa, passata_screen_priv *priv)
     exa->Composite        = passata_composite;
     exa->DoneComposite    = passata_done_composite;
 
+    exa->UploadToScreen     = passata_upload_to_screen;
+    exa->DownloadFromScreen = passata_download_from_screen;
+
     exa->WaitMarker        = passata_wait_marker;
     exa->PrepareAccess     = passata_prepare_access;
     exa->FinishAccess      = passata_finish_access;

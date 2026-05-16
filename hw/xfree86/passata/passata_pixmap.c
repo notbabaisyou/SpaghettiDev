@@ -185,6 +185,63 @@ passata_download_from_gl(PixmapPtr pPixmap, passata_pixmap_priv *priv)
     priv->cpu_valid = TRUE;
 }
 
+Bool
+passata_upload_to_screen(PixmapPtr pDst,
+                         int x, int y, int w, int h,
+                         char *src, int src_pitch)
+{
+    passata_screen_priv *screen_priv =
+        passata_get_screen_priv(pDst->drawable.pScreen);
+    passata_pixmap_priv *priv = exaGetPixmapDriverPrivate(pDst);
+    GLenum format, type, internal;
+    int bpp = pDst->drawable.bitsPerPixel;
+ 
+    if (!priv || !priv->tex)
+        return FALSE;
+
+    if (!passata_get_gl_format(screen_priv, pDst->drawable.depth, bpp,
+                               &format, &type, &internal))
+        return FALSE;
+ 
+    glBindTexture(GL_TEXTURE_2D, priv->tex);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, src_pitch / (bpp / 8));
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, format, type, src);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+ 
+    priv->gpu_valid = TRUE;
+    return TRUE;
+}
+
+Bool
+passata_download_from_screen(PixmapPtr pSrc,
+                             int x, int y, int w, int h,
+                             char *dst, int dst_pitch)
+{
+    passata_screen_priv *screen_priv =
+        passata_get_screen_priv(pSrc->drawable.pScreen);
+    passata_pixmap_priv *priv = exaGetPixmapDriverPrivate(pSrc);
+    GLenum format, type, internal;
+    GLint prev_fbo;
+    int bpp = pSrc->drawable.bitsPerPixel;
+ 
+    if (!priv || !priv->fbo)
+        return FALSE;
+
+    if (!passata_get_gl_format(screen_priv, pSrc->drawable.depth, bpp,
+                               &format, &type, &internal))
+        return FALSE;
+ 
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, priv->fbo);
+    glPixelStorei(GL_PACK_ROW_LENGTH, dst_pitch / (bpp / 8));
+    glReadPixels(x, y, w, h, format, type, dst);
+    glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+ 
+    return TRUE;
+}
+
 void *
 passata_create_pixmap2(ScreenPtr pScreen, int width, int height,
                        int depth, int usage_hint, int bitsPerPixel,
