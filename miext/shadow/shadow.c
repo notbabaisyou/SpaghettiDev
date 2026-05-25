@@ -53,16 +53,16 @@ static DevPrivateKeyRec shadowScrPrivateKeyRec;
 }
 
 static void
-shadowRedisplay(ScreenPtr pScreen)
+shadowRedisplay(shadowBufPtr pBuf)
 {
-    shadowBuf(pScreen);
     RegionPtr pRegion;
 
     if (!pBuf || !pBuf->pDamage || !pBuf->update)
         return;
+
     pRegion = DamageRegion(pBuf->pDamage);
     if (RegionNotEmpty(pRegion)) {
-        (*pBuf->update) (pScreen, pBuf);
+        (*pBuf->update) (pBuf->pDamage->pScreen, pBuf);
         DamageEmpty(pBuf->pDamage);
     }
 }
@@ -72,7 +72,7 @@ shadowBlockHandler(ScreenPtr pScreen, void *timeout)
 {
     shadowBuf(pScreen);
 
-    shadowRedisplay(pScreen);
+    shadowRedisplay(pBuf);
 
     unwrap(pBuf, pScreen, BlockHandler);
     pScreen->BlockHandler(pScreen, timeout);
@@ -89,7 +89,8 @@ shadowGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 
     /* Many apps use GetImage to sync with the visible frame buffer */
     if (pDrawable->type == DRAWABLE_WINDOW)
-        shadowRedisplay(pScreen);
+        shadowRedisplay(pBuf);
+
     unwrap(pBuf, pScreen, GetImage);
     pScreen->GetImage(pDrawable, sx, sy, w, h, format, planeMask, pdstLine);
     wrap(pBuf, pScreen, GetImage);
