@@ -50,11 +50,11 @@ typedef struct _shadowBuf {
     PixmapPtr pPixmap;
     void *closure;
     int randr;
+    Bool work_queued;
 
     /* screen wrappers */
     GetImageProcPtr GetImage;
     CloseScreenProcPtr CloseScreen;
-    ScreenBlockHandlerProcPtr BlockHandler;
 } shadowBufRec;
 
 /* Match defines from randr extension */

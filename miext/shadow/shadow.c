@@ -67,16 +67,24 @@ shadowRedisplay(shadowBufPtr pBuf)
     }
 }
 
-static void
-shadowBlockHandler(ScreenPtr pScreen, void *timeout)
+static Bool
+shadowQueuedWork(ClientPtr client, void *closure)
 {
-    shadowBuf(pScreen);
+    shadowBufPtr pBuf = closure;
 
     shadowRedisplay(pBuf);
+    pBuf->work_queued = FALSE;
 
-    unwrap(pBuf, pScreen, BlockHandler);
-    pScreen->BlockHandler(pScreen, timeout);
-    wrap(pBuf, pScreen, BlockHandler);
+    return TRUE;
+}
+
+static void
+shadowReport(DamagePtr damage, RegionPtr region, void *closure)
+{
+    shadowBufPtr pBuf = closure;
+
+    if (!pBuf->work_queued)
+        pBuf->work_queued = QueueWorkProc(shadowQueuedWork, NULL, pBuf);
 }
 
 static void
@@ -103,7 +111,7 @@ shadowCloseScreen(ScreenPtr pScreen)
 
     unwrap(pBuf, pScreen, GetImage);
     unwrap(pBuf, pScreen, CloseScreen);
-    unwrap(pBuf, pScreen, BlockHandler);
+
     shadowRemove(pScreen, pBuf->pPixmap);
     DamageDestroy(pBuf->pDamage);
     if (pBuf->pPixmap)
@@ -123,12 +131,14 @@ shadowSetup(ScreenPtr pScreen)
     if (!DamageSetup(pScreen))
         return FALSE;
 
-    pBuf = malloc(sizeof(shadowBufRec));
+    pBuf = calloc(1, sizeof(shadowBufRec));
     if (!pBuf)
         return FALSE;
-    pBuf->pDamage = DamageCreate((DamageReportFunc) NULL,
-                                 (DamageDestroyFunc) NULL,
-                                 DamageReportNone, TRUE, pScreen, pScreen);
+
+    pBuf->pDamage = DamageCreate(shadowReport,
+                                 NULL,
+                                 DamageReportNonEmpty,
+                                 TRUE, pScreen, pBuf);
     if (!pBuf->pDamage) {
         free(pBuf);
         return FALSE;
@@ -136,12 +146,6 @@ shadowSetup(ScreenPtr pScreen)
 
     wrap(pBuf, pScreen, CloseScreen);
     wrap(pBuf, pScreen, GetImage);
-    wrap(pBuf, pScreen, BlockHandler);
-    pBuf->update = 0;
-    pBuf->window = 0;
-    pBuf->pPixmap = 0;
-    pBuf->closure = 0;
-    pBuf->randr = 0;
 
     dixSetPrivate(&pScreen->devPrivates, shadowScrPrivateKey, pBuf);
     return TRUE;
