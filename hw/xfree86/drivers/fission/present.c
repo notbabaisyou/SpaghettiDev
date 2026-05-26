@@ -43,6 +43,10 @@
 #include "driver.h"
 #include "drmmode_display.h"
 
+#if defined(GLAMOR_HAS_GBM) || defined(FISSION_SOFT2D)
+#include "drm_fourcc.h"
+#endif
+
 #if 0
 #define DebugPresent(x) ErrorF x
 #else
@@ -250,7 +254,7 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
     int num_crtcs_on = 0;
     int i;
-    struct gbm_bo *gbm;
+    struct gbm_bo *gbm = NULL;
 
     if (!ms->drmmode.pageflip)
         return FALSE;
@@ -283,7 +287,13 @@ ms_present_check_unflip(RRCrtcPtr crtc,
 
 #ifdef GBM_BO_WITH_MODIFIERS
     /* Check if buffer format/modifier is supported by all active CRTCs */
-    gbm = ms->glamor.gbm_bo_from_pixmap(screen, pixmap);
+    if (ms->drmmode.glamor)
+        gbm = ms->glamor.gbm_bo_from_pixmap(screen, pixmap);
+#ifdef FISSION_SOFT2D
+    else
+        gbm = ms_dri3_gbm_bo_from_pixmap(screen, pixmap);
+#endif
+
     if (gbm) {
         uint32_t format;
         uint64_t modifier;
@@ -291,7 +301,8 @@ ms_present_check_unflip(RRCrtcPtr crtc,
         format = gbm_bo_get_format(gbm);
         modifier = gbm_bo_get_modifier(gbm);
 
-        gbm_bo_destroy(gbm);
+        if (ms->drmmode.glamor)
+            gbm_bo_destroy(gbm);
 
         if (!drmmode_is_format_supported(scrn, format, modifier, !sync_flip)) {
             if (reason)
@@ -546,7 +557,7 @@ static present_screen_info_rec ms_present_screen_info = {
     .flush = ms_present_flush,
 
     .capabilities = PresentCapabilityNone,
-#ifdef GLAMOR_HAS_GBM
+#if defined(GLAMOR_HAS_GBM) || defined(FISSION_SOFT2D)
     .check_flip = NULL,
     .check_flip2 = ms_present_check_flip,
 
@@ -565,16 +576,24 @@ static present_screen_info_rec ms_present_screen_info = {
 #define DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP 0x15
 #endif
 
+static inline Bool
+ms_present_async_supported(modesettingPtr ms)
+{
+    uint64_t value;
+    int ret;
+
+    ret = drmGetCap(ms->fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &value);
+    return ret == 0 && value == 1;
+}
+
 Bool
 ms_present_screen_init(ScreenPtr screen)
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
-    uint64_t value;
-    int ret;
-
-    ret = drmGetCap(ms->fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &value);
-    if (ret == 0 && value == 1) {
+    Bool async_supported = ms_present_async_supported(ms);
+    
+    if (async_supported && ms->drmmode.glamor) {
         ms_present_screen_info.capabilities |= PresentCapabilityAsync;
 
 #if PRESENT_SCREEN_INFO_VERSION >= 2
@@ -582,6 +601,14 @@ ms_present_screen_init(ScreenPtr screen)
 #endif
 
         ms->drmmode.can_async_flip = TRUE;
+    } else {
+        async_supported &= drmmode_is_format_supported(scrn, DRM_FORMAT_XRGB8888,
+                                                       DRM_FORMAT_MOD_LINEAR, TRUE);
+
+        if (async_supported) {
+            ms_present_screen_info.capabilities |= PresentCapabilityAsync;
+            ms->drmmode.can_async_flip = TRUE;
+        }
     }
 
     return present_screen_init(screen, &ms_present_screen_info);
