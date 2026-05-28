@@ -578,11 +578,11 @@ crtc_add_ctm_prop(drmModeAtomicReq *req,
     return ret < 0 ? ret : 0;
 }
 
-static int
+static inline int
 crtc_add_gamma_lut_prop(drmModeAtomicReq *req,
                         drmmode_crtc_private_ptr drmmode_crtc,
                         uint16_t *red, uint16_t *green, uint16_t *blue,
-                        int size)
+                        int size, uint32_t *blob_id_out)
 {
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
     drmmode_prop_info_ptr info = &drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT];
@@ -591,18 +591,17 @@ crtc_add_gamma_lut_prop(drmModeAtomicReq *req,
     uint32_t blob_id;
     int ret;
 
-    if (!drmmode_crtc->use_gamma_lut || !info->prop_id)
+    *blob_id_out = 0;
+
+    if (!drmmode_crtc->use_gamma_lut)
         return 0;
 
-    if (_X_UNLIKELY(!size))
-        return 0;
-
-    if (!red || !green || !blue)
+    if (!info->prop_id)
         return 0;
 
     lut = calloc(1, lut_sz);
     if (!lut)
-        return 0;
+        return -ENOMEM;
 
     for (int i = 0; i < size; i++) {
         lut[i].red   = red[i];
@@ -611,15 +610,21 @@ crtc_add_gamma_lut_prop(drmModeAtomicReq *req,
     }
 
     ret = drmModeCreatePropertyBlob(drmmode->fd, lut, lut_sz, &blob_id);
-    free(lut);
     if (ret)
-        return ret;
+        goto bail;
 
     ret = drmModeAtomicAddProperty(req, drmmode_crtc->mode_crtc->crtc_id,
                                    info->prop_id, blob_id);
+    if (ret < 0) {
+        drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
+        goto bail;
+    }
 
-    drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
-    return ret < 0 ? ret : 0;
+    *blob_id_out = blob_id;
+    ret = 0;
+bail:
+    free(lut);
+    return ret;
 }
 
 static int
@@ -932,6 +937,12 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, modesettingPtr ms, Bool test_only)
     if (!req)
         return 1;
 
+    uint32_t *gamma_blobs = calloc(xf86_config->num_crtc, sizeof(uint32_t));
+    if (!gamma_blobs) {
+        drmModeAtomicFree(req);
+        return 1;
+    }
+
     for (i = 0; i < xf86_config->num_crtc; i++) {
         xf86CrtcPtr crtc = xf86_config->crtc[i];
         drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
@@ -955,12 +966,16 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, modesettingPtr ms, Bool test_only)
         ret |= crtc_add_prop(req, drmmode_crtc,
                              DRMMODE_CRTC_MODE_ID,
                              active ? drmmode_crtc->current_mode->blob_id : 0);
-        ret |= crtc_add_vrr_prop(req, drmmode_crtc, drmmode_crtc->vrr_enabled) != 0;
+
+        ret |= crtc_add_vrr_prop(req, drmmode_crtc, drmmode_crtc->vrr_enabled);
 
         if (active)
             ret |= crtc_add_gamma_lut_prop(req, drmmode_crtc,
                                            crtc->gamma_red, crtc->gamma_green,
-                                           crtc->gamma_blue, crtc->gamma_size) != 0;
+                                           crtc->gamma_blue, crtc->gamma_size,
+                                           &gamma_blobs[i]);
+
+        xf86DrvMsg(crtc->scrn->scrnIndex, X_DEBUG, "crtc_add_gamma_lut_prop: %d\n", ret);
 
         ret |= plane_add_props(req, crtc, active ? fb_id : 0, x, y);
     }
@@ -1005,6 +1020,11 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, modesettingPtr ms, Bool test_only)
         }
     }
 
+    for (i = 0; i < xf86_config->num_crtc; i++)
+        if (gamma_blobs[i])
+            drmModeDestroyPropertyBlob(ms->fd, gamma_blobs[i]);
+
+    free(gamma_blobs);
     drmModeAtomicFree(req);
     return ret;
 }
@@ -2001,12 +2021,25 @@ drmmode_set_gamma_lut(drmmode_crtc_private_ptr drmmode_crtc,
                       uint16_t *red, uint16_t *green, uint16_t *blue, int size)
 {
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
+    uint32_t blob_id = 0;
+    int ret;
+
+#if 1
+    xf86DrvMsg(drmmode->scrn->scrnIndex, X_INFO, "drmmode_set_gamma_lut called\n");
+#endif
+
     drmModeAtomicReq *req = drmModeAtomicAlloc();
     if (!req)
         return;
 
-    if (crtc_add_gamma_lut_prop(req, drmmode_crtc, red, green, blue, size) == 0)
-        drmModeAtomicCommit(drmmode->fd, req, 0, NULL);
+    ret = crtc_add_gamma_lut_prop(req, drmmode_crtc,
+                                  red, green, blue,
+                                  size, &blob_id);
+    if (ret == 0)
+        ret = drmModeAtomicCommit(drmmode->fd, req, 0, NULL);
+
+    if (blob_id)
+        drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
 
     drmModeAtomicFree(req);
 }
