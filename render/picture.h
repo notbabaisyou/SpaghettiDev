@@ -65,9 +65,12 @@ typedef struct _Picture *PicturePtr;
 #define PICT_TYPE_BGRA		PIXMAN_TYPE_BGRA
 
 #define PICT_FORMAT_COLOR(f)	PIXMAN_FORMAT_COLOR(f)
+typedef enum _PictFormatShort {
+/* 64bpp formats */
+    PICT_a16r16g16b16 = PIXMAN_FORMAT_BYTE(64, PIXMAN_TYPE_ARGB, 16, 16, 16, 16),
+    PICT_a16b16g16r16 = PIXMAN_FORMAT_BYTE(64, PIXMAN_TYPE_ABGR, 16, 16, 16, 16),
 
 /* 32bpp formats */
-typedef enum _PictFormatShort {
     PICT_a2r10g10b10 = PIXMAN_a2r10g10b10,
     PICT_x2r10g10b10 = PIXMAN_x2r10g10b10,
     PICT_a2b10g10r10 = PIXMAN_a2b10g10r10,

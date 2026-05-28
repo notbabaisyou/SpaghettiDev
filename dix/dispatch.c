@@ -146,7 +146,7 @@ Equipment Corporation.
 
 xConnSetupPrefix connSetupPrefix;
 
-PaddingInfo PixmapWidthPaddingInfo[33];
+PaddingInfo PixmapWidthPaddingInfo[65];
 
 static ClientPtr grabClient;
 static ClientPtr currentClient; /* Client for the request currently being dispatched */
@@ -3787,7 +3787,7 @@ MarkClientException(ClientPtr client)
  * of the number of pixels that fit in a scanline pad unit?"
  * Note that ~0 is an invalid entry (mostly for the benefit of the reader).
  */
-static int answer[6][4] = {
+static int answer[8][4] = {
     /* pad   pad   pad     pad */
     /*  8     16    32    64 */
 
@@ -3796,7 +3796,9 @@ static int answer[6][4] = {
     {0, 1, 2, 3},               /* 8 bits per pixel */
     {~0, 0, 1, 2},              /* 16 bits per pixel */
     {~0, ~0, 0, 1},             /* 24 bits per pixel */
-    {~0, ~0, 0, 1}              /* 32 bits per pixel */
+    {~0, ~0, 0, 1},             /* 32 bits per pixel */
+    {~0, ~0, ~0, ~0},           /* 48 bits per pixel */
+    {~0, ~0, ~0,  0}            /* 64 bits per pixel */
 };
 
 /*
@@ -3804,7 +3806,7 @@ static int answer[6][4] = {
  * the answer array above given the number of bits per pixel?"
  * Note that ~0 is an invalid entry (mostly for the benefit of the reader).
  */
-static int indexForBitsPerPixel[33] = {
+static int indexForBitsPerPixel[65] = {
     ~0, 0, ~0, ~0,              /* 1 bit per pixel */
     1, ~0, ~0, ~0,              /* 4 bits per pixel */
     2, ~0, ~0, ~0,              /* 8 bits per pixel */
@@ -3813,14 +3815,22 @@ static int indexForBitsPerPixel[33] = {
     ~0, ~0, ~0, ~0,
     4, ~0, ~0, ~0,              /* 24 bits per pixel */
     ~0, ~0, ~0, ~0,
-    5                           /* 32 bits per pixel */
+    5, ~0, ~0, ~0,              /* 32 bits per pixel */
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    6, ~0, ~0, ~0,              /* 48 bits per pixel */
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0,
+    7,                          /* 64 bits per pixel */
 };
 
 /*
  * This array gives the bytesperPixel value for cases where the number
  * of bits per pixel is a multiple of 8 but not a power of 2.
  */
-static int answerBytesPerPixel[33] = {
+static int answerBytesPerPixel[65] = {
     ~0, 0, ~0, ~0,              /* 1 bit per pixel */
     0, ~0, ~0, ~0,              /* 4 bits per pixel */
     0, ~0, ~0, ~0,              /* 8 bits per pixel */
@@ -3829,7 +3839,15 @@ static int answerBytesPerPixel[33] = {
     ~0, ~0, ~0, ~0,
     3, ~0, ~0, ~0,              /* 24 bits per pixel */
     ~0, ~0, ~0, ~0,
-    0                           /* 32 bits per pixel */
+    0, ~0, ~0, ~0,              /* 32 bits per pixel */
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    6, ~0, ~0, ~0,              /* 48 bits per pixel */
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    ~0, ~0, ~0, ~0,
+    0,                          /* 64 bits per pixel */
 };
 
 /*

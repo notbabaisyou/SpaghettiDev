@@ -295,6 +295,10 @@ PictureCreateDefaultFormats(ScreenPtr pScreen, int *nformatp)
                 addFormat(formats, &nformats, PICT_x2b10g10r10, pDepth->depth);
             }
             break;
+        case 64:
+            addFormat(formats, &nformats, PICT_a16r16g16b16, pDepth->depth);
+            addFormat(formats, &nformats, PICT_a16b16g16r16, pDepth->depth);
+            break;
         }
     }
 
