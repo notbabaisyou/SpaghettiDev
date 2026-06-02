@@ -760,6 +760,7 @@ glamor_init(ScreenPtr screen, unsigned int flags)
         epoxy_has_gl_extension("GL_ARB_instanced_arrays"))
         glamor_priv->use_gpu_shader4 = epoxy_has_gl_extension("GL_EXT_gpu_shader4");
 
+    glamor_priv->has_image_storage = epoxy_has_gl_extension("GL_EXT_EGL_image_storage");
     glamor_priv->has_khr_debug = epoxy_has_gl_extension("GL_KHR_debug");
     glamor_priv->has_map_buffer_range =
         epoxy_has_gl_extension("GL_ARB_map_buffer_range") ||

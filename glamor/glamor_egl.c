@@ -150,7 +150,11 @@ glamor_create_texture_from_image(ScreenPtr screen,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+    if (glamor_priv->has_image_storage)
+        glEGLImageTargetTexStorageEXT(GL_TEXTURE_2D, image, GL_NONE);
+    else
+        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+
     glBindTexture(GL_TEXTURE_2D, 0);
 
     return TRUE;
@@ -1386,9 +1390,10 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
      */
     lastGLContext = NULL;
 
-    if (!epoxy_has_gl_extension("GL_OES_EGL_image")) {
+    if (!epoxy_has_gl_extension("GL_OES_EGL_image") &&
+        !epoxy_has_gl_extension("GL_EXT_EGL_image_storage")) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                   "glamor acceleration requires GL_OES_EGL_image\n");
+                   "glamor acceleration requires either GL_OES_EGL_image or GL_EXT_EGL_image_storage\n");
         goto error;
     }
 
