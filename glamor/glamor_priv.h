@@ -313,10 +313,10 @@ typedef struct glamor_screen_private {
 
     /** Cached index buffer for translating GL_QUADS to triangles. */
     GLuint ib;
-    /** Index buffer type: GL_UNSIGNED_SHORT or GL_UNSIGNED_INT */
-    GLenum ib_type;
     /** Number of quads the index buffer has indices for. */
     unsigned ib_size;
+
+    int flags;
 
     Bool has_source_coords, has_mask_coords;
     glamor_composite_shader composite_shader[SHADER_SOURCE_COUNT]
@@ -330,15 +330,14 @@ typedef struct glamor_screen_private {
     int linear_max_nstops;
     int radial_max_nstops;
 
+    Bool suppress_gl_out_of_memory_logging;
+    Bool logged_any_fbo_allocation_failure;
+    Bool logged_any_pbo_allocation_failure;
+
     struct glamor_saved_procs saved_procs;
     GetDrawableModifiersFuncPtr get_drawable_modifiers;
     
     char* glvnd_vendor;
-
-    Bool suppress_gl_out_of_memory_logging;
-    Bool logged_any_fbo_allocation_failure;
-    Bool logged_any_pbo_allocation_failure;
-    int flags;
 
     /* xv */
     glamor_program xv_prog;
