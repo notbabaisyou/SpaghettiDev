@@ -25,20 +25,20 @@
 #include <unistd.h>
 
 void
-present_vblank_notify(present_vblank_ptr vblank, CARD8 kind, CARD8 mode, uint64_t ust, uint64_t crtc_msc)
+present_vblank_notify(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
 {
     uint64_t msc = crtc_msc - vblank->msc_offset;
     int n;
 
     if (vblank->window)
-        present_send_complete_notify(vblank->window, kind, mode, vblank->serial, ust, msc);
+        present_send_complete_notify(vblank->window, vblank->kind, vblank->mode, vblank->serial, ust, msc);
 
     for (n = 0; n < vblank->num_notifies; n++) {
         WindowPtr   window = vblank->notifies[n].window;
         CARD32      serial = vblank->notifies[n].serial;
 
         if (window)
-            present_send_complete_notify(window, kind, mode, serial, ust, msc);
+            present_send_complete_notify(window, vblank->kind, vblank->mode, serial, ust, msc);
     }
 }
 
@@ -61,6 +61,7 @@ set_vblank_flip_type(present_vblank_ptr vblank, uint32_t options, Bool sync_flip
 {
     Bool wants_tearing = (options & PresentOptionAsyncMayTear);
 
+    vblank->mode = PresentCompleteModeFlip;
     if (sync_flip)
         vblank->flip_type = PRESENT_TYPE_SYNCHRONOUS;
     else
@@ -137,6 +138,7 @@ present_vblank_init(present_vblank_ptr vblank,
     vblank->target_msc = target_msc;
     vblank->exec_msc = target_msc;
     vblank->crtc = target_crtc;
+    vblank->mode = PresentCompleteModeCopy;
     vblank->msc_offset = window_priv->msc_offset;
     vblank->notifies = notifies;
     vblank->num_notifies = num_notifies;
@@ -151,7 +153,6 @@ present_vblank_init(present_vblank_ptr vblank,
         if (screen_priv->check_flip (target_crtc, window, pixmap,
                                      sync_flip, valid, x_off, y_off, &reason))
         {
-            vblank->flip = TRUE;
             set_vblank_flip_type(vblank, options, sync_flip);
         }
     }
@@ -186,10 +187,10 @@ present_vblank_init(present_vblank_ptr vblank,
 #endif /* DRI3 */
 
     if (pixmap)
-        DebugPresent(("q %" PRIu64 " %p %" PRIu64 ": %08" PRIx32 " -> %08" PRIx32 " (crtc %p) flip %d vsync %d serial %d\n",
+        DebugPresent(("q %" PRIu64 " %p %" PRIu64 ": %08" PRIx32 " -> %08" PRIx32 " (crtc %p) mode %d vsync %d serial %d\n",
                       vblank->event_id, vblank, target_msc,
                       vblank->pixmap->drawable.id, vblank->window->drawable.id,
-                      target_crtc, vblank->flip, vblank->flip_type, vblank->serial));
+                      target_crtc, vblank->mode, vblank->flip_type, vblank->serial));
     return TRUE;
 
 no_mem:
@@ -261,7 +262,7 @@ present_vblank_scrap(present_vblank_ptr vblank)
 
     vblank->pixmap = NULL;
     vblank->idle_fence = NULL;
-    vblank->flip = FALSE;
+    vblank->mode = PresentCompleteModeSkip;
 }
 
 void

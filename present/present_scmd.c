@@ -331,7 +331,7 @@ present_flip_notify(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     if (vblank->abort_flip)
         present_unflip(screen);
 
-    present_vblank_notify(vblank, PresentCompleteKindPixmap, PresentCompleteModeFlip, ust, crtc_msc);
+    present_vblank_notify(vblank, ust, crtc_msc);
 
     present_flip_try_ready(screen);
 }
@@ -424,14 +424,13 @@ present_check_flip_window (WindowPtr window)
 
     /* Now check any queued vblanks */
     xorg_list_for_each_entry(vblank, &window_priv->vblank, window_list) {
-        Bool sync_flip = vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS;
-        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, sync_flip, NULL, 0, 0, &reason)) {
-            vblank->flip = FALSE;
+        if (vblank->queued && vblank->mode == PresentCompleteModeFlip &&
+            !present_check_flip(vblank->crtc, window, vblank->pixmap, FALSE, NULL, 0, 0, &reason))
+        {
+            vblank->mode = PresentCompleteModeCopy;
             /* Don't spuriously flag this as a TearFree presentation */
             if (reason < PRESENT_FLIP_REASON_DRIVER_TEARFREE)
                 vblank->reason = reason;
-            if (sync_flip)
-                vblank->exec_msc = vblank->target_msc;
         }
     }
 }
@@ -520,7 +519,7 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     if (present_execute_wait(vblank, crtc_msc))
         return;
 
-    if (vblank->flip && pixmap && window) {
+    if (vblank->mode == PresentCompleteModeFlip && pixmap && window) {
         if (screen_priv->flip_pending || screen_priv->unflip_event_id) {
             DebugPresent(("\tr %" PRIu64 " %p (pending %p unflip %" PRIu64 ")\n",
                           vblank->event_id, vblank,
@@ -540,7 +539,7 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
         (vblank->reason < PRESENT_FLIP_REASON_DRIVER_TEARFREE ||
          vblank->exec_msc != vblank->target_msc)) {
 
-        if (vblank->flip) {
+        if (vblank->mode == PresentCompleteModeFlip) {
             RegionPtr damage = vblank->update;
 
             DebugPresent(("\tf %" PRIu64 " %p %" PRIu64 ": %08" PRIx32 " -> %08" PRIx32 "\n",
@@ -583,7 +582,7 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
             /* Oops, flip failed. Clear the flip_pending field
               */
             screen_priv->flip_pending = NULL;
-            vblank->flip = FALSE;
+            vblank->mode = PresentCompleteModeCopy;
             vblank->exec_msc = vblank->target_msc;
         }
         DebugPresent(("\tc %p %" PRIu64 ": %08" PRIx32 " -> %08" PRIx32 "\n",
@@ -828,7 +827,7 @@ present_scmd_pixmap(WindowPtr window,
         !msc_is_after(vblank->exec_msc, crtc_msc + 1))
         vblank->exec_msc -= 2;
     else if (vblank->reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE ||
-             (vblank->flip && vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS))
+             (vblank->mode == PresentCompleteModeFlip && vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS))
         vblank->exec_msc--;
 
     xorg_list_append(&vblank->event_queue, &present_exec_queue);
