@@ -832,17 +832,39 @@ present_scmd_pixmap(WindowPtr window,
 
     xorg_list_append(&vblank->event_queue, &present_exec_queue);
     vblank->queued = TRUE;
+
     if (msc_is_after(vblank->exec_msc, crtc_msc)) {
         ret = present_queue_vblank(screen, window, target_crtc, vblank->event_id, vblank->exec_msc);
-        if (ret == Success)
-            return Success;
-
-        DebugPresent(("present_queue_vblank failed\n"));
+        if (ret != Success) {
+            goto failure;
+        } else {
+            /* If the window is composited, and the contents are
+             * destined for the next frame, just do the copy, sending
+             * damage along to the compositor.
+             *
+             * Leave the vblank around to send the completion event at
+             * vblank time
+             */
+            if (pixmap && window && vblank->mode == PresentCompleteModeCopy &&
+                (target_msc - crtc_msc) <= 1 &&
+                screen->GetWindowPixmap(window) != screen->GetScreenPixmap(screen))
+            {
+                DebugPresent(("\tC %p %8lld: %08lx -> %08lx\n", vblank, crtc_msc,
+                              vblank->pixmap->drawable.id, vblank->window->drawable.id));
+                present_execute_copy(vblank, pixmap, window, crtc_msc);
+            }
+        }
+    } else {
+        present_execute(vblank, ust, crtc_msc);
     }
 
-    present_execute(vblank, ust, crtc_msc);
-
     return Success;
+failure:
+    xorg_list_del(&vblank->event_queue);
+    vblank->queued = FALSE;
+    vblank->notifies = NULL;
+    present_vblank_destroy(vblank);
+    return ret;
 }
 
 static void
