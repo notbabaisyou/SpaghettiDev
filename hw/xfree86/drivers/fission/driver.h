@@ -45,10 +45,6 @@
 #include "drmmode_display.h"
 #define MS_LOGLEVEL_DEBUG 4
 
-struct ms_vrr_priv {
-    Bool variable_refresh;
-};
-
 struct ms_async_flip_priv {
     Bool async_flip;
     Bool async_flip_modifiers;
@@ -245,7 +241,6 @@ Bool ms_do_pageflip(ScreenPtr screen,
 
 int ms_flush_drm_events(ScreenPtr screen);
 void ms_drain_drm_events(ScreenPtr screen);
-Bool ms_window_has_variable_refresh(modesettingPtr ms, WindowPtr win);
 void ms_present_set_screen_vrr(ScrnInfoPtr scrn, Bool vrr_enabled);
 Bool ms_window_has_async_flip(WindowPtr win);
 void ms_window_update_async_flip(WindowPtr win, Bool async_flip);
