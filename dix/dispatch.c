@@ -259,30 +259,88 @@ long SmartLastPrint;
 
 void Dispatch(void);
 
-static struct xorg_list ready_clients;
+static struct xorg_list ready_bands[NUM_SCHED_BANDS];
+static unsigned int ready_band_mask;
 static struct xorg_list saved_ready_clients;
 struct xorg_list output_pending_clients;
 
 static void
 init_client_ready(void)
 {
-    xorg_list_init(&ready_clients);
+    int i;
+    for (i = 0; i < NUM_SCHED_BANDS; i++)
+        xorg_list_init(&ready_bands[i]);
+    ready_band_mask = 0;
     xorg_list_init(&saved_ready_clients);
     xorg_list_init(&output_pending_clients);
+}
+
+static inline int
+smart_priority_to_band(signed char smart_priority)
+{
+    if (smart_priority > 10)  return SCHED_BAND_HIGH;
+    if (smart_priority > 0)   return SCHED_BAND_NORMAL;
+    if (smart_priority > -10) return SCHED_BAND_LOW;
+    return SCHED_BAND_STARVED;
+}
+
+static inline int
+highest_band(unsigned int mask)
+{
+    if (mask == 0) return -1;
+#if __has_builtin(__builtin_ffs)
+    return __builtin_ffs(mask) - 1;
+#else
+    int i;
+    for (i = 0; i < NUM_SCHED_BANDS; i++)
+        if (mask & (1u << i))
+            return i;
+    return -1;
+#endif
+}
+
+static void
+update_band_mask(void)
+{
+    int i;
+    ready_band_mask = 0;
+    for (i = 0; i < NUM_SCHED_BANDS; i++) {
+        if (!xorg_list_is_empty(&ready_bands[i]))
+            ready_band_mask |= (1u << i);
+    }
+}
+
+static void
+move_client_to_band(ClientPtr client, int new_band)
+{
+    if (client->smart_band == new_band &&
+        !xorg_list_is_empty(&client->ready))
+        return;
+    if (!xorg_list_is_empty(&client->ready)) {
+        int old_band = client->smart_band;
+        xorg_list_del(&client->ready);
+        if (xorg_list_is_empty(&ready_bands[old_band]))
+            ready_band_mask &= ~(1u << old_band);
+    }
+    client->smart_band = new_band;
+    xorg_list_append(&client->ready, &ready_bands[new_band]);
+    ready_band_mask |= (1u << new_band);
 }
 
 Bool
 clients_are_ready(void)
 {
-    return !xorg_list_is_empty(&ready_clients);
+    return ready_band_mask != 0;
 }
 
 /* Client has requests queued or data on the network */
 void
 mark_client_ready(ClientPtr client)
 {
-    if (xorg_list_is_empty(&client->ready))
-        xorg_list_append(&client->ready, &ready_clients);
+    if (xorg_list_is_empty(&client->ready)) {
+        int band = smart_priority_to_band(client->smart_priority);
+        move_client_to_band(client, band);
+    }
 }
 
 /*
@@ -299,106 +357,150 @@ void mark_client_saved_ready(ClientPtr client)
 void
 mark_client_not_ready(ClientPtr client)
 {
+    int old_band = client->smart_band;
     xorg_list_del(&client->ready);
+    if (xorg_list_is_empty(&ready_bands[old_band]))
+        ready_band_mask &= ~(1u << old_band);
 }
 
 static void
 mark_client_grab(ClientPtr grab)
 {
-    ClientPtr   client, tmp;
-
-    xorg_list_for_each_entry_safe(client, tmp, &ready_clients, ready) {
-        if (client != grab) {
-            xorg_list_del(&client->ready);
-            xorg_list_append(&client->ready, &saved_ready_clients);
+    int i;
+    for (i = 0; i < NUM_SCHED_BANDS; i++) {
+        ClientPtr client, tmp;
+        xorg_list_for_each_entry_safe(client, tmp, &ready_bands[i], ready) {
+            if (client != grab) {
+                xorg_list_del(&client->ready);
+                xorg_list_append(&client->ready, &saved_ready_clients);
+            }
         }
     }
+    update_band_mask();
 }
 
 static void
 mark_client_ungrab(void)
 {
-    ClientPtr   client, tmp;
-
+    ClientPtr client, tmp;
     xorg_list_for_each_entry_safe(client, tmp, &saved_ready_clients, ready) {
+        int band = smart_priority_to_band(client->smart_priority);
         xorg_list_del(&client->ready);
-        xorg_list_append(&client->ready, &ready_clients);
+        client->smart_band = band;
+        xorg_list_append(&client->ready, &ready_bands[band]);
     }
+    update_band_mask();
+}
+
+static inline void
+update_request_ema(ClientPtr client, long elapsed)
+{
+    client->avg_request_time = (3 * client->avg_request_time + elapsed) / 4;
 }
 
 static ClientPtr
 SmartScheduleClient(void)
 {
+    /*
+     * Three-pass scheduler with O(1) band selection:
+     *
+     * 1. Deficit check: any client waiting >20ms gets promoted to Band 0
+     *    regardless of priority, preventing starvation.
+     * 2. Idle boost: clients idle >2*slice have their negative priority
+     *    incremented toward 0, allowing recovery.
+     * 3. Selection: pick the highest-priority client from the highest
+     *    non-empty band (O(1) via bitmask), with round-robin tiebreaking.
+     *
+     * Slice is adaptive: solo clients grow up to 15ms; multi-client
+     * scenarios use 4x the client's EMA request time (clamped to 5-15ms).
+     */
     ClientPtr pClient, best = NULL;
     int bestRobin, robin;
     long now = SmartScheduleTime;
     long idle;
-    int nready = 0;
+    int band;
+    unsigned int deficit_candidates;
 
-    bestRobin = 0;
     idle = 2 * SmartScheduleSlice;
 
-    xorg_list_for_each_entry(pClient, &ready_clients, ready) {
-        nready++;
-
-        /* Praise clients which haven't run in a while */
-        if ((now - pClient->smart_stop_tick) >= idle) {
-            if (pClient->smart_priority < 0)
-                pClient->smart_priority++;
+    deficit_candidates = ready_band_mask;
+    while (deficit_candidates) {
+        ClientPtr tmp;
+        band = highest_band(deficit_candidates);
+        xorg_list_for_each_entry_safe(pClient, tmp, &ready_bands[band], ready) {
+            if ((now - pClient->smart_deficit_tick) >= SMART_DEFICIT_THRESHOLD) {
+                move_client_to_band(pClient, SCHED_BAND_HIGH);
+                pClient->smart_priority = SMART_MAX_PRIORITY;
+            }
         }
+        deficit_candidates &= ~(1u << band);
+    }
 
-        /* check priority to select best client */
+    deficit_candidates = ready_band_mask;
+    while (deficit_candidates) {
+        ClientPtr tmp;
+        band = highest_band(deficit_candidates);
+        xorg_list_for_each_entry_safe(pClient, tmp, &ready_bands[band], ready) {
+            if ((now - pClient->smart_stop_tick) >= idle) {
+                if (pClient->smart_priority < 0) {
+                    pClient->smart_priority++;
+                    int new_band = smart_priority_to_band(pClient->smart_priority);
+                    if (new_band != band)
+                        move_client_to_band(pClient, new_band);
+                }
+            }
+        }
+        deficit_candidates &= ~(1u << band);
+    }
+
+    band = highest_band(ready_band_mask);
+    if (band < 0)
+        return NULL;
+
+    bestRobin = 0;
+    xorg_list_for_each_entry(pClient, &ready_bands[band], ready) {
         robin =
             (pClient->index -
              SmartLastIndex[pClient->smart_priority -
                             SMART_MIN_PRIORITY]) & 0xff;
 
-        /* pick the best client */
         if (!best ||
-            pClient->priority > best->priority ||
-            (pClient->priority == best->priority &&
-             (pClient->smart_priority > best->smart_priority ||
-              (pClient->smart_priority == best->smart_priority && robin > bestRobin))))
+            pClient->smart_priority > best->smart_priority ||
+            (pClient->smart_priority == best->smart_priority &&
+             robin > bestRobin))
         {
             best = pClient;
             bestRobin = robin;
         }
-#ifdef SMART_DEBUG
-        if ((now - SmartLastPrint) >= 5000)
-            fprintf(stderr, " %2d: %3d", pClient->index, pClient->smart_priority);
-#endif
     }
-#ifdef SMART_DEBUG
-    if ((now - SmartLastPrint) >= 5000) {
-        fprintf(stderr, " use %2d\n", best->index);
-        SmartLastPrint = now;
-    }
-#endif
+
+    if (!best)
+        return NULL;
+
     SmartLastIndex[best->smart_priority - SMART_MIN_PRIORITY] = best->index;
-    /*
-     * Set current client pointer
-     */
+
     if (SmartLastClient != best) {
         best->smart_start_tick = now;
         SmartLastClient = best;
     }
-    /*
-     * Adjust slice
-     */
-    if (nready == 1 && SmartScheduleLatencyLimited == 0) {
-        /*
-         * If it's been a long time since another client
-         * has run, bump the slice up to get maximal
-         * performance from a single client
-         */
-        if ((now - best->smart_start_tick) > 1000 &&
-            SmartScheduleSlice < SmartScheduleMaxSlice) {
-            SmartScheduleSlice += SmartScheduleInterval;
+
+    if (SmartScheduleLatencyLimited == 0) {
+        int nready_bands = 0;
+        for (int i = 0; i < NUM_SCHED_BANDS; i++)
+            nready_bands += !xorg_list_is_empty(&ready_bands[i]);
+
+        if (nready_bands == 1) {
+            if ((now - best->smart_start_tick) > 1000 &&
+                SmartScheduleSlice < SmartScheduleMaxSlice)
+                SmartScheduleSlice += SmartScheduleInterval;
+        } else {
+            SmartScheduleSlice = max(SmartScheduleInterval,
+                                     min(SmartScheduleMaxSlice, best->avg_request_time * 4));
         }
-    }
-    else {
+    } else {
         SmartScheduleSlice = SmartScheduleInterval;
     }
+
     return best;
 }
 
@@ -477,6 +579,7 @@ Dispatch(void)
     int result;
     ClientPtr client;
     long start_tick;
+    long req_start;
 
     nextFreeClientID = 1;
     nClients = 0;
@@ -502,6 +605,7 @@ Dispatch(void)
             client = SmartScheduleClient();
 
             isItTimeToYield = FALSE;
+            client->smart_deficit_tick = SmartScheduleTime;
 
             start_tick = SmartScheduleTime;
             while (!isItTimeToYield) {
@@ -518,6 +622,7 @@ Dispatch(void)
                 }
 
                 /* now, finally, deal with client requests */
+                req_start = SmartScheduleTime;
                 result = ReadRequestFromClient(client);
                 if (result == 0)
                     break;
@@ -556,6 +661,8 @@ Dispatch(void)
                 }
                 if (!SmartScheduleSignalEnable)
                     SmartScheduleTime = GetTimeInMillis();
+
+                update_request_ema(client, SmartScheduleTime - req_start);
 
 #ifdef XSERVER_DTRACE
                 if (XSERVER_REQUEST_DONE_ENABLED())
@@ -3552,6 +3659,9 @@ InitClient(ClientPtr client, int i, void *ospriv)
     QueryMinMaxKeyCodes(&client->minKC, &client->maxKC);
     client->smart_start_tick = SmartScheduleTime;
     client->smart_stop_tick = SmartScheduleTime;
+    client->smart_band = SCHED_BAND_NORMAL;
+    client->smart_deficit_tick = SmartScheduleTime;
+    client->avg_request_time = SmartScheduleInterval;
     client->clientIds = NULL;
 }
 

@@ -105,12 +105,16 @@ typedef struct _Client {
     unsigned char xkbClientFlags;
     KeyCode minKC, maxKC;
 
+    unsigned char smart_band;
     int smart_start_tick;
     int smart_stop_tick;
 
     DeviceIntPtr clientPtr;
     ClientIdPtr clientIds;
     int req_fds;
+
+    int smart_deficit_tick;
+    int avg_request_time;
 } ClientRec;
 
 static inline void
@@ -176,6 +180,14 @@ static inline Bool any_output_pending(void) {
 
 #define SMART_MAX_PRIORITY  (20)
 #define SMART_MIN_PRIORITY  (-20)
+
+#define NUM_SCHED_BANDS      4
+#define SCHED_BAND_HIGH      0
+#define SCHED_BAND_NORMAL    1
+#define SCHED_BAND_LOW       2
+#define SCHED_BAND_STARVED   3
+
+#define SMART_DEFICIT_THRESHOLD  20
 
 extern void SmartScheduleInit(void);
 
