@@ -118,3 +118,7 @@ const char *display;
 int displayfd = -1;
 Bool explicit_display = FALSE;
 char *ConnectionInfo;
+
+Bool restrictKeyQuery = FALSE;
+Bool restrictRawKeyEvents = FALSE;
+Bool restrictDeviceKeyEvents = FALSE;

@@ -121,6 +121,7 @@ Equipment Corporation.
 #include "panoramiXsrv.h"
 #endif
 #include "globals.h"
+#include "opaque.h"
 
 #include <X11/extensions/XKBproto.h>
 #include "xkbsrv.h"
@@ -2517,6 +2518,12 @@ DeliverRawEvent(RawDeviceEvent *ev, DeviceIntPtr device)
              * device.
              */
             ic.next = NULL;
+
+            if (restrictRawKeyEvents &&
+                (xi2_get_type(xi) == XI_RawKeyPress || xi2_get_type(xi) == XI_RawKeyRelease)) {
+                if (rClient(&ic) != serverClient)
+                    continue;
+            }
 
             if (!FilterRawEvents(rClient(&ic), grab, root))
                 DeliverEventToInputClients(device, &ic, root, xi, 1,

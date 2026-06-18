@@ -50,6 +50,7 @@ SOFTWARE.
 
 #include <math.h>
 #include <pixman.h>
+#include <string.h>
 #include <X11/X.h>
 #include <X11/Xproto.h>
 #include <X11/Xatom.h>
@@ -87,6 +88,7 @@ SOFTWARE.
 #include "xserver-properties.h"
 #include "xichangehierarchy.h"  /* For XISendDeviceHierarchyEvent */
 #include "syncsrv.h"
+#include "opaque.h"
 
 /** @file
  * This file handles input device-related stuff.
@@ -2531,6 +2533,13 @@ ProcQueryKeymap(ClientPtr client)
     };
 
     rc = XaceHookDeviceAccess(client, keybd, DixReadAccess);
+
+    if (restrictKeyQuery && client != serverClient) {
+        memset(rep.map, 0, sizeof(rep.map));
+        WriteReplyToClient(client, sizeof(xQueryKeymapReply), &rep);
+        return Success;
+    }
+
     /* If rc is Success, we're allowed to copy out the keymap.
      * If it's BadAccess, we leave it empty & lie to the client.
      */

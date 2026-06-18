@@ -76,4 +76,8 @@ extern _X_EXPORT Bool AllowByteSwappedClients;
 
 extern Bool party_like_its_1989; /* -retro mode */
 
+extern _X_EXPORT Bool restrictKeyQuery;
+extern _X_EXPORT Bool restrictRawKeyEvents;
+extern _X_EXPORT Bool restrictDeviceKeyEvents;
+
 #endif                          /* OPAQUE_H */

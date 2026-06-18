@@ -550,6 +550,23 @@ When this option is enabled, those key sequences have no special meaning
 and are passed to clients.
 Default: off.
 .TP 7
+.BI "Option \*qRestrictKeyMonitoring\*q  \*q" string \*q
+This restricts client access to keyboard state information. The value is
+a comma-separated list of one or more of the following:
+.IP \*qquery\*q 4
+QueryKeymap returns empty results to clients. Mitigates xspy-style polling attacks.
+.IP \*qraw\*q 4
+XI_RawKeyPress and XI_RawKeyRelease events are not delivered to clients.
+Mitigates xkbcat-style XInput2 raw event monitoring.
+.IP \*qdevice\*q 4
+DeviceKeyPress and DeviceKeyRelease events cannot be selected by clients
+via XInput1. Mitigates xkeylogger-style device event monitoring.
+.IP \*qall\*q 4
+Enables all three restrictions.
+.PP
+The serverClient is always exempt from these restrictions.
+Default: none (all monitoring permitted).
+.TP 7
 .BI "Option \*qDisableVidModeExtension\*q  \*q" boolean \*q
 This disables the parts of the VidMode extension used by the xvidtune client
 that can be used to change the video modes.

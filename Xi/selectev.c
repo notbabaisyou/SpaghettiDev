@@ -61,6 +61,8 @@ SOFTWARE.
 #include <X11/extensions/XIproto.h>
 #include "exevents.h"
 #include "exglobals.h"
+#include "opaque.h"
+#include "dix.h"
 
 #include "grabdev.h"
 #include "selectev.h"
@@ -163,6 +165,17 @@ ProcXSelectExtensionEvent(ClientPtr client)
                                   stuff->count, tmp, NULL,
                                   X_SelectExtensionEvent)) != Success)
         return ret;
+
+    if (restrictDeviceKeyEvents) {
+        for (i = 0; i < EMASKSIZE; i++) {
+            if (tmp[i].dev != NULL &&
+                (tmp[i].mask & (KeyPressMask | KeyReleaseMask)) &&
+                client != serverClient) {
+                client->errorValue = DeviceKeyPress;
+                return BadAccess;
+            }
+        }
+    }
 
     for (i = 0; i < EMASKSIZE; i++)
         if (tmp[i].dev != NULL) {

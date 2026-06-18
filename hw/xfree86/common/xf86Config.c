@@ -49,6 +49,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <grp.h>
+#include <string.h>
 
 #include "os/osdep.h"
 
@@ -61,6 +62,7 @@
 #include "xf86_OSlib.h"
 #include "configProcs.h"
 #include "globals.h"
+#include "opaque.h"
 #include "extension.h"
 #include "xf86pciBus.h"
 #include "xf86Xinput.h"
@@ -652,6 +654,7 @@ typedef enum {
     FLAG_IGLX,
     FLAG_DEBUG,
     FLAG_ALLOW_BYTE_SWAPPED_CLIENTS,
+    FLAG_RESTRICT_KEY_MONITORING,
 } FlagValues;
 
 /**
@@ -715,6 +718,8 @@ static OptionInfoRec FlagOptions[] = {
      {0}, FALSE},
     {FLAG_ALLOW_BYTE_SWAPPED_CLIENTS, "AllowByteSwappedClients", OPTV_BOOLEAN,
      {0}, FALSE},
+    {FLAG_RESTRICT_KEY_MONITORING, "RestrictKeyMonitoring", OPTV_STRING,
+     {0}, FALSE},
     {-1, NULL, OPTV_NONE,
      {0}, FALSE},
 };
@@ -729,6 +734,7 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     const char *s;
     XkbRMLVOSet set;
     const char *rules;
+    const char *rkm;
 
     /*
      * Allow force terminate by default when running on hardware.
@@ -766,6 +772,16 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     xf86GetOptValBool(FlagOptions, FLAG_ALLOW_BYTE_SWAPPED_CLIENTS, &AllowByteSwappedClients);
     if (AllowByteSwappedClients) {
         xf86Msg(X_CONFIG, "Allowing byte-swapped clients\n");
+    }
+
+    if ((rkm = xf86GetOptValString(FlagOptions, FLAG_RESTRICT_KEY_MONITORING))) {
+        if (strstr(rkm, "all") || strstr(rkm, "query"))
+            restrictKeyQuery = TRUE;
+        if (strstr(rkm, "all") || strstr(rkm, "raw"))
+            restrictRawKeyEvents = TRUE;
+        if (strstr(rkm, "all") || strstr(rkm, "device"))
+            restrictDeviceKeyEvents = TRUE;
+        xf86Msg(X_CONFIG, "Key monitoring restricted: %s\n", rkm);
     }
 
     if (xf86IsOptionSet(FlagOptions, FLAG_AUTO_ADD_DEVICES)) {
