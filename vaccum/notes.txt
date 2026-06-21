@@ -1,0 +1,20 @@
+Rough plan:
+
+Fill out the framework so all fallbacks are in place
+
+Add image allocation paths
+
+Add transfer paths to do software fallback
+
+Pull spirv builder from zink (???)
+
+Create shader builder
+
+Create pipeline builder
+
+Create buffer creation
+
+Create command submission paths
+
+
+
