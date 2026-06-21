@@ -37,6 +37,9 @@ endif
 if gbm_dep.found()
     symbol_test_args += join_paths(xorg_build_root, 'glamor_egl', 'libglamoregl.so')
 endif
+if build_vaccum
+    symbol_test_args += join_paths(xorg_build_root, 'vaccum', 'libvaccum.so')
+endif
 symbol_test_args += join_paths(xorg_build_root, 'drivers', 'fission', 'fission_drv.so')
 
 install_man(configure_file(

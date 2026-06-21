@@ -121,6 +121,9 @@ subdir('fbdevhw')
 if gbm_dep.found()
     subdir('glamor_egl')
 endif
+if build_vaccum
+    subdir('vaccum')
+endif
 if int10 != 'false'
     if int10 == 'x86emu'
         subdir('x86emu')
