@@ -213,6 +213,7 @@ vaccum_init(ScreenPtr screen, unsigned int flags)
     vaccum_priv->queue_families = vk_priv->queue_families;
     vaccum_priv->device = vk_priv->device;
     vaccum_priv->queue = vk_priv->queue;
+    vaccum_priv->command_pool = vk_priv->command_pool;
     vaccum_priv->drm_fd = vk_priv->drm_fd;
     vaccum_priv->drm_device_path = vk_priv->drm_device_path;
     vaccum_priv->has_drm_format_modifier = vk_priv->has_drm_format_modifier;

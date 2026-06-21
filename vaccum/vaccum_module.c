@@ -6,7 +6,7 @@
 
 static XF86ModuleVersionInfo VersRec = {
     .modname      = "vaccum",
-    .vendor       = MODULEVENDORSTRING,
+    .vendor       = "Spaghetti Fork",
     ._modinfo1_   = MODINFOSTRING1,
     ._modinfo2_   = MODINFOSTRING2,
     .xf86version  = XORG_VERSION_CURRENT,
