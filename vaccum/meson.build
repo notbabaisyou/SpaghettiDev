@@ -3,6 +3,7 @@ srcs_vaccum = [
     'spirv_builder.h',
     'vaccum.c',
     'vaccum_core.c',
+    'vaccum_copy.c',
     'vaccum_dri3.c',
     'vaccum_dri3_syncobj.c',
     'vaccum_glyphbit.c',
@@ -19,6 +20,7 @@ srcs_vaccum = [
     'vaccum_transfer.h',
     'vaccum_vulkan.c',
     'vaccum_ximage.c',
+    'vaccum_module.c',
 ]
 
 vaccum = static_library('vaccum',

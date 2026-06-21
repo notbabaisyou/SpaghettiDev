@@ -200,7 +200,7 @@ vaccum_pm_is_solid(int depth, unsigned long planemask)
         FbFullMask(depth);
 }
 
-extern int vaccum_debug_level;
+extern _X_EXPORT int vaccum_debug_level;
 
 PixmapPtr vaccum_get_drawable_pixmap(DrawablePtr drawable);
 

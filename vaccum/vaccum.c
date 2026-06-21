@@ -8,6 +8,7 @@
 #endif
 
 int xf86VaccumVKPrivateIndex = -1;
+int vaccum_debug_level = 0;
 
 DevPrivateKeyRec vaccum_screen_private_key;
 DevPrivateKeyRec vaccum_pixmap_private_key;

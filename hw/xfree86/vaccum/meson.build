@@ -2,6 +2,7 @@ vaccum_mod_src = [
     '../../../vaccum/spirv_builder.c',
     '../../../vaccum/vaccum.c',
     '../../../vaccum/vaccum_core.c',
+    '../../../vaccum/vaccum_copy.c',
     '../../../vaccum/vaccum_dri3.c',
     '../../../vaccum/vaccum_dri3_syncobj.c',
     '../../../vaccum/vaccum_glyphbit.c',
@@ -16,6 +17,7 @@ vaccum_mod_src = [
     '../../../vaccum/vaccum_transfer.c',
     '../../../vaccum/vaccum_vulkan.c',
     '../../../vaccum/vaccum_ximage.c',
+    '../../../vaccum/vaccum_module.c',
 ]
 
 shared_module(
