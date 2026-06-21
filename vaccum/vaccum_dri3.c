@@ -344,6 +344,16 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
     ext_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
     ext_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
+    VkImageDrmFormatModifierListCreateInfoEXT modifier_list_info = {};
+    modifier_list_info.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT;
+
+    VkImageDrmFormatModifierExplicitCreateInfoEXT modifier_explicit_info = {};
+    modifier_explicit_info.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT;
+
+    VkSubresourceLayout plane_layout = {};
+    plane_layout.rowPitch = stride;
+    plane_layout.size = (VkDeviceSize)stride * height;
+
     VkImageCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     create_info.pNext = &ext_info;
@@ -360,11 +370,6 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
 
     if (vaccum_priv->has_drm_format_modifier) {
         if (modifier == DRM_FORMAT_MOD_INVALID) {
-            VkImageDrmFormatModifierListCreateInfoEXT modifier_list_info = {};
-            modifier_list_info.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT;
-            modifier_list_info.drmFormatModifierCount = 0;
-            modifier_list_info.pDrmFormatModifiers = NULL;
-
             VkDrmFormatModifierPropertiesListEXT props_list = {};
             props_list.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT;
 
@@ -405,24 +410,13 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
                 }
             }
         } else if (modifier == DRM_FORMAT_MOD_LINEAR) {
-            VkImageDrmFormatModifierListCreateInfoEXT modifier_list_info = {};
-            modifier_list_info.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT;
             modifier_list_info.drmFormatModifierCount = 1;
             modifier_list_info.pDrmFormatModifiers = &(uint64_t){ DRM_FORMAT_MOD_LINEAR };
             modifier_list_info.pNext = create_info.pNext;
             create_info.pNext = &modifier_list_info;
         } else {
-            VkImageDrmFormatModifierExplicitCreateInfoEXT modifier_explicit_info = {};
-            modifier_explicit_info.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT;
             modifier_explicit_info.drmFormatModifier = modifier;
             modifier_explicit_info.drmFormatModifierPlaneCount = 1;
-
-            VkSubresourceLayout plane_layout = {};
-            plane_layout.offset = 0;
-            plane_layout.rowPitch = stride;
-            plane_layout.arrayPitch = 0;
-            plane_layout.depthPitch = 0;
-            plane_layout.size = (VkDeviceSize)stride * height;
 
             modifier_explicit_info.pPlaneLayouts = &plane_layout;
             modifier_explicit_info.pNext = create_info.pNext;
