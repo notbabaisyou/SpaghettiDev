@@ -15,7 +15,8 @@
 struct vaccum_pixmap_private;
 
 struct vaccum_image {
-    VkDeviceMemory memory;
+    VkDeviceMemory memories[4];
+    uint32_t num_memories;
     VkImage image;
     VkImageView image_view;
     int width, height;
@@ -87,6 +88,15 @@ typedef struct vaccum_screen_private {
 
     VkCommandPool command_pool;
     VkCommandBuffer current_cmd;
+
+    int drm_fd;
+    char *drm_device_path;
+
+    Bool has_drm_format_modifier;
+    Bool has_maintenance5;
+    Bool dri3_enabled;
+
+    GetDrawableModifiersFuncPtr modifiers_func;
 } vaccum_screen_private;
 
 typedef enum vaccum_access {
@@ -187,13 +197,19 @@ vaccum_get_drawable_deltas(DrawablePtr drawable, PixmapPtr pixmap,
 
 const struct vaccum_format *
 vaccum_format_for_pixmap(PixmapPtr pixmap);
-Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv);
+Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd);
 void vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv);
 void vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv);
 
 struct vaccum_image *vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
                                          int w, int h);
+struct vaccum_image *vaccum_create_image_exportable(struct vaccum_screen_private *vaccum_priv,
+                                                     PixmapPtr pixmap, int w, int h);
 void vaccum_destroy_image(struct vaccum_screen_private *vaccum_priv, struct vaccum_image *image);
+
+#ifdef DRI3
+Bool vaccum_dri3_screen_init(ScreenPtr screen);
+#endif
 
 void vaccum_alloc_cmd_buffer(struct vaccum_screen_private *screen_priv);
 void vaccum_flush_cmds(struct vaccum_screen_private *screen_priv);

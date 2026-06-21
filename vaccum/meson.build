@@ -3,6 +3,8 @@ srcs_vaccum = [
     'spirv_builder.h',
     'vaccum.c',
     'vaccum_core.c',
+    'vaccum_dri3.c',
+    'vaccum_dri3_syncobj.c',
     'vaccum_glyphbit.c',
     'vaccum_image.c',
     'vaccum_lines.c',
@@ -19,13 +21,12 @@ srcs_vaccum = [
     'vaccum_ximage.c',
 ]
 
-vulkan_dep = dependency('vulkan')
-
 vaccum = static_library('vaccum',
     srcs_vaccum,
     include_directories: inc,
     dependencies: [
         common_dep,
-	vulkan_dep,
+        vulkan_dep,
+        libdrm_dep,
     ],
 )

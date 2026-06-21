@@ -1,5 +1,11 @@
 #include "vaccum_priv.h"
 
+#include <drm_fourcc.h>
+#include <xf86drm.h>
+#ifdef DRI3
+#include "dri3.h"
+#endif
+
 DevPrivateKeyRec vaccum_screen_private_key;
 DevPrivateKeyRec vaccum_pixmap_private_key;
 DevPrivateKeyRec vaccum_gc_private_key;
@@ -119,8 +125,10 @@ vaccum_format_for_pixmap(PixmapPtr pixmap)
     return &vaccum_priv->formats[pixmap->drawable.depth];
 }
 
+static void vaccum_block_handler_wrapper(ScreenPtr screen, void *timeout);
+
 Bool
-vaccum_init(ScreenPtr screen, unsigned int flags)
+vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
 {
     vaccum_screen_private *vaccum_priv;
 
@@ -157,16 +165,33 @@ vaccum_init(ScreenPtr screen, unsigned int flags)
 
     vaccum_priv->saved_procs.destroy_pixmap = screen->DestroyPixmap;
     screen->DestroyPixmap = vaccum_destroy_pixmap;
-    if (!vaccum_vulkan_init(vaccum_priv))
+    if (!vaccum_vulkan_init(vaccum_priv, drm_fd))
         goto free_vaccum_private;
 
     vaccum_priv->saved_procs.create_pixmap = screen->CreatePixmap;
     screen->CreatePixmap = vaccum_create_pixmap;
 
+    vaccum_priv->saved_procs.block_handler = screen->BlockHandler;
+    screen->BlockHandler = vaccum_block_handler_wrapper;
+
     vaccum_priv->max_fbo_size = vaccum_priv->dev_properties.limits.maxFramebufferWidth;
     vaccum_setup_formats(vaccum_priv);
 
     vaccum_alloc_cmd_buffer(vaccum_priv);
+
+#ifdef DRI3
+    if (drm_fd >= 0) {
+        vaccum_priv->drm_device_path = drmGetRenderDeviceNameFromFd(drm_fd);
+        if (!vaccum_priv->drm_device_path)
+            vaccum_priv->drm_device_path = drmGetDeviceNameFromFd2(drm_fd);
+        vaccum_enable_dri3(screen);
+        if (!vaccum_dri3_screen_init(screen))
+            LogMessage(X_WARNING,
+                       "vaccum%d: Failed to initialize DRI3\n",
+                       screen->myNum);
+    }
+#endif
+
     return TRUE;
  free_vaccum_private:
     free(vaccum_priv);
@@ -205,4 +230,65 @@ void
 vaccum_fini(ScreenPtr screen)
 {
     /* Do nothing currently. */
+}
+
+static void
+vaccum_block_handler_wrapper(ScreenPtr screen, void *timeout)
+{
+    vaccum_screen_private *vaccum_priv = vaccum_get_screen_private(screen);
+
+    screen->BlockHandler = vaccum_priv->saved_procs.block_handler;
+    screen->BlockHandler(screen, timeout);
+    vaccum_priv->saved_procs.block_handler = screen->BlockHandler;
+    screen->BlockHandler = vaccum_block_handler_wrapper;
+
+    vaccum_block_handler(screen);
+}
+
+void
+vaccum_block_handler(ScreenPtr screen)
+{
+    vaccum_screen_private *vaccum_priv = vaccum_get_screen_private(screen);
+    if (vaccum_priv)
+        vaccum_flush_cmds(vaccum_priv);
+}
+
+void
+vaccum_clear_pixmap(PixmapPtr pixmap)
+{
+    if (pixmap->devPrivate.ptr)
+        memset(pixmap->devPrivate.ptr, 0,
+               pixmap->devKind * pixmap->drawable.height);
+}
+
+void
+vaccum_exchange_buffers(PixmapPtr front, PixmapPtr back)
+{
+    vaccum_pixmap_private *front_priv = vaccum_get_pixmap_private(front);
+    vaccum_pixmap_private *back_priv = vaccum_get_pixmap_private(back);
+
+    XORG_EXCHANGE(front_priv->image, back_priv->image)
+}
+
+void
+vaccum_set_pixmap_type(PixmapPtr pixmap, vaccum_pixmap_type_t type)
+{
+    vaccum_pixmap_private *pixmap_priv = vaccum_get_pixmap_private(pixmap);
+    if (pixmap_priv)
+        pixmap_priv->type = type;
+}
+
+uint32_t
+vaccum_get_pixmap_texture(PixmapPtr pixmap)
+{
+    vaccum_pixmap_private *pixmap_priv = vaccum_get_pixmap_private(pixmap);
+    if (pixmap_priv && pixmap_priv->image)
+        return (uint32_t)(uintptr_t)pixmap_priv->image->image;
+    return 0;
+}
+
+Bool
+vaccum_set_pixmap_texture(PixmapPtr pixmap, unsigned int tex)
+{
+    return FALSE;
 }
