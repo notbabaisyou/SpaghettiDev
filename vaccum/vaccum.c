@@ -216,7 +216,6 @@ vaccum_init(ScreenPtr screen, unsigned int flags)
     vaccum_priv->command_pool = vk_priv->command_pool;
     vaccum_priv->drm_fd = vk_priv->drm_fd;
     vaccum_priv->drm_device_path = vk_priv->drm_device_path;
-    vaccum_priv->has_drm_format_modifier = vk_priv->has_drm_format_modifier;
     vaccum_priv->has_maintenance5 = vk_priv->has_maintenance5;
 
     vaccum_priv->saved_procs.create_pixmap = screen->CreatePixmap;
@@ -235,8 +234,7 @@ vaccum_init(ScreenPtr screen, unsigned int flags)
         vaccum_enable_dri3(screen);
         if (!vaccum_dri3_screen_init(screen))
             LogMessage(X_WARNING,
-                       "vaccum%d: Failed to initialize DRI3\n",
-                       screen->myNum);
+                       "vaccum(%d): Failed to initialize DRI3\n", screen->myNum);
     }
 #endif
 
@@ -321,27 +319,4 @@ vaccum_exchange_buffers(PixmapPtr front, PixmapPtr back)
     vaccum_pixmap_private *back_priv = vaccum_get_pixmap_private(back);
 
     XORG_EXCHANGE(front_priv->image, back_priv->image)
-}
-
-void
-vaccum_set_pixmap_type(PixmapPtr pixmap, vaccum_pixmap_type_t type)
-{
-    vaccum_pixmap_private *pixmap_priv = vaccum_get_pixmap_private(pixmap);
-    if (pixmap_priv)
-        pixmap_priv->type = type;
-}
-
-uint32_t
-vaccum_get_pixmap_texture(PixmapPtr pixmap)
-{
-    vaccum_pixmap_private *pixmap_priv = vaccum_get_pixmap_private(pixmap);
-    if (pixmap_priv && pixmap_priv->image)
-        return (uint32_t)(uintptr_t)pixmap_priv->image->image;
-    return 0;
-}
-
-Bool
-vaccum_set_pixmap_texture(PixmapPtr pixmap, unsigned int tex)
-{
-    return FALSE;
 }

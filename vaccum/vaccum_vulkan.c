@@ -44,8 +44,7 @@ vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd)
     uint32_t gpu_count;
     result = vkEnumeratePhysicalDevices(vk_priv->instance, &gpu_count, NULL);
     if (gpu_count == 0) {
-        LogMessage(X_WARNING,
-                   "vaccum: failed to find any vulkan devices\n");
+        ErrorF("vaccum: failed to find any vulkan devices\n");
         return FALSE;
     }
 
@@ -55,8 +54,7 @@ vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd)
 
     result = vkEnumeratePhysicalDevices(vk_priv->instance, &gpu_count, vk_priv->phys_devices);
     if (result != VK_SUCCESS) {
-        LogMessage(X_WARNING,
-                   "vaccum: failed to find any vulkan devices\n");
+        ErrorF("vaccum: failed to enumerate any vulkan devices\n");
         return FALSE;
     }
 
@@ -128,8 +126,7 @@ vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd)
             } \
         } \
         if (!(var)) { \
-            LogMessage(X_WARNING, \
-                       "vaccum: required extension %s not available\n", (name)); \
+            ErrorF("vaccum: required extension %s not available\n", (name)); \
             free(available_exts); \
             return FALSE; \
         } \
@@ -196,8 +193,7 @@ vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd)
 
     result = vkCreateDevice(vk_priv->phys_device, &device_create_info, NULL, &vk_priv->device);
     if (result != VK_SUCCESS) {
-        LogMessage(X_WARNING,
-                   "vaccum: failed to create vulkan device\n");
+        ErrorF("vaccum: failed to create vulkan device\n");
         return FALSE;
     }
 
@@ -208,12 +204,14 @@ vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd)
     cmd_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     result = vkCreateCommandPool(vk_priv->device, &cmd_pool_create_info, NULL, &vk_priv->command_pool);
 
-    vk_priv->has_drm_format_modifier = TRUE;
-
-    LogMessage(X_INFO, "vaccum: Initialized on %s\n",
-               vk_priv->dev_properties.deviceName);
-
-    return TRUE;
+    if (result == VK_SUCCESS) {
+        LogMessage(X_INFO, "vaccum: Initialized on %s\n",
+                           vk_priv->dev_properties.deviceName);
+        return TRUE;
+    } else {
+        ErrorF("vaccum: VkResult was %#010x in vaccum_vulkan_init\n", result);
+        return FALSE;
+    }
 }
 
 static Bool
@@ -278,28 +276,35 @@ vaccum_alloc_cmd_buffer(struct vaccum_screen_private *screen_priv)
     allocate_info.commandPool = screen_priv->command_pool;
     allocate_info.commandBufferCount = 1;
     result = vkAllocateCommandBuffers(screen_priv->device, &allocate_info, &screen_priv->current_cmd);
-    assert(result == VK_SUCCESS);
+    
+    VACCUM_ASSUME_OK(result);
 
     VkCommandBufferBeginInfo begin_info = {};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     result = vkBeginCommandBuffer(screen_priv->current_cmd, &begin_info);
-    assert(result == VK_SUCCESS);
+    
+    VACCUM_ASSUME_OK(result);
 }
 
 void vaccum_flush_cmds(struct vaccum_screen_private *screen_priv)
 {
     VkFence fence;
+    VkResult result;
 
     VkFenceCreateInfo fence_create_info = {};
     fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    vkCreateFence(screen_priv->device, &fence_create_info, NULL, &fence);
+    result = vkCreateFence(screen_priv->device, &fence_create_info, NULL, &fence);
+
+    VACCUM_ASSUME_OK(result);
 
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &screen_priv->current_cmd;
-    vkQueueSubmit(screen_priv->queue, 1, &submit_info, fence);
+    result = vkQueueSubmit(screen_priv->queue, 1, &submit_info, fence);
+
+    VACCUM_ASSUME_OK(result);
 
     vaccum_alloc_cmd_buffer(screen_priv);
 }

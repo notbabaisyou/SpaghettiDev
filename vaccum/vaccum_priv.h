@@ -37,7 +37,6 @@ typedef struct vaccum_vk_screen_private {
 
     struct gbm_device *gbm;
 
-    Bool has_drm_format_modifier;
     Bool has_maintenance5;
 } vaccum_vk_screen_private;
 
@@ -121,7 +120,6 @@ typedef struct vaccum_screen_private {
     int drm_fd;
     char *drm_device_path;
 
-    Bool has_drm_format_modifier;
     Bool has_maintenance5;
     Bool dri3_enabled;
 

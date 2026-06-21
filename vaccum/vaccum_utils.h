@@ -14,4 +14,7 @@
 
 #define VACCUM_PIXMAP_PRIV_HAS_FBO(pixmap_priv)    (pixmap_priv->vk_image == VACCUM_IMAGE_NORMAL)
 
+#define VACCUM_ASSUME_OK(cond) \
+    assert(cond == VK_SUCCESS);
+
 #endif

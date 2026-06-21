@@ -30,10 +30,9 @@
 #define __VACCUM_DEBUG_H__
 
 #define VACCUM_DEBUG_NONE                     0
-#define VACCUM_DEBUG_UNIMPL                   0
-#define VACCUM_DEBUG_FALLBACK                 1
-#define VACCUM_DEBUG_TEXTURE_DOWNLOAD         2
-#define VACCUM_DEBUG_TEXTURE_DYNAMIC_UPLOAD   3
+#define VACCUM_DEBUG_UNIMPL                   1
+#define VACCUM_DEBUG_FALLBACK                 2
+#define VACCUM_DEBUG_RUNTIME                  3
 
 extern void
 AbortServer(void)
@@ -41,7 +40,7 @@ AbortServer(void)
 
 #define VACCUM_PANIC(_format_, ...)			\
   do {							\
-    LogMessageVerb(X_NONE, 0, "Vaccum Fatal Error"	\
+    LogMessageVerb(X_NONE, 0, "VACCUM: Fatal error"	\
 		   " at %32s line %d: " _format_ "\n",	\
 		   __FUNCTION__, __LINE__,		\
 		   ##__VA_ARGS__ );			\
@@ -56,18 +55,18 @@ AbortServer(void)
 		 ##__VA_ARGS__)
 
 #define vaccum_debug_output(_level_, _format_,...)	\
-  do {							\
-    if (vaccum_debug_level >= _level_)			\
-      __debug_output_message(_format_,			\
-			     "Vaccum debug",		\
-			     ##__VA_ARGS__);		\
+  do {                                              \
+    if (_X_UNLIKELY(vaccum_debug_level >= _level_))	\
+      __debug_output_message(_format_,			        \
+           "VACCUM:",                               \
+           ##__VA_ARGS__);                          \
   } while(0)
 
 #define vaccum_fallback(_format_,...)			\
   do {							\
     if (vaccum_debug_level >= VACCUM_DEBUG_FALLBACK)	\
       __debug_output_message(_format_,			\
-			     "Vaccum fallback",		\
+			     "VACCUM:",		\
 			     ##__VA_ARGS__);} while(0)
 
 #define DEBUGF(str, ...)  do {} while(0)

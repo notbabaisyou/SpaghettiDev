@@ -99,7 +99,7 @@ vaccum_shareable_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
     VkResult result;
     int fd;
 
-    if (!vaccum_priv || !vaccum_priv->dri3_enabled)
+    if (!vaccum_priv)
         return -1;
 
     pixmap_priv = vaccum_get_pixmap_private(pixmap);
@@ -109,7 +109,6 @@ vaccum_shareable_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
     image = pixmap_priv->image;
 
     uint64_t modifier = vaccum_query_image_modifier(vaccum_priv, image->image);
-
     if (modifier == DRM_FORMAT_MOD_LINEAR) {
         VkMemoryGetFdInfoKHR get_fd_info = {};
         get_fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
@@ -175,7 +174,11 @@ vaccum_shareable_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
         return -1;
     }
 
-    vkBindImageMemory(vaccum_priv->device, linear_image, linear_memory, 0);
+    result = vkBindImageMemory(vaccum_priv->device, linear_image, linear_memory, 0);
+    if (result != VK_SUCCESS) {
+        vkDestroyImage(vaccum_priv->device, linear_image, NULL);
+        return -1;
+    }
 
     vaccum_alloc_cmd_buffer(vaccum_priv);
 
@@ -229,7 +232,7 @@ vaccum_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
     VkResult result;
     int fd;
 
-    if (!vaccum_priv || !vaccum_priv->dri3_enabled)
+    if (!vaccum_priv)
         return -1;
 
     pixmap_priv = vaccum_get_pixmap_private(pixmap);
@@ -262,7 +265,7 @@ vaccum_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
     vaccum_pixmap_private *pixmap_priv;
     struct vaccum_image *image;
 
-    if (!vaccum_priv || !vaccum_priv->dri3_enabled)
+    if (!vaccum_priv)
         return 0;
 
     pixmap_priv = vaccum_get_pixmap_private(pixmap);
@@ -329,7 +332,7 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
     const struct vaccum_format *f;
     VkResult result;
 
-    if (!vaccum_priv || !vaccum_priv->dri3_enabled)
+    if (!vaccum_priv)
         return FALSE;
 
     f = &vaccum_priv->formats[depth];
@@ -368,83 +371,68 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
                         VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                         VK_IMAGE_USAGE_SAMPLED_BIT;
 
-    if (vaccum_priv->has_drm_format_modifier) {
-        if (modifier == DRM_FORMAT_MOD_INVALID) {
-            VkDrmFormatModifierPropertiesListEXT props_list = {};
-            props_list.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT;
+    if (modifier == DRM_FORMAT_MOD_INVALID) {
+        VkDrmFormatModifierPropertiesListEXT props_list = {};
+        props_list.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT;
 
-            VkFormatProperties2 fmt_props = {};
-            fmt_props.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
-            fmt_props.pNext = &props_list;
+        VkFormatProperties2 fmt_props = {};
+        fmt_props.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+        fmt_props.pNext = &props_list;
 
-            props_list.drmFormatModifierCount = 0;
-            vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device, f->format, &fmt_props);
+        props_list.drmFormatModifierCount = 0;
+        vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device, f->format, &fmt_props);
 
-            if (props_list.drmFormatModifierCount > 0) {
-                uint64_t *mods = calloc(props_list.drmFormatModifierCount, sizeof(uint64_t));
-                if (mods) {
-                    VkDrmFormatModifierPropertiesEXT *mod_props =
-                        calloc(props_list.drmFormatModifierCount,
-                               sizeof(VkDrmFormatModifierPropertiesEXT));
-                    if (mod_props) {
-                        props_list.pDrmFormatModifierProperties = mod_props;
-                        vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device,
-                                                              f->format, &fmt_props);
+        if (props_list.drmFormatModifierCount > 0) {
+            uint64_t *mods = calloc(props_list.drmFormatModifierCount, sizeof(uint64_t));
+            if (mods) {
+                VkDrmFormatModifierPropertiesEXT *mod_props =
+                    calloc(props_list.drmFormatModifierCount,
+                           sizeof(VkDrmFormatModifierPropertiesEXT));
+                if (mod_props) {
+                    props_list.pDrmFormatModifierProperties = mod_props;
+                    vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device,
+                                                         f->format, &fmt_props);
 
-                        uint32_t count = 0;
-                        for (uint32_t i = 0; i < props_list.drmFormatModifierCount; i++) {
-                            if (mod_props[i].drmFormatModifierTilingFeatures &
-                                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)
-                                mods[count++] = mod_props[i].drmFormatModifier;
-                        }
-
-                        if (count > 0) {
-                            modifier_list_info.drmFormatModifierCount = count;
-                            modifier_list_info.pDrmFormatModifiers = mods;
-                            modifier_list_info.pNext = create_info.pNext;
-                            create_info.pNext = &modifier_list_info;
-                            create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
-                        }
-                        free(mod_props);
+                    uint32_t count = 0;
+                    for (uint32_t i = 0; i < props_list.drmFormatModifierCount; i++) {
+                        if (mod_props[i].drmFormatModifierTilingFeatures &
+                            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)
+                            mods[count++] = mod_props[i].drmFormatModifier;
                     }
-                    free(mods);
-                }
-            }
-        } else if (modifier == DRM_FORMAT_MOD_LINEAR) {
-            create_info.tiling = VK_IMAGE_TILING_LINEAR;
-        } else {
-            modifier_explicit_info.drmFormatModifier = modifier;
-            modifier_explicit_info.drmFormatModifierPlaneCount = 1;
 
-            modifier_explicit_info.pPlaneLayouts = &plane_layout;
-            modifier_explicit_info.pNext = create_info.pNext;
-            create_info.pNext = &modifier_explicit_info;
-            create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
+                    if (count > 0) {
+                        modifier_list_info.drmFormatModifierCount = count;
+                        modifier_list_info.pDrmFormatModifiers = mods;
+                        modifier_list_info.pNext = create_info.pNext;
+                        create_info.pNext = &modifier_list_info;
+                        create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
+                    }
+                    free(mod_props);
+                }
+                free(mods);
+            }
         }
+    } else if (modifier == DRM_FORMAT_MOD_LINEAR) {
+        create_info.tiling = VK_IMAGE_TILING_LINEAR;
+    } else {
+        modifier_explicit_info.drmFormatModifier = modifier;
+        modifier_explicit_info.drmFormatModifierPlaneCount = 1;
+
+        modifier_explicit_info.pPlaneLayouts = &plane_layout;
+        modifier_explicit_info.pNext = create_info.pNext;
+        create_info.pNext = &modifier_explicit_info;
+        create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
     }
 
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: fd=%d width=%u height=%u stride=%u depth=%u format=%u tiling=%u usage=0x%x pNext=%p has_mod=%d modifier=0x%lx\n",
-               fd, (uint32_t)width, (uint32_t)height, (uint32_t)stride,
-               (uint32_t)depth, (uint32_t)create_info.format,
-               (uint32_t)create_info.tiling, (uint32_t)create_info.usage,
-               (void *)create_info.pNext,
-               (int)vaccum_priv->has_drm_format_modifier,
-               (unsigned long)modifier);
-
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: calling vkCreateImage tiling=%u\n",
-               (uint32_t)create_info.tiling);
     result = vkCreateImage(vaccum_priv->device, &create_info, NULL, &image->image);
     if (result != VK_SUCCESS) {
-        LogMessage(X_ERROR, "vaccum: vkCreateImage failed: %d\n", (int)result);
+        ErrorF("vaccum: vkCreateImage failed with %d\n", (int)result);
         free(image);
         return FALSE;
     }
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkCreateImage OK\n");
 
     VkMemoryRequirements mem_reqs;
     vkGetImageMemoryRequirements(vaccum_priv->device, image->image, &mem_reqs);
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: memReqs size=%zu align=%zu memTypeBits=0x%x\n",
-               (size_t)mem_reqs.size, (size_t)mem_reqs.alignment, mem_reqs.memoryTypeBits);
 
     VkImportMemoryFdInfoKHR import_info = {};
     import_info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
@@ -477,21 +465,23 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
         }
     }
 
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: allocating memory index=%u compatible=0x%x\n",
-               alloc_info.memoryTypeIndex, compatible_bits);
     result = vkAllocateMemory(vaccum_priv->device, &alloc_info, NULL, &image->memories[0]);
     if (result != VK_SUCCESS) {
-        LogMessage(X_ERROR, "vaccum: vkAllocateMemory failed: %d\n", (int)result);
+        ErrorF("vaccum: vkAllocateMemory failed with %d\n", (int)result);
         vkDestroyImage(vaccum_priv->device, image->image, NULL);
         free(image);
         return FALSE;
     }
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkAllocateMemory OK\n");
 
     image->num_memories = 1;
 
-    vkBindImageMemory(vaccum_priv->device, image->image, image->memories[0], 0);
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkBindImageMemory OK\n");
+    result = vkBindImageMemory(vaccum_priv->device, image->image, image->memories[0], 0);
+    if (result != VK_SUCCESS) {
+        ErrorF("vaccum: vkBindImageMemory failed with %d\n", (int)result);
+        vkDestroyImage(vaccum_priv->device, image->image, NULL);
+        free(image);
+        return FALSE;
+    }
 
     VkImageViewCreateInfo imgv_info = {};
     imgv_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -504,28 +494,25 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
 
     result = vkCreateImageView(vaccum_priv->device, &imgv_info, NULL, &image->image_view);
     if (result != VK_SUCCESS) {
-        LogMessage(X_ERROR, "vaccum: vkCreateImageView failed: %d\n", (int)result);
+        ErrorF("vaccum: vkCreateImageView failed with %d\n", (int)result);
         vkFreeMemory(vaccum_priv->device, image->memories[0], NULL);
         vkDestroyImage(vaccum_priv->device, image->image, NULL);
         free(image);
         return FALSE;
     }
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkCreateImageView OK\n");
 
     screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, stride, NULL);
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: ModifyPixmapHeader OK\n");
-
     vaccum_pixmap_attach_image(pixmap, image);
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: ALL DONE, returning TRUE\n");
-
     return TRUE;
 }
 
 PixmapPtr
-vaccum_pixmap_from_fds(ScreenPtr screen, CARD8 num_fds, const int *fds,
-                        CARD16 width, CARD16 height, const CARD32 *strides,
-                        const CARD32 *offsets, CARD8 depth, CARD8 bpp,
-                        uint64_t modifier)
+vaccum_pixmap_from_fds(ScreenPtr screen,
+                       CARD8 num_fds, const int *fds,
+                       CARD16 width, CARD16 height,
+                       const CARD32 *strides,
+                       const CARD32 *offsets,
+                       CARD8 depth, CARD8 bpp, uint64_t modifier)
 {
     PixmapPtr pixmap;
 
@@ -537,7 +524,7 @@ vaccum_pixmap_from_fds(ScreenPtr screen, CARD8 num_fds, const int *fds,
         return NULL;
 
     if (!vaccum_import_fd_to_pixmap(pixmap, fds[0], width, height,
-                                     strides[0], depth, bpp, modifier)) {
+                                    strides[0], depth, bpp, modifier)) {
         screen->DestroyPixmap(pixmap);
         return NULL;
     }
@@ -546,7 +533,8 @@ vaccum_pixmap_from_fds(ScreenPtr screen, CARD8 num_fds, const int *fds,
 }
 
 PixmapPtr
-vaccum_pixmap_from_fd(ScreenPtr screen, int fd, CARD16 width, CARD16 height,
+vaccum_pixmap_from_fd(ScreenPtr screen, int fd,
+                      CARD16 width, CARD16 height,
                       CARD16 stride, CARD8 depth, CARD8 bpp)
 {
     PixmapPtr pixmap;
@@ -556,8 +544,8 @@ vaccum_pixmap_from_fd(ScreenPtr screen, int fd, CARD16 width, CARD16 height,
         return NULL;
 
     if (!vaccum_import_fd_to_pixmap(pixmap, fd, width, height,
-                                     stride, depth, bpp,
-                                     DRM_FORMAT_MOD_LINEAR)) {
+                                    stride, depth, bpp,
+                                    DRM_FORMAT_MOD_LINEAR)) {
         screen->DestroyPixmap(pixmap);
         return NULL;
     }
@@ -566,9 +554,9 @@ vaccum_pixmap_from_fd(ScreenPtr screen, int fd, CARD16 width, CARD16 height,
 }
 
 Bool
-vaccum_back_pixmap_from_fd(PixmapPtr pixmap, int fd, CARD16 width,
-                            CARD16 height, CARD16 stride, CARD8 depth,
-                            CARD8 bpp)
+vaccum_back_pixmap_from_fd(PixmapPtr pixmap, int fd,
+                           CARD16 width, CARD16 height,
+                           CARD16 stride, CARD8 depth, CARD8 bpp)
 {
     return vaccum_import_fd_to_pixmap(pixmap, fd, width, height,
                                       stride, depth, bpp,
@@ -587,7 +575,7 @@ vaccum_get_formats(ScreenPtr screen, CARD32 *num_formats, CARD32 **formats)
     *num_formats = 0;
     *formats = NULL;
 
-    if (!vaccum_priv || !vaccum_priv->has_drm_format_modifier)
+    if (!vaccum_priv)
         return TRUE;
 
     for (int i = 0; vaccum_drm_format_map[i].drm_format != 0; i++) {
@@ -612,8 +600,8 @@ vaccum_get_formats(ScreenPtr screen, CARD32 *num_formats, CARD32 **formats)
 
         modifier_list.pDrmFormatModifierProperties = mod_props;
         vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device,
-                                              vaccum_drm_format_map[i].vk_format,
-                                              &props2);
+                                             vaccum_drm_format_map[i].vk_format,
+                                             &props2);
 
         for (uint32_t j = 0; j < modifier_list.drmFormatModifierCount; j++) {
             if (mod_props[j].drmFormatModifierTilingFeatures &
@@ -655,8 +643,8 @@ vaccum_get_formats(ScreenPtr screen, CARD32 *num_formats, CARD32 **formats)
 
         modifier_list.pDrmFormatModifierProperties = mod_props;
         vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device,
-                                              vaccum_drm_format_map[i].vk_format,
-                                              &props2);
+                                             vaccum_drm_format_map[i].vk_format,
+                                             &props2);
 
         Bool found = FALSE;
         for (uint32_t j = 0; j < modifier_list.drmFormatModifierCount; j++) {
@@ -691,7 +679,7 @@ vaccum_get_modifiers(ScreenPtr screen, uint32_t format,
     *num_modifiers = 0;
     *modifiers = NULL;
 
-    if (!vaccum_priv || !vaccum_priv->has_drm_format_modifier)
+    if (!vaccum_priv)
         return TRUE;
 
     vk_format = vaccum_vk_format_for_drm(format);
@@ -704,7 +692,7 @@ vaccum_get_modifiers(ScreenPtr screen, uint32_t format,
     modifier_list.drmFormatModifierCount = 0;
 
     vkGetPhysicalDeviceFormatProperties2(vaccum_priv->phys_device,
-                                          vk_format, &props2);
+                                         vk_format, &props2);
 
     if (modifier_list.drmFormatModifierCount == 0)
         return TRUE;
@@ -852,7 +840,8 @@ vaccum_gbm_bo_from_pixmap(ScreenPtr screen, PixmapPtr pixmap)
 }
 
 Bool
-vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *bo, Bool used_modifiers)
+vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap,
+                                              struct gbm_bo *bo, Bool used_modifiers)
 {
     vaccum_screen_private *vaccum_priv = vaccum_get_screen_private(pixmap->drawable.pScreen);
     ScrnInfoPtr scrn;
@@ -894,17 +883,12 @@ vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *b
         return FALSE;
     }
     
-    /* Import into VACCUM using the existing function */
-    LogMessage(X_INFO, "vaccum: gbm_bo_from_pixmap: fd=%d width=%u height=%u stride=%u depth=%u bpp=%u modifier=0x%lx format=%u used_mod=%d\n",
-               fd, width, height, stride, (uint32_t)pixmap->drawable.depth,
-               (uint32_t)pixmap->drawable.bitsPerPixel, (unsigned long)modifier,
-               (uint32_t)f->format, (int)used_modifiers);
+    /* Finally, import the GBM BO into VACCUM */
     Bool result = vaccum_import_fd_to_pixmap(pixmap, fd, width, height,
-                                            stride, pixmap->drawable.depth,
-                                            pixmap->drawable.bitsPerPixel,
-                                            modifier);
-    LogMessage(X_INFO, "vaccum: gbm_bo_from_pixmap: import_fd_to_pixmap returned %d\n",
-               (int)result);
+                                             stride, pixmap->drawable.depth,
+                                             pixmap->drawable.bitsPerPixel,
+                                             modifier);
+
     close(fd);
     return result;
 }
@@ -918,8 +902,11 @@ vaccum_dri3_open_client(ClientPtr client, ScreenPtr screen,
     int fd;
     drm_magic_t magic;
 
-    if (!vaccum_priv || !vaccum_priv->drm_device_path)
+    if (!vaccum_priv)
         return BadAlloc;
+
+    if (!vaccum_priv->drm_device_path)
+        return BadImplementation;
 
     fd = open(vaccum_priv->drm_device_path, O_RDWR | O_CLOEXEC);
     if (fd < 0)
@@ -945,14 +932,21 @@ vaccum_dri3_open_client(ClientPtr client, ScreenPtr screen,
 
 static const dri3_screen_info_rec vaccum_dri3_info = {
     .version = 4,
-    .open_client = vaccum_dri3_open_client,
-    .pixmap_from_fds = vaccum_pixmap_from_fds,
-    .fd_from_pixmap = vaccum_fd_from_pixmap,
-    .fds_from_pixmap = vaccum_fds_from_pixmap,
+
+    .open = NULL,
+    /* XXX: These aren't really needed as we 
+     * mandate proper DMA-BUF support, remove these. */
     .pixmap_from_fd = vaccum_pixmap_from_fd,
+    .fd_from_pixmap = vaccum_fd_from_pixmap,
+
+    .open_client = vaccum_dri3_open_client,
+
+    .pixmap_from_fds = vaccum_pixmap_from_fds,
+    .fds_from_pixmap = vaccum_fds_from_pixmap,
     .get_formats = vaccum_get_formats,
     .get_modifiers = vaccum_get_modifiers,
     .get_drawable_modifiers = vaccum_get_drawable_modifiers,
+
     .import_syncobj = vaccum_import_syncobj,
 };
 
