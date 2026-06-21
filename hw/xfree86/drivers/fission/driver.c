@@ -773,8 +773,8 @@ redisplay_dirty(ScreenPtr screen, PixmapDirtyUpdatePtr dirty, int *timeout)
          * copy to its own framebuffer (some secondarys scanout directly from
          * the shared pixmap, but not all).
          */
-        if (ms->drmmode.glamor)
-            ms->glamor.finish(screen);
+        if (ms->drmmode.accel_method)
+            ms->accel.finish(screen);
 #endif
         /* Ensure the secondary processes the damage immediately */
         if (timeout)
@@ -979,7 +979,7 @@ ms_tearfree_update_crtc(ScreenPtr screen, xf86CrtcPtr crtc)
 
 #ifdef GLAMOR_HAS_GBM
     /* Ensure the blit is visible to the display engine before the flip. */
-    if (ms->drmmode.glamor)
+    if (ms->drmmode.accel_method)
         glamor_finish(screen);
 #endif
 
@@ -1266,23 +1266,63 @@ load_glamor(ScrnInfoPtr pScrn)
     if (!mod)
         return FALSE;
 
-    ms->glamor.back_pixmap_from_fd = LoaderSymbolFromModule(mod, "glamor_back_pixmap_from_fd");
-    ms->glamor.block_handler = LoaderSymbolFromModule(mod, "glamor_block_handler");
-    ms->glamor.clear_pixmap = LoaderSymbolFromModule(mod, "glamor_clear_pixmap");
-    ms->glamor.glamor_pixmap_from_fds = LoaderSymbolFromModule(mod, "glamor_pixmap_from_fds");
-    ms->glamor.egl_create_textured_pixmap_from_gbm_bo = LoaderSymbolFromModule(mod, "glamor_egl_create_textured_pixmap_from_gbm_bo");
-    ms->glamor.egl_exchange_buffers = LoaderSymbolFromModule(mod, "glamor_egl_exchange_buffers");
-    ms->glamor.egl_get_gbm_device = LoaderSymbolFromModule(mod, "glamor_egl_get_gbm_device");
-    ms->glamor.egl_init = LoaderSymbolFromModule(mod, "glamor_egl_init");
-    ms->glamor.finish = LoaderSymbolFromModule(mod, "glamor_finish");
-    ms->glamor.gbm_bo_from_pixmap = LoaderSymbolFromModule(mod, "glamor_gbm_bo_from_pixmap");
-    ms->glamor.init = LoaderSymbolFromModule(mod, "glamor_init");
-    ms->glamor.name_from_pixmap = LoaderSymbolFromModule(mod, "glamor_name_from_pixmap");
-    ms->glamor.set_drawable_modifiers_func = LoaderSymbolFromModule(mod, "glamor_set_drawable_modifiers_func");
-    ms->glamor.shareable_fd_from_pixmap = LoaderSymbolFromModule(mod, "glamor_shareable_fd_from_pixmap");
-    ms->glamor.supports_pixmap_import_export = LoaderSymbolFromModule(mod, "glamor_supports_pixmap_import_export");
-    ms->glamor.xv_init = LoaderSymbolFromModule(mod, "glamor_xv_init");
-    ms->glamor.egl_get_driver_name = LoaderSymbolFromModule(mod, "glamor_egl_get_driver_name");
+    ms->accel.back_pixmap_from_fd = LoaderSymbolFromModule(mod, "glamor_back_pixmap_from_fd");
+    ms->accel.block_handler = LoaderSymbolFromModule(mod, "glamor_block_handler");
+    ms->accel.clear_pixmap = LoaderSymbolFromModule(mod, "glamor_clear_pixmap");
+    ms->accel.pixmap_from_fds = LoaderSymbolFromModule(mod, "glamor_pixmap_from_fds");
+    ms->accel.egl_create_textured_pixmap_from_gbm_bo = LoaderSymbolFromModule(mod, "glamor_egl_create_textured_pixmap_from_gbm_bo");
+    ms->accel.egl_exchange_buffers = LoaderSymbolFromModule(mod, "glamor_egl_exchange_buffers");
+    ms->accel.egl_get_gbm_device = LoaderSymbolFromModule(mod, "glamor_egl_get_gbm_device");
+    ms->accel.egl_init = LoaderSymbolFromModule(mod, "glamor_egl_init");
+    ms->accel.finish = LoaderSymbolFromModule(mod, "glamor_finish");
+    ms->accel.gbm_bo_from_pixmap = LoaderSymbolFromModule(mod, "glamor_gbm_bo_from_pixmap");
+    ms->accel.init = LoaderSymbolFromModule(mod, "glamor_init");
+    ms->accel.name_from_pixmap = LoaderSymbolFromModule(mod, "glamor_name_from_pixmap");
+    ms->accel.set_drawable_modifiers_func = LoaderSymbolFromModule(mod, "glamor_set_drawable_modifiers_func");
+    ms->accel.fds_from_pixmap = LoaderSymbolFromModule(mod, "glamor_egl_fds_from_pixmap");
+    ms->accel.fd_from_pixmap = LoaderSymbolFromModule(mod, "glamor_fd_from_pixmap");
+    ms->accel.shareable_fd_from_pixmap = LoaderSymbolFromModule(mod, "glamor_shareable_fd_from_pixmap");
+    ms->accel.supports_pixmap_import_export = LoaderSymbolFromModule(mod, "glamor_supports_pixmap_import_export");
+    ms->accel.xv_init = LoaderSymbolFromModule(mod, "glamor_xv_init");
+    ms->accel.egl_get_driver_name = LoaderSymbolFromModule(mod, "glamor_egl_get_driver_name");
+    ms->accel.get_formats = LoaderSymbolFromModule(mod, "glamor_get_formats");
+    ms->accel.get_modifiers = LoaderSymbolFromModule(mod, "glamor_get_modifiers");
+
+    return TRUE;
+}
+
+static Bool
+load_vaccum(ScrnInfoPtr pScrn)
+{
+    void *mod = xf86LoadSubModule(pScrn, "vaccum");
+    modesettingPtr ms = modesettingPTR(pScrn);
+
+    if (!mod)
+        return FALSE;
+
+    ms->accel.egl_init = LoaderSymbolFromModule(mod, "vaccum_egl_init");
+    ms->accel.init = LoaderSymbolFromModule(mod, "vaccum_init");
+    ms->accel.fini = LoaderSymbolFromModule(mod, "vaccum_fini");
+    ms->accel.block_handler = LoaderSymbolFromModule(mod, "vaccum_block_handler");
+    ms->accel.clear_pixmap = LoaderSymbolFromModule(mod, "vaccum_clear_pixmap");
+    ms->accel.finish = LoaderSymbolFromModule(mod, "vaccum_finish");
+    ms->accel.set_drawable_modifiers_func = LoaderSymbolFromModule(mod, "vaccum_set_drawable_modifiers_func");
+    ms->accel.supports_pixmap_import_export = LoaderSymbolFromModule(mod, "vaccum_supports_pixmap_import_export");
+    ms->accel.back_pixmap_from_fd = LoaderSymbolFromModule(mod, "vaccum_back_pixmap_from_fd");
+    ms->accel.pixmap_from_fds = LoaderSymbolFromModule(mod, "vaccum_pixmap_from_fds");
+    ms->accel.name_from_pixmap = LoaderSymbolFromModule(mod, "vaccum_name_from_pixmap");
+    ms->accel.fd_from_pixmap = LoaderSymbolFromModule(mod, "vaccum_fd_from_pixmap");
+    ms->accel.shareable_fd_from_pixmap = LoaderSymbolFromModule(mod, "vaccum_shareable_fd_from_pixmap");
+    ms->accel.fds_from_pixmap = LoaderSymbolFromModule(mod, "vaccum_fds_from_pixmap");
+    ms->accel.exchange_buffers = LoaderSymbolFromModule(mod, "vaccum_exchange_buffers");
+    ms->accel.get_formats = LoaderSymbolFromModule(mod, "vaccum_get_formats");
+    ms->accel.get_modifiers = LoaderSymbolFromModule(mod, "vaccum_get_modifiers");
+    ms->accel.egl_get_gbm_device = LoaderSymbolFromModule(mod, "vaccum_egl_get_gbm_device");
+    ms->accel.gbm_bo_from_pixmap = LoaderSymbolFromModule(mod, "vaccum_gbm_bo_from_pixmap");
+    ms->accel.egl_create_textured_pixmap_from_gbm_bo = LoaderSymbolFromModule(mod, "vaccum_egl_create_textured_pixmap_from_gbm_bo");
+    ms->accel.egl_exchange_buffers = NULL;
+    ms->accel.xv_init = NULL;
+    ms->accel.egl_get_driver_name = NULL;
 
     return TRUE;
 }
@@ -1298,7 +1338,7 @@ try_enable_glamor(ScrnInfoPtr pScrn)
     Bool do_glamor = (!accel_method_str ||
                       strcmp(accel_method_str, "glamor") == 0);
 
-    ms->drmmode.glamor = FALSE;
+    ms->drmmode.accel_method = FALSE;
 
 #ifdef GLAMOR_HAS_GBM
     if (ms->drmmode.force_24_32) {
@@ -1312,9 +1352,9 @@ try_enable_glamor(ScrnInfoPtr pScrn)
     }
 
     if (load_glamor(pScrn)) {
-        if (ms->glamor.egl_init(pScrn, ms->fd)) {
+        if (ms->accel.egl_init(pScrn, ms->fd)) {
             xf86DrvMsg(pScrn->scrnIndex, X_INFO, "glamor initialized\n");
-            ms->drmmode.glamor = TRUE;
+            ms->drmmode.accel_method = MS_ACCEL_GLAMOR;
         } else {
             xf86DrvMsg(pScrn->scrnIndex, X_INFO,
                        "glamor initialization failed\n");
@@ -1327,6 +1367,46 @@ try_enable_glamor(ScrnInfoPtr pScrn)
     if (do_glamor) {
         xf86DrvMsg(pScrn->scrnIndex, X_INFO,
                    "No glamor support in the X Server\n");
+    }
+#endif
+}
+
+static void
+try_enable_vaccum(ScrnInfoPtr pScrn)
+{
+    modesettingPtr ms = modesettingPTR(pScrn);
+    const char *accel_method_str = xf86GetOptValString(ms->drmmode.Options,
+                                                       OPTION_ACCEL_METHOD);
+    Bool do_vaccum = (!accel_method_str ||
+                      strcmp(accel_method_str, "vaccum") == 0);
+
+#ifdef GLAMOR_HAS_GBM
+    if (ms->drmmode.force_24_32) {
+        xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Cannot use vaccum with 24bpp packed fb\n");
+        return;
+    }
+
+    if (!do_vaccum) {
+        xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "vaccum disabled\n");
+        return;
+    }
+
+    if (load_vaccum(pScrn)) {
+        if (ms->accel.egl_init(pScrn, ms->fd)) {
+            xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vaccum initialized\n");
+            ms->drmmode.accel_method = MS_ACCEL_VACCUM;
+        } else {
+            xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                       "vaccum initialization failed\n");
+        }
+    } else {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+                   "Failed to load vaccum module.\n");
+    }
+#else
+    if (do_vaccum) {
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+                   "No vaccum support in the X Server\n");
     }
 #endif
 }
@@ -1530,11 +1610,12 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     try_enable_glamor(pScrn);
+    try_enable_vaccum(pScrn);
 
     ms->drmmode.pageflip =
         xf86ReturnOptValBool(ms->drmmode.Options, OPTION_PAGEFLIP, TRUE);
 
-    if (!ms->drmmode.glamor) {
+    if (!ms->drmmode.accel_method) {
         Bool prefer_shadow = TRUE;
 
         if (ms->drmmode.force_24_32) {
@@ -1583,11 +1664,11 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     if (ret == 0) {
         if (connector_count && (value & DRM_PRIME_CAP_IMPORT)) {
             pScrn->capabilities |= RR_Capability_SinkOutput;
-            if (ms->drmmode.glamor)
+            if (ms->drmmode.accel_method)
                 pScrn->capabilities |= RR_Capability_SinkOffload;
         }
 #ifdef GLAMOR_HAS_GBM_LINEAR
-        if (value & DRM_PRIME_CAP_EXPORT && ms->drmmode.glamor)
+        if (value & DRM_PRIME_CAP_EXPORT && ms->drmmode.accel_method)
             pScrn->capabilities |= RR_Capability_SourceOutput | RR_Capability_SourceOffload;
 #endif
     }
@@ -2013,7 +2094,7 @@ msSharePixmapBacking(PixmapPtr ppix, ScreenPtr secondary, void **handle)
     int ret;
     CARD16 stride;
     CARD32 size;
-    ret = ms->glamor.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
+    ret = ms->accel.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
                                               &stride, &size);
     if (ret == -1)
         return FALSE;
@@ -2039,7 +2120,7 @@ msSetSharedPixmapBacking(PixmapPtr ppix, void *fd_handle)
            return drmmode_SetSlaveBO(ppix, &ms->drmmode, ihandle, 0, 0);
 
     if (ms->drmmode.reverse_prime_offload_mode) {
-        ret = ms->glamor.back_pixmap_from_fd(ppix, ihandle,
+        ret = ms->accel.back_pixmap_from_fd(ppix, ihandle,
                                              ppix->drawable.width,
                                              ppix->drawable.height,
                                              ppix->devKind,
@@ -2159,8 +2240,8 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
         return FALSE;
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor)
-        ms->drmmode.gbm = ms->glamor.egl_get_gbm_device(pScreen);
+    if (ms->drmmode.accel_method && ms->accel.egl_get_gbm_device)
+        ms->drmmode.gbm = ms->accel.egl_get_gbm_device(pScreen);
 #endif
 
     /* HW dependent - FIXME */
@@ -2221,7 +2302,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
 
     if (drmmode_init(pScrn, &ms->drmmode) == FALSE) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                   "Failed to initialize glamor at ScreenInit() time.\n");
+                   "Failed to initialize acceleration at ScreenInit() time.\n");
         return FALSE;
     }
 
@@ -2271,7 +2352,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
      * later memory should be bound when allocating, e.g rotate_mem */
     pScrn->vtSema = TRUE;
 
-    if (serverGeneration == 1 && bgNoneRoot && ms->drmmode.glamor) {
+    if (serverGeneration == 1 && bgNoneRoot && ms->drmmode.accel_method) {
         ms->CreateWindow = pScreen->CreateWindow;
         pScreen->CreateWindow = CreateWindow_oneshot;
     }
@@ -2304,10 +2385,10 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     xf86DPMSInit(pScreen, drmmode_set_dpms, 0);
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor) {
-        ms->glamor_adaptor = ms->glamor.xv_init(pScreen, 16);
-        if (ms->glamor_adaptor)
-            xf86XVScreenInit(pScreen, &ms->glamor_adaptor, 1);
+    if (ms->drmmode.accel_method == MS_ACCEL_GLAMOR && ms->accel.xv_init) {
+        ms->accel_adaptor = ms->accel.xv_init(pScreen, 16);
+        if (ms->accel_adaptor)
+            xf86XVScreenInit(pScreen, &ms->accel_adaptor, 1);
         else
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                        "Failed to initialize XV support.\n");
@@ -2324,7 +2405,7 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
     }
 
 #ifdef GLAMOR_HAS_GBM
-    if (ms->drmmode.glamor) {
+    if (ms->drmmode.accel_method) {
         if (!(ms->drmmode.dri2_enable = ms_dri2_screen_init(pScreen))) {
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                        "Failed to initialize the DRI2 extension.\n");
@@ -2360,11 +2441,11 @@ ScreenInit(ScreenPtr pScreen, int argc, char **argv)
         }
     }
 #endif
+
     if (!(ms->drmmode.present_enable = ms_present_screen_init(pScreen))) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "Failed to initialize the Present extension.\n");
     }
-
 
     pScrn->vtSema = TRUE;
 
@@ -2466,8 +2547,8 @@ CloseScreen(ScreenPtr pScreen)
         ms_dri2_close_screen(pScreen);
     }
 
-    if (ms->glamor_adaptor)
-        free(ms->glamor_adaptor);
+    if (ms->accel_adaptor)
+        free(ms->accel_adaptor);
 #endif
 
     ms_vblank_close_screen(pScreen);

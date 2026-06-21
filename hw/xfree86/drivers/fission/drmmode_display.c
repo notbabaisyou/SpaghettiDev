@@ -886,7 +886,9 @@ drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
     modesettingPtr ms = modesettingPTR(crtc->scrn);
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+#ifdef GLAMOR_HAS_GBM
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
+#endif
     uint32_t fb_id;
     int x, y;
     int i, ret = 0;
@@ -896,7 +898,7 @@ drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
 
 #ifdef GLAMOR_HAS_GBM
     /* Make sure any pending drawing will be visible in a new scanout buffer */
-    if (drmmode->glamor)
+    if (drmmode->accel_method)
         glamor_finish(crtc->scrn->pScreen);
 #endif
 
@@ -1149,7 +1151,7 @@ drmmode_create_bo(drmmode_ptr drmmode, drmmode_bo *bo,
     bo->height = height;
 
 #ifdef GLAMOR_HAS_GBM
-    if (drmmode->glamor) {
+    if (drmmode->accel_method) {
         uint32_t format;
         uint32_t num_modifiers;
         uint64_t *modifiers = NULL;
@@ -1618,9 +1620,9 @@ create_pixmap_for_fbcon(drmmode_ptr drmmode, ScrnInfoPtr pScrn, int fbcon_id)
         goto out_close_fds;
     }
 
-    pixmap = ms->glamor.glamor_pixmap_from_fds(pScreen, num_fds, fds,
-                                               width, height, strides, offsets,
-                                               depth, bpp, modifier);
+    pixmap = ms->accel.pixmap_from_fds(pScreen, num_fds, fds,
+                                                width, height, strides, offsets,
+                                                depth, bpp, modifier);
     if (!pixmap)
         goto out_close_fds;
 
@@ -2165,8 +2167,8 @@ drmmode_clear_pixmap(PixmapPtr pixmap)
 #ifdef GLAMOR_HAS_GBM
     modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(screen));
 
-    if (ms->drmmode.glamor) {
-        ms->glamor.clear_pixmap(pixmap);
+    if (ms->drmmode.accel_method) {
+        ms->accel.clear_pixmap(pixmap);
         return;
     }
 #endif
@@ -3737,11 +3739,11 @@ drmmode_set_pixmap_bo(drmmode_ptr drmmode, PixmapPtr pixmap, drmmode_bo *bo)
     ScrnInfoPtr scrn = drmmode->scrn;
     modesettingPtr ms = modesettingPTR(scrn);
 
-    if (!drmmode->glamor)
+    if (!drmmode->accel_method)
         return TRUE;
 
-    if (!ms->glamor.egl_create_textured_pixmap_from_gbm_bo(pixmap, bo->gbm,
-                                                           bo->used_modifiers)) {
+    if (!ms->accel.egl_create_textured_pixmap_from_gbm_bo(pixmap, bo->gbm,
+                                                          bo->used_modifiers)) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR, "Failed to create pixmap\n");
         return FALSE;
     }
@@ -4078,12 +4080,13 @@ drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
     ScreenPtr pScreen = xf86ScrnToScreen(pScrn);
     modesettingPtr ms = modesettingPTR(pScrn);
 
-    if (drmmode->glamor) {
-        if (!ms->glamor.init(pScreen, GLAMOR_USE_EGL_SCREEN)) {
+    if (drmmode->accel_method) {
+        if (!ms->accel.init(pScreen, GLAMOR_USE_EGL_SCREEN)) {
             return FALSE;
         }
+
 #ifdef GBM_BO_WITH_MODIFIERS
-        ms->glamor.set_drawable_modifiers_func(pScreen, get_drawable_modifiers);
+        ms->accel.set_drawable_modifiers_func(pScreen, get_drawable_modifiers);
 #endif
     }
 #endif

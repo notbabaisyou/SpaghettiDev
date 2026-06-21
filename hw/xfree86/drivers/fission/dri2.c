@@ -201,7 +201,7 @@ ms_dri2_create_buffer2(ScreenPtr screen, DrawablePtr drawable,
      */
     buffer->flags = 0;
 
-    buffer->name = ms->glamor.name_from_pixmap(pixmap, &pitch, &size);
+    buffer->name = ms->accel.name_from_pixmap(pixmap, &pitch, &size);
     buffer->pitch = pitch;
     if (buffer->name == -1) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
@@ -516,7 +516,7 @@ update_front(DrawablePtr draw, DRI2BufferPtr front)
     CARD16 pitch;
     int name;
 
-    name = ms->glamor.name_from_pixmap(pixmap, &pitch, &size);
+    name = ms->accel.name_from_pixmap(pixmap, &pitch, &size);
     if (name < 0)
         return FALSE;
 
@@ -624,7 +624,7 @@ ms_dri2_exchange_buffers(DrawablePtr draw, DRI2BufferPtr front,
 
     DamageRegionAppend(&front_priv->pixmap->drawable, &region);
 
-    ms->glamor.egl_exchange_buffers(front_priv->pixmap, back_priv->pixmap);
+    ms->accel.exchange_buffers(front_priv->pixmap, back_priv->pixmap);
 
     DamageRegionProcessPending(&front_priv->pixmap->drawable);
 }
@@ -1035,9 +1035,9 @@ ms_dri2_screen_init(ScreenPtr screen)
     DRI2InfoRec info;
     const char *driver_names[2] = { NULL, NULL };
 
-    if (!ms->glamor.supports_pixmap_import_export(screen)) {
+    if (!ms->accel.supports_pixmap_import_export(screen)) {
         xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-                   "DRI2: glamor lacks support for pixmap import/export\n");
+                   "DRI2: accel lacks support for pixmap import/export\n");
     }
 
     if (!xf86LoaderCheckSymbol("DRI2Version"))
@@ -1072,9 +1072,9 @@ ms_dri2_screen_init(ScreenPtr screen)
     info.DestroyBuffer2 = ms_dri2_destroy_buffer2;
     info.CopyRegion2 = ms_dri2_copy_region2;
 
-    /* Ask Glamor to obtain the DRI driver name via EGL_MESA_query_driver, */
-    if (ms->glamor.egl_get_driver_name)
-        driver_names[0] = ms->glamor.egl_get_driver_name(screen);
+    /* Ask the accel backend to obtain the DRI driver name via EGL_MESA_query_driver */
+    if (ms->accel.egl_get_driver_name)
+        driver_names[0] = ms->accel.egl_get_driver_name(screen);
 
     if (driver_names[0]) {
         /* There is no VDPAU driver for Intel, fallback to the generic

@@ -343,9 +343,9 @@ ms_do_pageflip(ScreenPtr screen,
     int i;
     struct ms_flipdata *flipdata;
 
-    ms->glamor.block_handler(screen);
+    ms->accel.block_handler(screen);
 
-    new_front_bo.gbm = ms->glamor.gbm_bo_from_pixmap(screen, new_front);
+    new_front_bo.gbm = ms->accel.gbm_bo_from_pixmap(screen, new_front);
     new_front_bo.dumb = NULL;
 
     if (!new_front_bo.gbm) {

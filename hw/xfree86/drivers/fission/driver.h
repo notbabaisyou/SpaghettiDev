@@ -41,6 +41,7 @@
 #include "glamor.h"
 #include <gbm.h>
 #endif
+#include "vaccum.h"
 
 #include "drmmode_display.h"
 #define MS_LOGLEVEL_DEBUG 4
@@ -143,43 +144,50 @@ typedef struct _modesettingRec {
     } shadow;
 
 #ifdef GLAMOR_HAS_GBM
-    /* glamor API */
-    XF86VideoAdaptorPtr glamor_adaptor;
+    /* Acceleration backend (glamor or vaccum) */
+    XF86VideoAdaptorPtr accel_adaptor;
 
     struct {
-        Bool (*back_pixmap_from_fd)(PixmapPtr, int, CARD16, CARD16, CARD16,
-                                    CARD8, CARD8);
+        Bool (*egl_init)(ScrnInfoPtr, int);
+        Bool (*init)(ScreenPtr, unsigned int);
+        void (*fini)(ScreenPtr);
         void (*block_handler)(ScreenPtr);
         void (*clear_pixmap)(PixmapPtr);
-        PixmapPtr (*glamor_pixmap_from_fds)(ScreenPtr,
-                                       CARD8, const int*,
-                                       CARD16, CARD16,
-                                       const CARD32*,
-                                       const CARD32*,
-                                       CARD8, CARD8,
-                                       uint64_t);
+        void (*finish)(ScreenPtr);
+        void (*set_drawable_modifiers_func)(ScreenPtr,
+                                            GetDrawableModifiersFuncPtr);
+        Bool (*supports_pixmap_import_export)(ScreenPtr);
+        Bool (*back_pixmap_from_fd)(PixmapPtr, int, CARD16, CARD16, CARD16,
+                                    CARD8, CARD8);
+        PixmapPtr (*pixmap_from_fds)(ScreenPtr,
+                                     CARD8, const int*,
+                                     CARD16, CARD16,
+                                     const CARD32*,
+                                     const CARD32*,
+                                     CARD8, CARD8,
+                                     uint64_t);
+        int (*name_from_pixmap)(PixmapPtr, CARD16 *, CARD32 *);
+        int (*fd_from_pixmap)(ScreenPtr, PixmapPtr, CARD16 *, CARD32 *);
+        int (*shareable_fd_from_pixmap)(ScreenPtr, PixmapPtr, CARD16 *,
+                                        CARD32 *);
+        int (*fds_from_pixmap)(ScreenPtr, PixmapPtr, int *, uint32_t *,
+                               uint32_t *, uint64_t *);
+        void (*exchange_buffers)(PixmapPtr, PixmapPtr);
+        Bool (*get_formats)(ScreenPtr, CARD32 *, CARD32 **);
+        Bool (*get_modifiers)(ScreenPtr, uint32_t, uint32_t *, uint64_t **);
+        struct gbm_device *(*egl_get_gbm_device)(ScreenPtr);
+        struct gbm_bo *(*gbm_bo_from_pixmap)(ScreenPtr, PixmapPtr);
         Bool (*egl_create_textured_pixmap_from_gbm_bo)(PixmapPtr,
                                                        struct gbm_bo *,
                                                        Bool);
         void (*egl_exchange_buffers)(PixmapPtr, PixmapPtr);
-        struct gbm_device *(*egl_get_gbm_device)(ScreenPtr);
-        Bool (*egl_init)(ScrnInfoPtr, int);
-        void (*finish)(ScreenPtr);
-        struct gbm_bo *(*gbm_bo_from_pixmap)(ScreenPtr, PixmapPtr);
-        Bool (*init)(ScreenPtr, unsigned int);
-        int (*name_from_pixmap)(PixmapPtr, CARD16 *, CARD32 *);
-        void (*set_drawable_modifiers_func)(ScreenPtr,
-                                            GetDrawableModifiersFuncPtr);
-        int (*shareable_fd_from_pixmap)(ScreenPtr, PixmapPtr, CARD16 *,
-                                        CARD32 *);
-        Bool (*supports_pixmap_import_export)(ScreenPtr);
         XF86VideoAdaptorPtr (*xv_init)(ScreenPtr, int);
         const char *(*egl_get_driver_name)(ScreenPtr);
-    } glamor;
+    } accel;
 #endif
 } modesettingRec, *modesettingPtr;
 
-#define glamor_finish(screen) ms->glamor.finish(screen)
+#define glamor_finish(screen) ms->accel.finish(screen)
 
 #define modesettingPTR(p) ((modesettingPtr)((p)->driverPrivate))
 modesettingEntPtr ms_ent_priv(ScrnInfoPtr scrn);

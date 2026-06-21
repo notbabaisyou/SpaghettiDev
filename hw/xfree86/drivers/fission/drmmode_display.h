@@ -110,7 +110,12 @@ typedef struct {
     /* Broken-out options. */
     OptionInfoPtr Options;
 
-    Bool glamor;
+    enum {
+        MS_ACCEL_NONE   = 0,
+        MS_ACCEL_GLAMOR = 1,
+        MS_ACCEL_VACCUM = 2,
+    } accel_method;
+
     Bool shadow_enable;
     Bool shadow_enable2;
     /** Is Option "PageFlip" enabled? */

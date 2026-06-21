@@ -179,8 +179,8 @@ ms_present_flush(WindowPtr window)
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
 
-    if (ms->drmmode.glamor)
-        ms->glamor.block_handler(screen);
+    if (ms->drmmode.accel_method)
+        ms->accel.block_handler(screen);
 #endif
 }
 
@@ -278,12 +278,12 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     if (num_crtcs_on == 0)
         return FALSE;
 
-    if (!ms->drmmode.glamor)
+    if (!ms->drmmode.accel_method)
         return FALSE;
 
 #ifdef GBM_BO_WITH_MODIFIERS
     /* Check if buffer format/modifier is supported by all active CRTCs */
-    gbm = ms->glamor.gbm_bo_from_pixmap(screen, pixmap);
+    gbm = ms->accel.gbm_bo_from_pixmap(screen, pixmap);
     if (gbm) {
         uint32_t format;
         uint64_t modifier;
