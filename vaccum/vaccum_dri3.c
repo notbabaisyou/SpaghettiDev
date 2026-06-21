@@ -403,6 +403,7 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
                             modifier_list_info.pDrmFormatModifiers = mods;
                             modifier_list_info.pNext = create_info.pNext;
                             create_info.pNext = &modifier_list_info;
+                            create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
                         }
                         free(mod_props);
                     }
@@ -414,6 +415,7 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
             modifier_list_info.pDrmFormatModifiers = &(uint64_t){ DRM_FORMAT_MOD_LINEAR };
             modifier_list_info.pNext = create_info.pNext;
             create_info.pNext = &modifier_list_info;
+            create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
         } else {
             modifier_explicit_info.drmFormatModifier = modifier;
             modifier_explicit_info.drmFormatModifierPlaneCount = 1;
@@ -421,6 +423,7 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
             modifier_explicit_info.pPlaneLayouts = &plane_layout;
             modifier_explicit_info.pNext = create_info.pNext;
             create_info.pNext = &modifier_explicit_info;
+            create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
         }
     }
 
