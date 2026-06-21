@@ -4,6 +4,8 @@ option('xephyr', type: 'boolean', value: false,
        description: 'Enable Xephyr nested X server')
 option('glamor', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'Enable glamor (default yes for Xorg builds)')
+option('vaccum', type: 'combo', choices: ['true', 'false', 'auto'], value: 'false',
+       description: 'Enable vaccum (highly experimental!)')
 option('xnest', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
        description: 'Enable Xnest nested X server')
 option('xvfb', type: 'boolean', value: true,

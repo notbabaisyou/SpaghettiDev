@@ -44,10 +44,9 @@ vaccum_copy(DrawablePtr src,
             Pixel bitplane,
             void *closure)
 {
-    if (nbox == 0)
-	return;
-
-    vaccum_copy_bail(src, dst, gc, box, nbox, dx, dy, reverse, upsidedown, bitplane, closure);
+    /* TODO */
+    if (_X_LIKELY(nbox))
+        vaccum_copy_bail(src, dst, gc, box, nbox, dx, dy, reverse, upsidedown, bitplane, closure);
 }
 
 RegionPtr
@@ -67,9 +66,10 @@ vaccum_copy_plane(DrawablePtr src, DrawablePtr dst, GCPtr gc,
     if ((bitplane & FbFullMask(src->depth)) == 0)
         return miHandleExposures(src, dst, gc,
                                  srcx, srcy, width, height, dstx, dsty);
-    return miDoCopy(src, dst, gc,
-                    srcx, srcy, width, height,
-                    dstx, dsty, vaccum_copy, bitplane, NULL);
+    else
+        return miDoCopy(src, dst, gc,
+                        srcx, srcy, width, height,
+                        dstx, dsty, vaccum_copy, bitplane, NULL);
 }
 
 void

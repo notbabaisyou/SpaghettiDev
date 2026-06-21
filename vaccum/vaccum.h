@@ -25,7 +25,7 @@ typedef enum vaccum_pixmap_type {
     VACCUM_IMAGE_ONLY,
 } vaccum_pixmap_type_t;
 
-extern _X_EXPORT Bool vaccum_init(ScreenPtr screen, unsigned int flags);
+extern _X_EXPORT Bool vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd);
 extern _X_EXPORT void vaccum_fini(ScreenPtr screen);
 
 extern _X_EXPORT PixmapPtr vaccum_create_pixmap(ScreenPtr screen, int w, int h,
@@ -49,4 +49,77 @@ extern _X_EXPORT void vaccum_validate_gc(GCPtr gc, unsigned long changes,
 extern _X_EXPORT void vaccum_destroy_gc(GCPtr gc);
 
 extern _X_EXPORT void vaccum_finish(ScreenPtr screen);
+
+typedef Bool (*GetDrawableModifiersFuncPtr)(DrawablePtr draw,
+                                            uint32_t format,
+                                            uint32_t *num_modifiers,
+                                            uint64_t **modifiers);
+
+extern _X_EXPORT void vaccum_block_handler(ScreenPtr screen);
+extern _X_EXPORT void vaccum_clear_pixmap(PixmapPtr pixmap);
+extern _X_EXPORT void vaccum_exchange_buffers(PixmapPtr front, PixmapPtr back);
+extern _X_EXPORT Bool vaccum_supports_pixmap_import_export(ScreenPtr screen);
+extern _X_EXPORT void vaccum_set_drawable_modifiers_func(ScreenPtr screen,
+                                                          GetDrawableModifiersFuncPtr func);
+extern _X_EXPORT void vaccum_enable_dri3(ScreenPtr screen);
+extern _X_EXPORT void vaccum_set_pixmap_type(PixmapPtr pixmap,
+                                              vaccum_pixmap_type_t type);
+
+extern _X_EXPORT int vaccum_name_from_pixmap(PixmapPtr pixmap,
+                                              CARD16 *stride, CARD32 *size);
+extern _X_EXPORT int vaccum_shareable_fd_from_pixmap(ScreenPtr screen,
+                                                      PixmapPtr pixmap,
+                                                      CARD16 *stride,
+                                                      CARD32 *size);
+
+extern _X_EXPORT PixmapPtr vaccum_pixmap_from_fds(ScreenPtr screen,
+                                                   CARD8 num_fds,
+                                                   const int *fds,
+                                                   CARD16 width,
+                                                   CARD16 height,
+                                                   const CARD32 *strides,
+                                                   const CARD32 *offsets,
+                                                   CARD8 depth,
+                                                   CARD8 bpp,
+                                                   uint64_t modifier);
+extern _X_EXPORT Bool vaccum_back_pixmap_from_fd(PixmapPtr pixmap,
+                                                   int fd,
+                                                   CARD16 width,
+                                                   CARD16 height,
+                                                   CARD16 stride,
+                                                   CARD8 depth,
+                                                   CARD8 bpp);
+
+extern _X_EXPORT uint32_t vaccum_get_pixmap_texture(PixmapPtr pixmap);
+extern _X_EXPORT Bool vaccum_set_pixmap_texture(PixmapPtr pixmap,
+                                                 unsigned int tex);
+
+extern _X_EXPORT int vaccum_fds_from_pixmap(ScreenPtr screen,
+                                             PixmapPtr pixmap,
+                                             int *fds,
+                                             uint32_t *strides,
+                                             uint32_t *offsets,
+                                             uint64_t *modifier);
+extern _X_EXPORT int vaccum_fd_from_pixmap(ScreenPtr screen,
+                                            PixmapPtr pixmap,
+                                            CARD16 *stride, CARD32 *size);
+extern _X_EXPORT PixmapPtr vaccum_pixmap_from_fd(ScreenPtr screen,
+                                                  int fd,
+                                                  CARD16 width,
+                                                  CARD16 height,
+                                                  CARD16 stride,
+                                                  CARD8 depth,
+                                                  CARD8 bpp);
+
+extern _X_EXPORT Bool vaccum_get_formats(ScreenPtr screen,
+                                          CARD32 *num_formats,
+                                          CARD32 **formats);
+extern _X_EXPORT Bool vaccum_get_modifiers(ScreenPtr screen,
+                                            uint32_t format,
+                                            uint32_t *num_modifiers,
+                                            uint64_t **modifiers);
+extern _X_EXPORT Bool vaccum_get_drawable_modifiers(DrawablePtr draw,
+                                                     uint32_t format,
+                                                     uint32_t *num_modifiers,
+                                                     uint64_t **modifiers);
 #endif

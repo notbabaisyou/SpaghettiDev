@@ -12,8 +12,8 @@ static void
 vaccum_fini_pixmap(PixmapPtr pixmap)
 {
 
-
 }
+
 Bool
 vaccum_prepare_access(DrawablePtr drawable, vaccum_access_t access)
 {
@@ -114,8 +114,9 @@ vaccum_prepare_access_gc(GCPtr gc)
     case FillStippled:
     case FillOpaqueStippled:
         return vaccum_prepare_access(&gc->stipple->drawable, VACCUM_ACCESS_RO);
+    default:
+        return TRUE;
     }
-    return TRUE;
 }
 
 /*

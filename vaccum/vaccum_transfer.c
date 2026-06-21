@@ -1,5 +1,6 @@
 #include "vaccum_priv.h"
 #include "vaccum_transfer.h"
+
 static void
 vaccum_allocate_staging_buffer(vaccum_screen_private *vaccum_priv)
 {

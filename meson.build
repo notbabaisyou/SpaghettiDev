@@ -189,6 +189,7 @@ else
 endif
 
 glamor_option = get_option('glamor')
+vaccum_option = get_option('vaccum')
 
 hal_option = get_option('hal')
 if ['windows', 'darwin', 'cygwin'].contains(host_machine.system())
@@ -351,11 +352,22 @@ else
     build_glamor = glamor_option == 'true'
 endif
 
+if vaccum_option == 'auto'
+    build_vaccum = build_xorg
+else
+    build_vaccum = vaccum_option == 'true'
+endif
+
 gbm_dep = dependency('', required: false)
 epoxy_dep = dependency('', required: false)
 if build_glamor
     gbm_dep = dependency('gbm', version: gbm_req, required: false)
     epoxy_dep = dependency('epoxy', required: false)
+endif
+
+vulkan_dep = dependency('', required: false)
+if build_vaccum
+    vulkan_dep = dependency('vulkan', required: true)
 endif
 
 # Lots of sha1 options, because Linux is about choice :)
@@ -643,6 +655,7 @@ inc = include_directories(
     'present',
     'randr',
     'render',
+    'vaccum',
     'xfixes',
 )
 
@@ -764,6 +777,9 @@ subdir('Xi')
 # other
 if build_glamor
     subdir('glamor')
+endif
+if build_vaccum
+    subdir('vaccum')
 endif
 if build_xorg or get_option('xephyr')
     subdir('exa')
