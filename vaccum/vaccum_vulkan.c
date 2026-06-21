@@ -9,18 +9,18 @@
 #define VACCUM_MAX_DEVICE_EXTENSIONS 16
 
 void
-vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv)
+vaccum_vulkan_fini(vaccum_vk_screen_private *vk_priv)
 {
-    free(vaccum_priv->drm_device_path);
-    vkDestroyCommandPool(vaccum_priv->device, vaccum_priv->command_pool, NULL);
-    vkDestroyDevice(vaccum_priv->device, NULL);
-    vkDestroyInstance(vaccum_priv->instance, NULL);
-    free(vaccum_priv->phys_devices);
-    free(vaccum_priv->queue_families);
+    free(vk_priv->drm_device_path);
+    vkDestroyCommandPool(vk_priv->device, vk_priv->command_pool, NULL);
+    vkDestroyDevice(vk_priv->device, NULL);
+    vkDestroyInstance(vk_priv->instance, NULL);
+    free(vk_priv->phys_devices);
+    free(vk_priv->queue_families);
 }
 
 Bool
-vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
+vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd)
 {
     VkApplicationInfo appInfo = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -35,23 +35,23 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     instanceCreateInfo.pNext = NULL;
     instanceCreateInfo.pApplicationInfo = &appInfo;
 
-    VkResult result = vkCreateInstance(&instanceCreateInfo, NULL, &vaccum_priv->instance);
+    VkResult result = vkCreateInstance(&instanceCreateInfo, NULL, &vk_priv->instance);
     if (result != VK_SUCCESS)
         return FALSE;
 
     uint32_t gpu_count;
-    result = vkEnumeratePhysicalDevices(vaccum_priv->instance, &gpu_count, NULL);
+    result = vkEnumeratePhysicalDevices(vk_priv->instance, &gpu_count, NULL);
     if (gpu_count == 0) {
         LogMessage(X_WARNING,
                    "vaccum: failed to find any vulkan devices\n");
         return FALSE;
     }
 
-    vaccum_priv->phys_devices = malloc(sizeof(VkPhysicalDevice) * gpu_count);
-    if (!vaccum_priv->phys_devices)
+    vk_priv->phys_devices = malloc(sizeof(VkPhysicalDevice) * gpu_count);
+    if (!vk_priv->phys_devices)
         return FALSE;
 
-    result = vkEnumeratePhysicalDevices(vaccum_priv->instance, &gpu_count, vaccum_priv->phys_devices);
+    result = vkEnumeratePhysicalDevices(vk_priv->instance, &gpu_count, vk_priv->phys_devices);
     if (result != VK_SUCCESS) {
         LogMessage(X_WARNING,
                    "vaccum: failed to find any vulkan devices\n");
@@ -59,7 +59,7 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     }
 
     /* Select device: if drm_fd provided, match by DRM render node */
-    vaccum_priv->phys_device = vaccum_priv->phys_devices[0];
+    vk_priv->phys_device = vk_priv->phys_devices[0];
 
     if (drm_fd >= 0) {
         struct stat st;
@@ -75,13 +75,13 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
                 props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
                 props2.pNext = &drm_props;
 
-                vkGetPhysicalDeviceProperties2(vaccum_priv->phys_devices[i], &props2);
+                vkGetPhysicalDeviceProperties2(vk_priv->phys_devices[i], &props2);
 
                 if (drm_props.hasRender) {
                     /* DRM render node: major = 226 + minor */
                     dev_t this_dev = makedev((unsigned int)226, (unsigned int)drm_props.renderMinor);
                     if (this_dev == render_dev) {
-                        vaccum_priv->phys_device = vaccum_priv->phys_devices[i];
+                        vk_priv->phys_device = vk_priv->phys_devices[i];
                         matched = 1;
                         break;
                     }
@@ -95,15 +95,15 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
         }
     }
 
-    vaccum_priv->drm_fd = drm_fd;
+    vk_priv->drm_fd = drm_fd;
 
-    vkGetPhysicalDeviceProperties(vaccum_priv->phys_device, &vaccum_priv->dev_properties);
-    vkGetPhysicalDeviceFeatures(vaccum_priv->phys_device, &vaccum_priv->dev_features);
-    vkGetPhysicalDeviceMemoryProperties(vaccum_priv->phys_device, &vaccum_priv->dev_mem_properties);
+    vkGetPhysicalDeviceProperties(vk_priv->phys_device, &vk_priv->dev_properties);
+    vkGetPhysicalDeviceFeatures(vk_priv->phys_device, &vk_priv->dev_features);
+    vkGetPhysicalDeviceMemoryProperties(vk_priv->phys_device, &vk_priv->dev_mem_properties);
 
     /* Enumerate available device extensions */
     uint32_t available_ext_count = 0;
-    vkEnumerateDeviceExtensionProperties(vaccum_priv->phys_device, NULL,
+    vkEnumerateDeviceExtensionProperties(vk_priv->phys_device, NULL,
                                          &available_ext_count, NULL);
 
     VkExtensionProperties *available_exts = NULL;
@@ -111,7 +111,7 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
         available_exts = malloc(sizeof(VkExtensionProperties) * available_ext_count);
         if (!available_exts)
             return FALSE;
-        vkEnumerateDeviceExtensionProperties(vaccum_priv->phys_device, NULL,
+        vkEnumerateDeviceExtensionProperties(vk_priv->phys_device, NULL,
                                              &available_ext_count, available_exts);
     }
 
@@ -140,7 +140,7 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     for (uint32_t i = 0; i < available_ext_count; i++) {
         if (strcmp(available_exts[i].extensionName,
                    VK_KHR_MAINTENANCE_5_EXTENSION_NAME) == 0) {
-            vaccum_priv->has_maintenance5 = TRUE;
+            vk_priv->has_maintenance5 = TRUE;
             break;
         }
     }
@@ -155,20 +155,20 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     device_extensions[device_extension_count++] = VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME;
     device_extensions[device_extension_count++] = VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME;
 
-    if (vaccum_priv->has_maintenance5)
+    if (vk_priv->has_maintenance5)
         device_extensions[device_extension_count++] = VK_KHR_MAINTENANCE_5_EXTENSION_NAME;
 
     free(available_exts);
 
     uint32_t queue_family_count;
-    vkGetPhysicalDeviceQueueFamilyProperties(vaccum_priv->phys_device, &queue_family_count, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(vk_priv->phys_device, &queue_family_count, NULL);
     if (queue_family_count == 0)
         return FALSE;
-    vaccum_priv->queue_families = malloc(sizeof(VkQueueFamilyProperties) * queue_family_count);
-    if (!vaccum_priv->queue_families)
+    vk_priv->queue_families = malloc(sizeof(VkQueueFamilyProperties) * queue_family_count);
+    if (!vk_priv->queue_families)
         return FALSE;
 
-    vkGetPhysicalDeviceQueueFamilyProperties(vaccum_priv->phys_device, &queue_family_count, vaccum_priv->queue_families);
+    vkGetPhysicalDeviceQueueFamilyProperties(vk_priv->phys_device, &queue_family_count, vk_priv->queue_families);
 
     /* for vaccum we just want queue family 0 */
     const float default_queue_priority = 0.0;
@@ -180,8 +180,8 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     VkPhysicalDeviceFeatures features = {
         .robustBufferAccess = true,
-        .dualSrcBlend = vaccum_priv->dev_features.dualSrcBlend,
-        .logicOp = vaccum_priv->dev_features.logicOp,
+        .dualSrcBlend = vk_priv->dev_features.dualSrcBlend,
+        .logicOp = vk_priv->dev_features.logicOp,
     };
 
     VkDeviceCreateInfo device_create_info = {};
@@ -192,24 +192,24 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     device_create_info.enabledExtensionCount = device_extension_count;
     device_create_info.ppEnabledExtensionNames = device_extensions;
 
-    result = vkCreateDevice(vaccum_priv->phys_device, &device_create_info, NULL, &vaccum_priv->device);
+    result = vkCreateDevice(vk_priv->phys_device, &device_create_info, NULL, &vk_priv->device);
     if (result != VK_SUCCESS) {
         LogMessage(X_WARNING,
                    "vaccum: failed to create vulkan device\n");
         return FALSE;
     }
 
-    vkGetDeviceQueue(vaccum_priv->device, 0, 0, &vaccum_priv->queue);
+    vkGetDeviceQueue(vk_priv->device, 0, 0, &vk_priv->queue);
 
     VkCommandPoolCreateInfo cmd_pool_create_info = {};
     cmd_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmd_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    result = vkCreateCommandPool(vaccum_priv->device, &cmd_pool_create_info, NULL, &vaccum_priv->command_pool);
+    result = vkCreateCommandPool(vk_priv->device, &cmd_pool_create_info, NULL, &vk_priv->command_pool);
 
-    vaccum_priv->has_drm_format_modifier = TRUE;
+    vk_priv->has_drm_format_modifier = TRUE;
 
     LogMessage(X_INFO, "vaccum: Initialized on %s\n",
-               vaccum_priv->dev_properties.deviceName);
+               vk_priv->dev_properties.deviceName);
 
     return TRUE;
 }

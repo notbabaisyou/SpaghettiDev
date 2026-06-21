@@ -1,10 +1,13 @@
 #include "vaccum_priv.h"
 
 #include <drm_fourcc.h>
+#include <xf86.h>
 #include <xf86drm.h>
 #ifdef DRI3
 #include "dri3.h"
 #endif
+
+int xf86VaccumVKPrivateIndex = -1;
 
 DevPrivateKeyRec vaccum_screen_private_key;
 DevPrivateKeyRec vaccum_pixmap_private_key;
@@ -127,10 +130,43 @@ vaccum_format_for_pixmap(PixmapPtr pixmap)
 
 static void vaccum_block_handler_wrapper(ScreenPtr screen, void *timeout);
 
-Bool
-vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
+static vaccum_vk_screen_private *
+vaccum_get_vk_screen_private(ScrnInfoPtr scrn)
 {
+    return (vaccum_vk_screen_private *)
+        scrn->privates[xf86VaccumVKPrivateIndex].ptr;
+}
+
+Bool
+vaccum_egl_init(ScrnInfoPtr scrn, int drm_fd)
+{
+    vaccum_vk_screen_private *vk_priv;
+
+    if (xf86VaccumVKPrivateIndex == -1)
+        xf86VaccumVKPrivateIndex = xf86AllocateScrnInfoPrivateIndex();
+
+    vk_priv = calloc(1, sizeof(*vk_priv));
+    if (vk_priv == NULL)
+        return FALSE;
+
+    if (!vaccum_vulkan_init(vk_priv, drm_fd)) {
+        free(vk_priv);
+        return FALSE;
+    }
+
+    scrn->privates[xf86VaccumVKPrivateIndex].ptr = vk_priv;
+    return TRUE;
+}
+
+Bool
+vaccum_init(ScreenPtr screen, unsigned int flags)
+{
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    vaccum_vk_screen_private *vk_priv = vaccum_get_vk_screen_private(scrn);
     vaccum_screen_private *vaccum_priv;
+
+    if (!vk_priv)
+        return FALSE;
 
     vaccum_priv = calloc(1, sizeof(*vaccum_priv));
     if (vaccum_priv == NULL)
@@ -165,8 +201,21 @@ vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
 
     vaccum_priv->saved_procs.destroy_pixmap = screen->DestroyPixmap;
     screen->DestroyPixmap = vaccum_destroy_pixmap;
-    if (!vaccum_vulkan_init(vaccum_priv, drm_fd))
-        goto free_vaccum_private;
+
+    vaccum_priv->instance = vk_priv->instance;
+    vaccum_priv->phys_devices = vk_priv->phys_devices;
+    vaccum_priv->phys_device = vk_priv->phys_device;
+    vaccum_priv->dev_properties = vk_priv->dev_properties;
+    vaccum_priv->dev_features = vk_priv->dev_features;
+    vaccum_priv->dev_mem_properties = vk_priv->dev_mem_properties;
+    vaccum_priv->num_queues = vk_priv->num_queues;
+    vaccum_priv->queue_families = vk_priv->queue_families;
+    vaccum_priv->device = vk_priv->device;
+    vaccum_priv->queue = vk_priv->queue;
+    vaccum_priv->drm_fd = vk_priv->drm_fd;
+    vaccum_priv->drm_device_path = vk_priv->drm_device_path;
+    vaccum_priv->has_drm_format_modifier = vk_priv->has_drm_format_modifier;
+    vaccum_priv->has_maintenance5 = vk_priv->has_maintenance5;
 
     vaccum_priv->saved_procs.create_pixmap = screen->CreatePixmap;
     screen->CreatePixmap = vaccum_create_pixmap;
@@ -180,10 +229,7 @@ vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
     vaccum_alloc_cmd_buffer(vaccum_priv);
 
 #ifdef DRI3
-    if (drm_fd >= 0) {
-        vaccum_priv->drm_device_path = drmGetRenderDeviceNameFromFd(drm_fd);
-        if (!vaccum_priv->drm_device_path)
-            vaccum_priv->drm_device_path = drmGetDeviceNameFromFd2(drm_fd);
+    if (vaccum_priv->drm_fd >= 0) {
         vaccum_enable_dri3(screen);
         if (!vaccum_dri3_screen_init(screen))
             LogMessage(X_WARNING,
@@ -203,11 +249,16 @@ vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
 static void
 vaccum_release_screen_priv(ScreenPtr screen)
 {
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    vaccum_vk_screen_private *vk_priv = vaccum_get_vk_screen_private(scrn);
     vaccum_screen_private *vaccum_priv;
 
     vaccum_priv = vaccum_get_screen_private(screen);
 
-    vaccum_vulkan_fini(vaccum_priv);
+    vaccum_vulkan_fini(vk_priv);
+    free(vk_priv);
+    scrn->privates[xf86VaccumVKPrivateIndex].ptr = NULL;
+
     free(vaccum_priv);
 
     vaccum_set_screen_private(screen, NULL);

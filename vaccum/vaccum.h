@@ -25,7 +25,8 @@ typedef enum vaccum_pixmap_type {
     VACCUM_IMAGE_ONLY,
 } vaccum_pixmap_type_t;
 
-extern _X_EXPORT Bool vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd);
+extern _X_EXPORT Bool vaccum_egl_init(ScrnInfoPtr scrn, int drm_fd);
+extern _X_EXPORT Bool vaccum_init(ScreenPtr screen, unsigned int flags);
 extern _X_EXPORT void vaccum_fini(ScreenPtr screen);
 
 extern _X_EXPORT PixmapPtr vaccum_create_pixmap(ScreenPtr screen, int w, int h,

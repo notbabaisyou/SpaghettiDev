@@ -14,6 +14,30 @@
 
 struct vaccum_pixmap_private;
 
+typedef struct vaccum_vk_screen_private {
+    VkInstance instance;
+    VkPhysicalDevice *phys_devices;
+    VkPhysicalDevice phys_device;
+
+    VkPhysicalDeviceProperties dev_properties;
+    VkPhysicalDeviceFeatures dev_features;
+    VkPhysicalDeviceMemoryProperties dev_mem_properties;
+
+    uint32_t num_queues;
+    VkQueueFamilyProperties *queue_families;
+
+    VkDevice device;
+    VkQueue queue;
+
+    int drm_fd;
+    char *drm_device_path;
+
+    Bool has_drm_format_modifier;
+    Bool has_maintenance5;
+} vaccum_vk_screen_private;
+
+extern int xf86VaccumVKPrivateIndex;
+
 struct vaccum_image {
     VkDeviceMemory memories[4];
     uint32_t num_memories;
@@ -197,8 +221,8 @@ vaccum_get_drawable_deltas(DrawablePtr drawable, PixmapPtr pixmap,
 
 const struct vaccum_format *
 vaccum_format_for_pixmap(PixmapPtr pixmap);
-Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd);
-void vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv);
+Bool vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd);
+void vaccum_vulkan_fini(vaccum_vk_screen_private *vk_priv);
 void vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv);
 
 struct vaccum_image *vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
