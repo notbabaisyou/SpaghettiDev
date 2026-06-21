@@ -445,21 +445,6 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
     }
     LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkCreateImage OK\n");
 
-    VkMemoryFdPropertiesKHR mem_fd_props = {};
-    mem_fd_props.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR;
-
-    result = vkGetMemoryFdPropertiesKHR(vaccum_priv->device,
-                                         VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-                                         fd, &mem_fd_props);
-    if (result != VK_SUCCESS) {
-        LogMessage(X_ERROR, "vaccum: vkGetMemoryFdPropertiesKHR failed: %d\n", (int)result);
-        vkDestroyImage(vaccum_priv->device, image->image, NULL);
-        free(image);
-        return FALSE;
-    }
-    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkGetMemoryFdPropertiesKHR OK, memTypeBits=0x%x\n",
-               mem_fd_props.memoryTypeBits);
-
     VkMemoryRequirements mem_reqs;
     vkGetImageMemoryRequirements(vaccum_priv->device, image->image, &mem_reqs);
     LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: memReqs size=%zu align=%zu memTypeBits=0x%x\n",
@@ -475,7 +460,7 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
     alloc_info.pNext = &import_info;
     alloc_info.allocationSize = mem_reqs.size;
 
-    uint32_t compatible_bits = mem_reqs.memoryTypeBits & mem_fd_props.memoryTypeBits;
+    uint32_t compatible_bits = mem_reqs.memoryTypeBits;
 
     alloc_info.memoryTypeIndex = 0;
     for (uint32_t i = 0; i < vaccum_priv->dev_mem_properties.memoryTypeCount; i++) {
