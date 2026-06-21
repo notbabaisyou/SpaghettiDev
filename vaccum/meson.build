@@ -28,5 +28,6 @@ vaccum = static_library('vaccum',
         common_dep,
         vulkan_dep,
         libdrm_dep,
+        gbm_dep,
     ],
 )

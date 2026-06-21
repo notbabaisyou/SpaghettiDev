@@ -1,6 +1,7 @@
 #include "vaccum_priv.h"
 
 #include <drm_fourcc.h>
+#include <xf86.h>
 #include <xf86drm.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -12,13 +13,14 @@
 static const struct {
     uint32_t drm_format;
     VkFormat vk_format;
+    uint32_t gbm_format;
 } vaccum_drm_format_map[] = {
-    { DRM_FORMAT_R8,             VK_FORMAT_R8_UNORM              },
-    { DRM_FORMAT_RGB565,         VK_FORMAT_R5G6B5_UNORM_PACK16  },
-    { DRM_FORMAT_ABGR8888,       VK_FORMAT_R8G8B8A8_UNORM       },
-    { DRM_FORMAT_XRGB8888,       VK_FORMAT_R8G8B8A8_UNORM       },
-    { DRM_FORMAT_XRGB2101010,    VK_FORMAT_A2R10G10B10_UNORM_PACK32 },
-    { 0, 0 }
+    { DRM_FORMAT_R8,             VK_FORMAT_R8_UNORM,              GBM_FORMAT_R8 },
+    { DRM_FORMAT_RGB565,         VK_FORMAT_R5G6B5_UNORM_PACK16,  GBM_FORMAT_RGB565 },
+    { DRM_FORMAT_ABGR8888,       VK_FORMAT_R8G8B8A8_UNORM,       GBM_FORMAT_ARGB8888 },
+    { DRM_FORMAT_XRGB8888,       VK_FORMAT_R8G8B8A8_UNORM,       GBM_FORMAT_XRGB8888 },
+    { DRM_FORMAT_XRGB2101010,    VK_FORMAT_A2R10G10B10_UNORM_PACK32, GBM_FORMAT_ARGB2101010 },
+    { 0, 0, 0 }
 };
 
 static VkFormat
@@ -29,6 +31,16 @@ vaccum_vk_format_for_drm(uint32_t drm_format)
             return vaccum_drm_format_map[i].vk_format;
     }
     return VK_FORMAT_UNDEFINED;
+}
+
+static uint32_t
+vaccum_gbm_format_for_drm(uint32_t drm_format)
+{
+    for (int i = 0; vaccum_drm_format_map[i].drm_format != 0; i++) {
+        if (vaccum_drm_format_map[i].drm_format == drm_format)
+            return vaccum_drm_format_map[i].gbm_format;
+    }
+    return 0;
 }
 
 Bool
@@ -749,6 +761,142 @@ vaccum_get_drawable_modifiers(DrawablePtr draw, uint32_t format,
     *num_modifiers = 0;
     *modifiers = NULL;
     return TRUE;
+}
+
+struct gbm_device *
+vaccum_egl_get_gbm_device(ScreenPtr screen)
+{
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    vaccum_vk_screen_private *vk_priv = 
+        (vaccum_vk_screen_private *)scrn->privates[xf86VaccumVKPrivateIndex].ptr;
+    
+    if (!vk_priv || vk_priv->drm_fd < 0)
+        return NULL;
+    
+    if (!vk_priv->gbm)
+        vk_priv->gbm = gbm_create_device(vk_priv->drm_fd);
+    
+    return vk_priv->gbm;
+}
+
+struct gbm_bo *
+vaccum_gbm_bo_from_pixmap(ScreenPtr screen, PixmapPtr pixmap)
+{
+    vaccum_screen_private *vaccum_priv = vaccum_get_screen_private(screen);
+    vaccum_pixmap_private *pixmap_priv;
+    struct vaccum_image *image;
+    ScrnInfoPtr scrn;
+    vaccum_vk_screen_private *vk_priv;
+    struct gbm_device *gbm;
+    VkMemoryGetFdInfoKHR get_fd_info;
+    VkResult result;
+    int fd;
+    uint32_t gbm_format;
+    struct gbm_import_fd_data import_data;
+    struct gbm_bo *bo;
+    const struct vaccum_format *f;
+    
+    if (!vaccum_priv)
+        return NULL;
+    
+    pixmap_priv = vaccum_get_pixmap_private(pixmap);
+    if (!pixmap_priv || !pixmap_priv->image)
+        return NULL;
+    
+    image = pixmap_priv->image;
+    
+    scrn = xf86ScreenToScrn(screen);
+    vk_priv = (vaccum_vk_screen_private *)scrn->privates[xf86VaccumVKPrivateIndex].ptr;
+    if (!vk_priv)
+        return NULL;
+    
+    gbm = vaccum_egl_get_gbm_device(screen);
+    if (!gbm)
+        return NULL;
+    
+    f = vaccum_format_for_pixmap(pixmap);
+    if (!f || !f->format)
+        return NULL;
+    
+    /* Get DMA-BUF fd from the Vulkan image */
+    get_fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+    get_fd_info.memory = image->memories[0];
+    get_fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+    
+    result = vkGetMemoryFdKHR(vaccum_priv->device, &get_fd_info, &fd);
+    if (result != VK_SUCCESS)
+        return NULL;
+    
+    /* Map DRM format to GBM format */
+    gbm_format = vaccum_gbm_format_for_drm(f->render_format);
+    if (!gbm_format) {
+        close(fd);
+        return NULL;
+    }
+    
+    /* Import as GBM BO */
+    import_data.fd = fd;
+    import_data.width = pixmap->drawable.width;
+    import_data.height = pixmap->drawable.height;
+    import_data.stride = pixmap->devKind;
+    import_data.format = gbm_format;
+    
+    bo = gbm_bo_import(gbm, GBM_BO_IMPORT_FD, &import_data, 0);
+    close(fd);
+    
+    return bo;
+}
+
+Bool
+vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *bo, Bool used_modifiers)
+{
+    vaccum_screen_private *vaccum_priv = vaccum_get_screen_private(pixmap->drawable.pScreen);
+    ScrnInfoPtr scrn;
+    vaccum_vk_screen_private *vk_priv;
+    struct gbm_device *gbm;
+    int fd;
+    uint32_t width, height, stride;
+    uint64_t modifier = DRM_FORMAT_MOD_INVALID;
+    const struct vaccum_format *f;
+    
+    if (!vaccum_priv || !bo)
+        return FALSE;
+    
+    scrn = xf86ScreenToScrn(pixmap->drawable.pScreen);
+    vk_priv = (vaccum_vk_screen_private *)scrn->privates[xf86VaccumVKPrivateIndex].ptr;
+    if (!vk_priv)
+        return FALSE;
+    
+    gbm = vaccum_egl_get_gbm_device(pixmap->drawable.pScreen);
+    if (!gbm)
+        return FALSE;
+    
+    /* Get DMA-BUF fd from GBM BO */
+    fd = gbm_bo_get_fd(bo);
+    if (fd < 0)
+        return FALSE;
+    
+    width = gbm_bo_get_width(bo);
+    height = gbm_bo_get_height(bo);
+    stride = gbm_bo_get_stride(bo);
+    
+    if (used_modifiers)
+        modifier = gbm_bo_get_modifier(bo);
+    
+    /* Get the DRM format from the GBM BO */
+    f = vaccum_format_for_pixmap(pixmap);
+    if (!f || !f->format) {
+        close(fd);
+        return FALSE;
+    }
+    
+    /* Import into VACCUM using the existing function */
+    Bool result = vaccum_import_fd_to_pixmap(pixmap, fd, width, height,
+                                            stride, pixmap->drawable.depth,
+                                            pixmap->drawable.bitsPerPixel,
+                                            modifier);
+    close(fd);
+    return result;
 }
 
 #ifdef DRI3

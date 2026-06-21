@@ -6,6 +6,7 @@
 #include "vaccum.h"
 #include "vaccum_debug.h"
 
+#include <gbm.h>
 #include "vulkan/vulkan.h"
 #if XSYNC
 #include "misyncshm.h"
@@ -33,6 +34,8 @@ typedef struct vaccum_vk_screen_private {
 
     int drm_fd;
     char *drm_device_path;
+
+    struct gbm_device *gbm;
 
     Bool has_drm_format_modifier;
     Bool has_maintenance5;

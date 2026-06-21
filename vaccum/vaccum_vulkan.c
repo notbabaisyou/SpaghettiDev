@@ -11,6 +11,8 @@
 void
 vaccum_vulkan_fini(vaccum_vk_screen_private *vk_priv)
 {
+    if (vk_priv->gbm)
+        gbm_device_destroy(vk_priv->gbm);
     free(vk_priv->drm_device_path);
     vkDestroyCommandPool(vk_priv->device, vk_priv->command_pool, NULL);
     vkDestroyDevice(vk_priv->device, NULL);

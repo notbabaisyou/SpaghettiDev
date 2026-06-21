@@ -1,6 +1,7 @@
 #ifndef VACCUM_H
 #define VACCUM_H
 
+#include <gbm.h>
 #include <scrnintstr.h>
 #include <pixmapstr.h>
 #include <gcstruct.h>
@@ -124,4 +125,8 @@ extern _X_EXPORT Bool vaccum_get_drawable_modifiers(DrawablePtr draw,
                                                      uint32_t format,
                                                      uint32_t *num_modifiers,
                                                      uint64_t **modifiers);
+
+extern _X_EXPORT struct gbm_device *vaccum_egl_get_gbm_device(ScreenPtr screen);
+extern _X_EXPORT struct gbm_bo *vaccum_gbm_bo_from_pixmap(ScreenPtr screen, PixmapPtr pixmap);
+extern _X_EXPORT Bool vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *bo, Bool used_modifiers);
 #endif
