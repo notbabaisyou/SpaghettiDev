@@ -7,6 +7,7 @@
 #include <picturestr.h>
 #include <fb.h>
 #include <fbpict.h>
+#include <xf86str.h>
 
 /*
  * glamor_pixmap_type : glamor pixmap's type.

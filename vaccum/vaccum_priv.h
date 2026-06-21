@@ -29,6 +29,8 @@ typedef struct vaccum_vk_screen_private {
     VkDevice device;
     VkQueue queue;
 
+    VkCommandPool command_pool;
+
     int drm_fd;
     char *drm_device_path;
 

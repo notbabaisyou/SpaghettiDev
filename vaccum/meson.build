@@ -23,7 +23,7 @@ srcs_vaccum = [
 
 vaccum = static_library('vaccum',
     srcs_vaccum,
-    include_directories: inc,
+    include_directories: [inc, include_directories('../hw/xfree86/common')],
     dependencies: [
         common_dep,
         vulkan_dep,
