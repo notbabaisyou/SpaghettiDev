@@ -435,12 +435,15 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
                (int)vaccum_priv->has_drm_format_modifier,
                (unsigned long)modifier);
 
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: calling vkCreateImage tiling=%u\n",
+               (uint32_t)create_info.tiling);
     result = vkCreateImage(vaccum_priv->device, &create_info, NULL, &image->image);
     if (result != VK_SUCCESS) {
         LogMessage(X_ERROR, "vaccum: vkCreateImage failed: %d\n", (int)result);
         free(image);
         return FALSE;
     }
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkCreateImage OK\n");
 
     VkMemoryFdPropertiesKHR mem_fd_props = {};
     mem_fd_props.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR;
@@ -449,13 +452,18 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
                                          VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
                                          fd, &mem_fd_props);
     if (result != VK_SUCCESS) {
+        LogMessage(X_ERROR, "vaccum: vkGetMemoryFdPropertiesKHR failed: %d\n", (int)result);
         vkDestroyImage(vaccum_priv->device, image->image, NULL);
         free(image);
         return FALSE;
     }
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkGetMemoryFdPropertiesKHR OK, memTypeBits=0x%x\n",
+               mem_fd_props.memoryTypeBits);
 
     VkMemoryRequirements mem_reqs;
     vkGetImageMemoryRequirements(vaccum_priv->device, image->image, &mem_reqs);
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: memReqs size=%zu align=%zu memTypeBits=0x%x\n",
+               (size_t)mem_reqs.size, (size_t)mem_reqs.alignment, mem_reqs.memoryTypeBits);
 
     VkImportMemoryFdInfoKHR import_info = {};
     import_info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
@@ -488,16 +496,21 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
         }
     }
 
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: allocating memory index=%u compatible=0x%x\n",
+               alloc_info.memoryTypeIndex, compatible_bits);
     result = vkAllocateMemory(vaccum_priv->device, &alloc_info, NULL, &image->memories[0]);
     if (result != VK_SUCCESS) {
+        LogMessage(X_ERROR, "vaccum: vkAllocateMemory failed: %d\n", (int)result);
         vkDestroyImage(vaccum_priv->device, image->image, NULL);
         free(image);
         return FALSE;
     }
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkAllocateMemory OK\n");
 
     image->num_memories = 1;
 
     vkBindImageMemory(vaccum_priv->device, image->image, image->memories[0], 0);
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkBindImageMemory OK\n");
 
     VkImageViewCreateInfo imgv_info = {};
     imgv_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -510,15 +523,19 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
 
     result = vkCreateImageView(vaccum_priv->device, &imgv_info, NULL, &image->image_view);
     if (result != VK_SUCCESS) {
+        LogMessage(X_ERROR, "vaccum: vkCreateImageView failed: %d\n", (int)result);
         vkFreeMemory(vaccum_priv->device, image->memories[0], NULL);
         vkDestroyImage(vaccum_priv->device, image->image, NULL);
         free(image);
         return FALSE;
     }
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: vkCreateImageView OK\n");
 
     screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, stride, NULL);
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: ModifyPixmapHeader OK\n");
 
     vaccum_pixmap_attach_image(pixmap, image);
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: ALL DONE, returning TRUE\n");
 
     return TRUE;
 }
@@ -897,14 +914,16 @@ vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *b
     }
     
     /* Import into VACCUM using the existing function */
-    LogMessage(X_INFO, "vaccum: gbm_bo_from_pixmap: fd=%d width=%u height=%u stride=%u depth=%u bpp=%u modifier=0x%lx format=%u\n",
+    LogMessage(X_INFO, "vaccum: gbm_bo_from_pixmap: fd=%d width=%u height=%u stride=%u depth=%u bpp=%u modifier=0x%lx format=%u used_mod=%d\n",
                fd, width, height, stride, (uint32_t)pixmap->drawable.depth,
                (uint32_t)pixmap->drawable.bitsPerPixel, (unsigned long)modifier,
-               (uint32_t)f->format);
+               (uint32_t)f->format, (int)used_modifiers);
     Bool result = vaccum_import_fd_to_pixmap(pixmap, fd, width, height,
                                             stride, pixmap->drawable.depth,
                                             pixmap->drawable.bitsPerPixel,
                                             modifier);
+    LogMessage(X_INFO, "vaccum: gbm_bo_from_pixmap: import_fd_to_pixmap returned %d\n",
+               (int)result);
     close(fd);
     return result;
 }
