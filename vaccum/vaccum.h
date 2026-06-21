@@ -48,13 +48,6 @@ extern _X_EXPORT Bool vaccum_destroy_pixmap(PixmapPtr pixmap);
 
 extern _X_EXPORT Bool vaccum_close_screen(ScreenPtr screen);
 
-extern _X_EXPORT int vaccum_create_gc(GCPtr gc);
-
-extern _X_EXPORT void vaccum_validate_gc(GCPtr gc, unsigned long changes,
-                                         DrawablePtr drawable);
-
-extern _X_EXPORT void vaccum_destroy_gc(GCPtr gc);
-
 extern _X_EXPORT void vaccum_finish(ScreenPtr screen);
 
 typedef Bool (*GetDrawableModifiersFuncPtr)(DrawablePtr draw,

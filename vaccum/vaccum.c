@@ -221,6 +221,9 @@ vaccum_init(ScreenPtr screen, unsigned int flags)
     vaccum_priv->saved_procs.create_pixmap = screen->CreatePixmap;
     screen->CreatePixmap = vaccum_create_pixmap;
 
+    vaccum_priv->saved_procs.create_gc = screen->CreateGC;
+    screen->CreateGC = vaccum_create_gc;
+
     vaccum_priv->saved_procs.block_handler = screen->BlockHandler;
     screen->BlockHandler = vaccum_block_handler_wrapper;
 

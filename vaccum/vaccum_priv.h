@@ -202,10 +202,12 @@ extern _X_EXPORT int vaccum_debug_level;
 
 PixmapPtr vaccum_get_drawable_pixmap(DrawablePtr drawable);
 
-struct vaccum_image *vaccum_pixmap_detach_image(vaccum_pixmap_private *
-                                              pixmap_priv);
+struct vaccum_image *vaccum_pixmap_detach_image(vaccum_pixmap_private * pixmap_priv);
+
 void vaccum_pixmap_attach_image(PixmapPtr pixmap, struct vaccum_image *image);
+
 Bool vaccum_get_drawable_location(const DrawablePtr drawable);
+
 static inline void
 vaccum_get_drawable_deltas(DrawablePtr drawable, PixmapPtr pixmap,
                            int *x, int *y)
@@ -222,8 +224,16 @@ vaccum_get_drawable_deltas(DrawablePtr drawable, PixmapPtr pixmap,
     *y = 0;
 }
 
+int vaccum_create_gc(GCPtr gc);
+
+void vaccum_validate_gc(GCPtr gc,
+                        unsigned long changes, DrawablePtr drawable);
+
+void vaccum_destroy_gc(GCPtr gc);
+
 const struct vaccum_format *
 vaccum_format_for_pixmap(PixmapPtr pixmap);
+
 Bool vaccum_vulkan_init(vaccum_vk_screen_private *vk_priv, int drm_fd);
 void vaccum_vulkan_fini(vaccum_vk_screen_private *vk_priv);
 void vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv);
