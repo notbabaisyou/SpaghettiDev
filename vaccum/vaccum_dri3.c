@@ -430,8 +430,17 @@ vaccum_import_fd_to_pixmap(PixmapPtr pixmap, int fd,
         }
     }
 
+    LogMessage(X_INFO, "vaccum: import_fd_to_pixmap: fd=%d width=%u height=%u stride=%u depth=%u format=%u tiling=%u usage=0x%x pNext=%p has_mod=%d modifier=0x%lx\n",
+               fd, (uint32_t)width, (uint32_t)height, (uint32_t)stride,
+               (uint32_t)depth, (uint32_t)create_info.format,
+               (uint32_t)create_info.tiling, (uint32_t)create_info.usage,
+               (void *)create_info.pNext,
+               (int)vaccum_priv->has_drm_format_modifier,
+               (unsigned long)modifier);
+
     result = vkCreateImage(vaccum_priv->device, &create_info, NULL, &image->image);
     if (result != VK_SUCCESS) {
+        LogMessage(X_ERROR, "vaccum: vkCreateImage failed: %d\n", (int)result);
         free(image);
         return FALSE;
     }
@@ -891,6 +900,10 @@ vaccum_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap, struct gbm_bo *b
     }
     
     /* Import into VACCUM using the existing function */
+    LogMessage(X_INFO, "vaccum: gbm_bo_from_pixmap: fd=%d width=%u height=%u stride=%u depth=%u bpp=%u modifier=0x%lx format=%u\n",
+               fd, width, height, stride, (uint32_t)pixmap->drawable.depth,
+               (uint32_t)pixmap->drawable.bitsPerPixel, (unsigned long)modifier,
+               (uint32_t)f->format);
     Bool result = vaccum_import_fd_to_pixmap(pixmap, fd, width, height,
                                             stride, pixmap->drawable.depth,
                                             pixmap->drawable.bitsPerPixel,
