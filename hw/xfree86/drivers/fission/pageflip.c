@@ -180,7 +180,7 @@ static Bool
 do_queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc, uint32_t flags,
                       uint32_t seq, uint32_t fb_id, int x, int y)
 {
-    while (drmmode_crtc_flip(crtc, fb_id, x, y, flags, (void *)(long)seq)) {
+    while (drmmode_crtc_flip(crtc, fb_id, x, y, flags, (void *)(long)seq, NULL)) {
         /* We may have failed because the event queue was full.  Flush it
          * and retry.  If there was nothing to flush, then we failed for
          * some other reason and should just return an error.
@@ -492,23 +492,3 @@ error_free_event:
     return FALSE;
 }
 #endif
-
-void
-ms_tearfree_flip_handler(uint64_t frame, uint64_t usec, void *data)
-{
-    xf86CrtcPtr crtc = data;
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-    /* Back buffer is now being scanned out; swap roles. */
-    drmmode_crtc->tearfree.back_idx    ^= 1;
-    drmmode_crtc->tearfree.flip_pending = FALSE;
-}
-
-void
-ms_tearfree_flip_abort(void *data)
-{
-    xf86CrtcPtr crtc = data;
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-    drmmode_crtc->tearfree.flip_pending = FALSE;
-}

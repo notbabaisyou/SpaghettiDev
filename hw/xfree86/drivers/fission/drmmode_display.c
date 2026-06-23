@@ -568,6 +568,17 @@ crtc_add_vrr_prop(drmModeAtomicReq *req,
         return crtc_add_prop(req, drmmode_crtc, DRMMODE_CRTC_VRR_ENABLED, enabled);
 }
 
+static inline int
+crtc_add_out_fence_prop(drmModeAtomicReq *req,
+                        drmmode_crtc_private_ptr drmmode_crtc,
+                        int *fence_fd_out)
+{
+    if (!drmmode_crtc->props[DRMMODE_CRTC_OUT_FENCE_FD].prop_id)
+        return -1;
+    return crtc_add_prop(req, drmmode_crtc, DRMMODE_CRTC_OUT_FENCE_FD,
+                         (uint64_t)(long)fence_fd_out);
+}
+
 static int
 drmmode_CompareKModes(const drmModeModeInfo * kmode, const drmModeModeInfo * other)
 {
@@ -976,20 +987,27 @@ drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
 
 int
 drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
-                  uint32_t flags, void *data)
+                  uint32_t flags, void *data, int *fence_fd_out)
 {
     modesettingPtr ms = modesettingPTR(crtc->scrn);
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmModeAtomicReq *req = drmModeAtomicAlloc();
     int ret;
 
     if (!req)
         return 1;
 
+    if (fence_fd_out)
+        *fence_fd_out = -1;
+
     ret = plane_add_props(req, crtc, fb_id, x, y);
+
+    if (ret == 0 && fence_fd_out)
+        ret = crtc_add_out_fence_prop(req, drmmode_crtc, fence_fd_out);
 
     if (ret == 0)
         ret = drmModeAtomicCommit(ms->fd, req, flags, data);
-    
+
     drmModeAtomicFree(req);
     return ret;
 }
@@ -1365,7 +1383,8 @@ drmmode_SharedPixmapFlip(PixmapPtr frontTarget, xf86CrtcPtr crtc,
 
     if (drmmode_crtc_flip(crtc, ppriv_front->fb_id, 0, 0,
                           DRM_MODE_PAGE_FLIP_EVENT,
-                          (void *)(intptr_t) ppriv_front->flip_seq) != 0) {
+                          (void *)(intptr_t) ppriv_front->flip_seq,
+                          NULL) != 0) {
         ms_drm_abort_seq(crtc->scrn, ppriv_front->flip_seq);
         return FALSE;
     }
@@ -2659,6 +2678,7 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, drmModeResPtr mode_res
         [DRMMODE_CRTC_GAMMA_LUT_SIZE] = { .name = "GAMMA_LUT_SIZE" },
         [DRMMODE_CRTC_CTM] = { .name = "CTM" },
         [DRMMODE_CRTC_VRR_ENABLED] = { .name = "VRR_ENABLED" },
+        [DRMMODE_CRTC_OUT_FENCE_FD] = { .name = "OUT_FENCE_PTR" },
     };
 
     crtc = xf86CrtcCreate(pScrn, &drmmode_crtc_funcs);
@@ -4555,9 +4575,6 @@ drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc)
     unsigned height = scrn->virtualY;
     int i;
 
-    RegionNull(&drmmode_crtc->tearfree.stale[0]);
-    RegionNull(&drmmode_crtc->tearfree.stale[1]);
-
     for (i = 0; i < 2; i++) {
         if (!drmmode_create_bo(drmmode, &drmmode_crtc->tearfree.bo[i],
                                width, height, drmmode->kbpp))
@@ -4582,18 +4599,17 @@ drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc)
             goto fail;
     }
 
-    drmmode_crtc->tearfree.back_idx     = 0;
-    drmmode_crtc->tearfree.flip_pending = FALSE;
+    drmmode_crtc->tearfree.back_idx  = 0;
+    drmmode_crtc->tearfree.fence_fd  = -1;
+    RegionNull(&drmmode_crtc->tearfree.dmg[0]);
+    RegionNull(&drmmode_crtc->tearfree.dmg[1]);
 
-    /*
-     * Mark both buffers as fully stale so the first blit to each
-     * populates the entire CRTC viewport rather than just the
-     * first damaged region.
-     */
-    BoxRec full_viewport = { .x1 = 0, .y1 = 0, .x2 = width, .y2 = height };
-
-    RegionInitBoxes(&drmmode_crtc->tearfree.stale[0], &full_viewport, 1);
-    RegionInitBoxes(&drmmode_crtc->tearfree.stale[1], &full_viewport, 1);
+    if (!drmmode_crtc->props[DRMMODE_CRTC_OUT_FENCE_FD].prop_id) {
+        xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+                   "OUT_FENCE_FD not available, disabling TearFree.\n");
+        drmmode->tearfree = FALSE;
+        goto fail;
+    }
 
     drmmode_crtc->tearfree.damage = DamageCreate(NULL, NULL,
                                                  DamageReportNone, TRUE,
@@ -4633,14 +4649,19 @@ drmmode_tearfree_free_crtc(xf86CrtcPtr crtc)
         !drmmode_crtc->tearfree.fb_id[1])
         return;
 
+    if (drmmode_crtc->tearfree.fence_fd >= 0) {
+        close(drmmode_crtc->tearfree.fence_fd);
+        drmmode_crtc->tearfree.fence_fd = -1;
+    }
+
     if (drmmode_crtc->tearfree.damage) {
         DamageUnregister(drmmode_crtc->tearfree.damage);
         DamageDestroy(drmmode_crtc->tearfree.damage);
         drmmode_crtc->tearfree.damage = NULL;
     }
 
-    RegionUninit(&drmmode_crtc->tearfree.stale[0]);
-    RegionUninit(&drmmode_crtc->tearfree.stale[1]);
+    RegionUninit(&drmmode_crtc->tearfree.dmg[0]);
+    RegionUninit(&drmmode_crtc->tearfree.dmg[1]);
 
     for (i = 0; i < 2; i++) {
         if (drmmode_crtc->tearfree.pixmap[i]) {

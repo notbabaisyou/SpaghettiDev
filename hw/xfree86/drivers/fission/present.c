@@ -51,7 +51,7 @@
 
 struct ms_present_vblank_event {
     uint64_t        event_id;
-    xf86CrtcPtr     tearfree_crtc; /* CRTC with TearFree suspended, or NULL */
+    xf86CrtcPtr     tearfree_crtc;
     Bool            unflip;
 };
 
@@ -204,11 +204,6 @@ ms_present_flip_handler(modesettingPtr ms, uint64_t msc,
     if (event->unflip)
         ms->drmmode.present_flipping = FALSE;
 
-    /*
-     * A Present flip completing means any async-tearing suspension of
-     * TearFree is over; clear the flag on all CRTCs so the back-buffer
-     * blit loop can resume on the next BlockHandler pass.
-     */
     if (ms->drmmode.tearfree && event->tearfree_crtc) {
         drmmode_crtc_private_ptr dc = event->tearfree_crtc->driver_private;
         dc->tearfree.async_tear = FALSE;
@@ -352,13 +347,8 @@ no_flip:
     if (reason && *reason == PRESENT_FLIP_REASON_UNKNOWN && crtc) {
         xf86CrtcPtr xf86_crtc = crtc->devPrivate;
 
-        if (ms_tearfree_is_active_on_crtc(xf86_crtc)) {
-            drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
-
-            *reason = drmmode_crtc->tearfree.flip_pending ?
-                      PRESENT_FLIP_REASON_DRIVER_TEARFREE_FLIPPING :
-                      PRESENT_FLIP_REASON_DRIVER_TEARFREE;
-        }
+        if (ms_tearfree_is_active_on_crtc(xf86_crtc))
+            *reason = PRESENT_FLIP_REASON_DRIVER_TEARFREE;
     }
 
     return FALSE;
@@ -404,11 +394,6 @@ ms_present_flip2(RRCrtcPtr crtc,
         ms_window_has_variable_refresh(ms, ms->flip_window))
         ms_present_set_screen_vrr(scrn, TRUE);
 
-    /*
-     * Suspend TearFree on all active CRTCs for the duration of this flip.
-     * The client has opted into tearing so we must not queue a competing
-     * back-buffer flip on top of the async page flip.
-     */
     if (async_tear && ms->drmmode.tearfree) {
         drmmode_crtc->tearfree.async_tear = TRUE;
         event->tearfree_crtc = xf86_crtc;

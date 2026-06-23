@@ -75,6 +75,7 @@ enum drmmode_crtc_property {
     DRMMODE_CRTC_GAMMA_LUT_SIZE,
     DRMMODE_CRTC_CTM,
     DRMMODE_CRTC_VRR_ENABLED,
+    DRMMODE_CRTC_OUT_FENCE_FD,
     DRMMODE_CRTC__COUNT
 };
 
@@ -190,11 +191,11 @@ typedef struct {
 typedef struct {
     drmmode_bo bo[2];
     uint32_t   fb_id[2];
-    int        back_idx;   /* index of the buffer being written to */
-    Bool       flip_pending;
+    int        fence_fd;
+    int        back_idx;
     DamagePtr  damage;
-    PixmapPtr  pixmap[2];  /* pixmap wrappers for blitting */
-    RegionRec  stale[2];
+    PixmapPtr  pixmap[2];
+    RegionRec  dmg[2];
     Bool       async_tear;
 } drmmode_tearfree_rec, *drmmode_tearfree_ptr;
 
@@ -351,7 +352,7 @@ void drmmode_get_default_bpp(ScrnInfoPtr pScrn, drmmode_ptr drmmmode,
 void drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 
 int drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
-                      uint32_t flags, void *data);
+                      uint32_t flags, void *data, int *fence_fd_out);
 
 Bool drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y);
 
