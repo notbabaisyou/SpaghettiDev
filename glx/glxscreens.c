@@ -36,6 +36,7 @@
 #include <string.h>
 #include <windowstr.h>
 #include <os.h>
+#include <os/osdep.h>
 #include <colormapst.h>
 
 #include "extinit.h"
@@ -232,6 +233,9 @@ AddScreenVisuals(ScreenPtr pScreen, int count, int d)
 static int
 findFirstSet(unsigned int v)
 {
+#if __has_builtin(__builtin_ctz)
+    return v ? __builtin_ctz(v) : -1;
+#else
     int i;
 
     for (i = 0; i < 32; i++)
@@ -239,6 +243,7 @@ findFirstSet(unsigned int v)
             return i;
 
     return -1;
+#endif
 }
 
 static void
