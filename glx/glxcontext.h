@@ -41,6 +41,7 @@ struct __GLXcontext {
     int (*loseCurrent) (__GLXcontext * context);
     int (*copy) (__GLXcontext * dst, __GLXcontext * src, unsigned long mask);
     Bool (*wait) (__GLXcontext * context, __GLXclientState * cl, int *error);
+    void (*sync) (__GLXcontext *, Bool GL);
     void (*flush) (__GLXcontext *context);
     void (*finish) (__GLXcontext *context);
 

@@ -148,21 +148,18 @@ __glXDRIdrawableCopySubBuffer(__GLXdrawable * drawable,
 }
 
 static void
-__glXDRIdrawableWaitX(__GLXdrawable * drawable)
+__glXDRIcontextSync(__GLXcontext *ctx, Bool GL)
 {
+    __GLXdrawable *drawable = ctx->drawPriv;
+    if (_X_UNLIKELY(!drawable))
+        return;
+
     __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
+    int dst = GL ? DRI2BufferFrontLeft : DRI2BufferFakeFrontLeft;
+    int src = GL ? DRI2BufferFakeFrontLeft : DRI2BufferFrontLeft;
 
-    copy_box(drawable, DRI2BufferFakeFrontLeft, DRI2BufferFrontLeft,
-             0, 0, private->width, private->height);
-}
-
-static void
-__glXDRIdrawableWaitGL(__GLXdrawable * drawable)
-{
-    __GLXDRIdrawable *private = (__GLXDRIdrawable *) drawable;
-
-    copy_box(drawable, DRI2BufferFrontLeft, DRI2BufferFakeFrontLeft,
-             0, 0, private->width, private->height);
+    copy_box(drawable, dst, src, 0, 0,
+             private->width, private->height);
 }
 
 static void
@@ -578,6 +575,7 @@ __glXDRIscreenCreateContext(__GLXscreen * baseScreen,
     context->base.bindTexImage = __glXDRIbindTexImage;
     context->base.releaseTexImage = __glXDRIreleaseTexImage;
     context->base.wait = __glXDRIcontextWait;
+    context->base.sync = __glXDRIcontextSync;
     context->base.flush = __glXIndirectContextFlush;
     context->base.finish = __glXIndirectContextFinish;
 
@@ -628,8 +626,6 @@ __glXDRIscreenCreateDrawable(ClientPtr client,
     private->base.destroy = __glXDRIdrawableDestroy;
     private->base.swapBuffers = __glXDRIdrawableSwapBuffers;
     private->base.copySubBuffer = __glXDRIdrawableCopySubBuffer;
-    private->base.waitGL = __glXDRIdrawableWaitGL;
-    private->base.waitX = __glXDRIdrawableWaitX;
 
     ret = DRI2CreateDrawable2(client, pDraw, drawId,
                               __glXDRIinvalidateBuffers, private,

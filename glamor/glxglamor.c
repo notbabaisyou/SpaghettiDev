@@ -121,14 +121,6 @@ egl_create_glx_drawable(ClientPtr client, __GLXscreen *screen,
     ret->swapBuffers = egl_drawable_swap_buffers;
     ret->copySubBuffer = egl_drawable_copy_sub_buffer;
 
-    /* GLAMOR has it's own synchronization mechanism using 
-     * glFinish() and glFlush() which isn't really compatible
-     * with what GLX expects waitX and waitGL to behave like.
-     * 
-     * Set waitX and waitGL as NULL, the server will NO-OP them. */
-    ret->waitX = NULL;
-    ret->waitGL = NULL;
-
     return ret;
 }
 
