@@ -205,6 +205,10 @@ createModeFromConfig(const __DRIcoreExtension * core,
     config->config.drawableType = drawableType;
     config->config.yInverted = GL_TRUE;
 
+    /* NV_float_buffer: mark configs with float render type */
+    if (renderType & (GLX_RGBA_FLOAT_BIT_ARB | GLX_RGBA_UNSIGNED_FLOAT_BIT_EXT))
+        config->config.floatComponents = GL_TRUE;
+
 #ifdef COMPOSITE
     if (!noCompositeExtension) {
         /*

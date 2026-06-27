@@ -1023,7 +1023,7 @@ __glXDisp_GetVisualConfigs(__GLXclientState * cl, GLbyte * pc)
     return Success;
 }
 
-#define __GLX_TOTAL_FBCONFIG_ATTRIBS (44)
+#define __GLX_TOTAL_FBCONFIG_ATTRIBS (45)
 #define __GLX_FBCONFIG_ATTRIBS_LENGTH (__GLX_TOTAL_FBCONFIG_ATTRIBS * 2)
 /**
  * Send the set of GLXFBConfigs to the client.  There is not currently
@@ -1131,6 +1131,9 @@ DoGetFBConfigs(__GLXclientState * cl, unsigned screen)
         /* Add attribute only if its value is not default. */
         if (modes->sRGBCapable != GL_FALSE) {
             WRITE_PAIR(GLX_FRAMEBUFFER_SRGB_CAPABLE_EXT, modes->sRGBCapable);
+        }
+        if (modes->floatComponents != GL_FALSE) {
+            WRITE_PAIR(GLX_FLOAT_COMPONENTS_NV, modes->floatComponents);
         }
         /* Pad the remaining place with zeroes, so that attributes count is constant. */
         while (p < __GLX_FBCONFIG_ATTRIBS_LENGTH) {

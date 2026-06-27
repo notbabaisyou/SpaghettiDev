@@ -107,6 +107,9 @@ struct __GLXconfig {
 
     /* ARB_framebuffer_sRGB */
     GLint sRGBCapable;
+
+    /* NV_float_buffer */
+    GLint floatComponents;
 };
 
 GLint glxConvertToXVisualType(int visualType);
