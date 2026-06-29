@@ -118,6 +118,7 @@ xorg_server = executable(
 subdir('dixmods')
 subdir('exa')
 subdir('fbdevhw')
+subdir('compositX')
 if gbm_dep.found()
     subdir('glamor_egl')
 endif

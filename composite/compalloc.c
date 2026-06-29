@@ -340,7 +340,7 @@ compUnredirectWindow(ClientPtr pClient, WindowPtr pWin, int update)
  * Redirect all subwindows for one client
  */
 
-int
+_X_EXPORT int
 compRedirectSubwindows(ClientPtr pClient, WindowPtr pWin, int update)
 {
     CompSubwindowsPtr csw = GetCompSubwindows(pWin);

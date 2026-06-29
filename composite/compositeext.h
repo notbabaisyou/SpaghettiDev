@@ -45,4 +45,20 @@ Bool CompositeIsImplicitRedirectException(ScreenPtr pScreen,
                                           XID parentVisual, XID winVisual);
 extern _X_EXPORT RESTYPE CompositeClientWindowType;
 
+extern _X_EXPORT Bool compRedirectWindow(ClientPtr pClient, WindowPtr pWin,
+                                         int update);
+
+extern _X_EXPORT int compUnredirectWindow(ClientPtr pClient, WindowPtr pWin,
+                                          int update);
+
+extern _X_EXPORT int compRedirectSubwindows(ClientPtr pClient, WindowPtr pWin,
+                                            int update);
+
+extern _X_EXPORT Bool compCreateOverlayWindow(ScreenPtr pScreen);
+
+extern _X_EXPORT void compDestroyOverlayWindow(ScreenPtr pScreen);
+
+extern _X_EXPORT DevPrivateKeyRec CompWindowPrivateKeyRec;
+extern _X_EXPORT DevPrivateKeyRec CompScreenPrivateKeyRec;
+
 #endif                          /* _COMPOSITEEXT_H_ */
