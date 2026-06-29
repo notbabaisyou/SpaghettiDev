@@ -34,6 +34,9 @@
 #include "libudev.h"
 #endif
 
+#include <unistd.h>
+#include <poll.h>
+#include "os/xserver_poll.h"
 #include "dumb_bo.h"
 
 struct gbm_device;
@@ -75,6 +78,7 @@ enum drmmode_crtc_property {
     DRMMODE_CRTC_GAMMA_LUT_SIZE,
     DRMMODE_CRTC_CTM,
     DRMMODE_CRTC_VRR_ENABLED,
+    DRMMODE_CRTC_OUT_FENCE_PTR,
     DRMMODE_CRTC__COUNT
 };
 
@@ -191,7 +195,7 @@ typedef struct {
     drmmode_bo bo[2];
     uint32_t   fb_id[2];
     int        back_idx;   /* index of the buffer being written to */
-    Bool       flip_pending;
+    int        fence_fd;   /* OUT_FENCE_PTR sync_file fd, -1 when idle */
     DamagePtr  damage;
     PixmapPtr  pixmap[2];  /* pixmap wrappers for blitting */
     RegionRec  stale[2];
@@ -248,6 +252,34 @@ typedef struct {
 
     uint16_t lut_r[256], lut_g[256], lut_b[256];
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
+
+static inline void
+drmmode_tearfree_poll_fence(xf86CrtcPtr crtc)
+{
+    drmmode_crtc_private_ptr dc = crtc->driver_private;
+    drmmode_tearfree_ptr trf = &dc->tearfree;
+    struct pollfd p;
+    int r;
+
+    if (trf->fence_fd < 0)
+        return;
+
+    p.fd = trf->fence_fd;
+    p.events = POLLIN;
+
+    do
+        r = xserver_poll(&p, 1, 0);
+    while (r < 0 && errno == EINTR);
+
+    if (r <= 0)
+        return;
+    if (!(p.revents & POLLIN))
+        return;
+
+    trf->back_idx ^= 1;
+    close(trf->fence_fd);
+    trf->fence_fd = -1;
+}
 
 typedef struct {
     drmModePropertyPtr mode_prop;
@@ -352,6 +384,10 @@ void drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 
 int drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
                       uint32_t flags, void *data);
+
+int drmmode_crtc_flip_with_fence(xf86CrtcPtr crtc, uint32_t fb_id,
+                                 int x, int y, uint32_t flags,
+                                 void *data, int *fence_fd_out);
 
 Bool drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y);
 

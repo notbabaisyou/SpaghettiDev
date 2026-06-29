@@ -363,7 +363,7 @@ no_flip:
         if (ms_tearfree_is_active_on_crtc(xf86_crtc)) {
             drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
 
-            *reason = drmmode_crtc->tearfree.flip_pending ?
+            *reason = drmmode_crtc->tearfree.fence_fd >= 0 ?
                       PRESENT_FLIP_REASON_DRIVER_TEARFREE_FLIPPING :
                       PRESENT_FLIP_REASON_DRIVER_TEARFREE;
         }

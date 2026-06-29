@@ -989,7 +989,34 @@ drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
 
     if (ret == 0)
         ret = drmModeAtomicCommit(ms->fd, req, flags, data);
-    
+
+    drmModeAtomicFree(req);
+    return ret;
+}
+
+int
+drmmode_crtc_flip_with_fence(xf86CrtcPtr crtc, uint32_t fb_id,
+                             int x, int y, uint32_t flags,
+                             void *data, int *fence_fd_out)
+{
+    modesettingPtr ms = modesettingPTR(crtc->scrn);
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+    drmModeAtomicReq *req = drmModeAtomicAlloc();
+    int ret;
+
+    if (!req)
+        return 1;
+
+    ret = plane_add_props(req, crtc, fb_id, x, y);
+
+    if (ret == 0)
+        ret = crtc_add_prop(req, drmmode_crtc,
+                            DRMMODE_CRTC_OUT_FENCE_PTR,
+                            (uint64_t)(uintptr_t) fence_fd_out);
+
+    if (ret == 0)
+        ret = drmModeAtomicCommit(ms->fd, req, flags, data);
+
     drmModeAtomicFree(req);
     return ret;
 }
@@ -2659,6 +2686,7 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, drmModeResPtr mode_res
         [DRMMODE_CRTC_GAMMA_LUT_SIZE] = { .name = "GAMMA_LUT_SIZE" },
         [DRMMODE_CRTC_CTM] = { .name = "CTM" },
         [DRMMODE_CRTC_VRR_ENABLED] = { .name = "VRR_ENABLED" },
+        [DRMMODE_CRTC_OUT_FENCE_PTR] = { .name = "OUT_FENCE_PTR" },
     };
 
     crtc = xf86CrtcCreate(pScrn, &drmmode_crtc_funcs);
@@ -4555,6 +4583,12 @@ drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc)
     unsigned height = scrn->virtualY;
     int i;
 
+    if (!drmmode_crtc->props[DRMMODE_CRTC_OUT_FENCE_PTR].prop_id) {
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+               "TearFree requires OUT_FENCE_PTR, disabling\n");
+        return FALSE;
+    }
+
     RegionNull(&drmmode_crtc->tearfree.stale[0]);
     RegionNull(&drmmode_crtc->tearfree.stale[1]);
 
@@ -4582,8 +4616,8 @@ drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc)
             goto fail;
     }
 
-    drmmode_crtc->tearfree.back_idx     = 0;
-    drmmode_crtc->tearfree.flip_pending = FALSE;
+    drmmode_crtc->tearfree.back_idx = 0;
+    drmmode_crtc->tearfree.fence_fd = -1;
 
     /*
      * Mark both buffers as fully stale so the first blit to each
@@ -4618,6 +4652,9 @@ fail:
         drmmode_bo_destroy(drmmode, &drmmode_crtc->tearfree.bo[i]);
     }
 
+    xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+               "TearFree buffer allocation failed; disabling\n");
+
     return FALSE;
 }
 
@@ -4632,6 +4669,11 @@ drmmode_tearfree_free_crtc(xf86CrtcPtr crtc)
     if (!drmmode_crtc->tearfree.fb_id[0] &&
         !drmmode_crtc->tearfree.fb_id[1])
         return;
+
+    if (drmmode_crtc->tearfree.fence_fd >= 0) {
+        close(drmmode_crtc->tearfree.fence_fd);
+        drmmode_crtc->tearfree.fence_fd = -1;
+    }
 
     if (drmmode_crtc->tearfree.damage) {
         DamageUnregister(drmmode_crtc->tearfree.damage);

@@ -905,13 +905,12 @@ ms_tearfree_update_crtc(ScreenPtr screen, xf86CrtcPtr crtc)
     RegionRec blit_region;
     BoxRec crtc_box;
     int back = trf->back_idx;
-    uint32_t seq;
     Bool ret;
 
     if (!crtc->enabled)
         return;
 
-    if (trf->flip_pending || trf->async_tear)
+    if (trf->fence_fd >= 0 || trf->async_tear)
         return;
 
     if (ms->drmmode.present_flipping)
@@ -983,36 +982,20 @@ ms_tearfree_update_crtc(ScreenPtr screen, xf86CrtcPtr crtc)
         glamor_finish(screen);
 #endif
 
-    seq = ms_drm_queue_alloc(crtc, crtc,
-                             ms_tearfree_flip_handler,
-                             ms_tearfree_flip_abort);
-    if (!seq)
-        return;
+    trf->fence_fd = -1;
 
-    if (drmmode_crtc_flip(crtc,
-                          trf->fb_id[back],
-                          0, 0,
-                          DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK,
-                          (void *)(intptr_t) seq) != 0) {
-        ms_drm_abort_seq(scrn, seq);
-        return;
+    if (drmmode_crtc_flip_with_fence(crtc,
+                                     trf->fb_id[back],
+                                     0, 0,
+                                     DRM_MODE_ATOMIC_NONBLOCK,
+                                     NULL,
+                                     &trf->fence_fd) != 0) {
+        trf->fence_fd = -1;
+        goto bail;
     }
-
-    trf->flip_pending = TRUE;
 
 bail:
     RegionUninit(&blit_region);
-}
-
-static void
-ms_tearfree_update(ScreenPtr screen)
-{
-    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
-    int c;
-
-    for (c = 0; c < xf86_config->num_crtc; c++)
-        ms_tearfree_update_crtc(screen, xf86_config->crtc[c]);
 }
 
 static void
@@ -1031,8 +1014,15 @@ msBlockHandler(ScreenPtr pScreen, void *timeout)
 
     ms_dirty_update(pScreen, timeout);
 
-    if (ms->drmmode.tearfree)
-        ms_tearfree_update(pScreen);
+    if (ms->drmmode.tearfree) {
+        xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(xf86ScreenToScrn(pScreen));
+        int c;
+
+        for (c = 0; c < xf86_config->num_crtc; c++) {
+            drmmode_tearfree_poll_fence(xf86_config->crtc[c]);
+            ms_tearfree_update_crtc(pScreen, xf86_config->crtc[c]);
+        }
+    }
 }
 
 static void
@@ -1993,8 +1983,6 @@ CreateScreenResources(ScreenPtr pScreen)
 
         for (c = 0; c < xf86_config->num_crtc; c++) {
             if (!drmmode_tearfree_alloc_crtc(xf86_config->crtc[c])) {
-                xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-                           "TearFree buffer allocation failed; disabling\n");
                 ms->drmmode.tearfree = FALSE;
                 break;
             }
