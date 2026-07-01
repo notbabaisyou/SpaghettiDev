@@ -203,6 +203,11 @@ typedef struct {
 } drmmode_tearfree_rec, *drmmode_tearfree_ptr;
 
 typedef struct {
+    Bool       pending;
+    uint32_t   sequence;
+} drmmode_vblank_rec, *drmmode_vblank_ptr;
+
+typedef struct {
     drmmode_ptr drmmode;
     drmModeCrtcPtr mode_crtc;
 
@@ -222,6 +227,7 @@ typedef struct {
     drmmode_bo rotate_bo;
 
     drmmode_tearfree_rec tearfree;
+    drmmode_vblank_rec   vblank;
 
     PixmapPtr prime_pixmap;
     PixmapPtr prime_pixmap_back;

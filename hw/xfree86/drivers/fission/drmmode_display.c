@@ -4619,6 +4619,9 @@ drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc)
     drmmode_crtc->tearfree.back_idx = 0;
     drmmode_crtc->tearfree.fence_fd = -1;
 
+    drmmode_crtc->vblank.pending = FALSE;
+    drmmode_crtc->vblank.sequence = 0;
+
     /*
      * Mark both buffers as fully stale so the first blit to each
      * populates the entire CRTC viewport rather than just the
@@ -4669,6 +4672,9 @@ drmmode_tearfree_free_crtc(xf86CrtcPtr crtc)
     if (!drmmode_crtc->tearfree.fb_id[0] &&
         !drmmode_crtc->tearfree.fb_id[1])
         return;
+
+    if (drmmode_crtc->vblank.pending)
+        ms_drm_abort_seq(crtc->scrn, drmmode_crtc->vblank.sequence);
 
     if (drmmode_crtc->tearfree.fence_fd >= 0) {
         close(drmmode_crtc->tearfree.fence_fd);

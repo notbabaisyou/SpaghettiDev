@@ -892,13 +892,16 @@ out:
 }
 
 static void
-ms_tearfree_update_crtc(ScreenPtr screen, xf86CrtcPtr crtc)
+ms_tearfree_vblank_handler(uint64_t frame, uint64_t usec, void *data)
 {
+    xf86CrtcPtr crtc = data;
+    ScreenPtr screen = crtc->randr_crtc->pScreen;
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     SourceValidateProcPtr SourceValidate = screen->SourceValidate;
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-    drmmode_tearfree_ptr trf = &drmmode_crtc->tearfree;
+    drmmode_crtc_private_ptr dc = crtc->driver_private;
+    drmmode_tearfree_ptr trf = &dc->tearfree;
+    drmmode_vblank_ptr vbl = &dc->vblank;
     pixman_f_transform_t transform;
     pixman_f_transform_t *transform_ptr = NULL;
     PixmapPtr src;
@@ -906,6 +909,8 @@ ms_tearfree_update_crtc(ScreenPtr screen, xf86CrtcPtr crtc)
     BoxRec crtc_box;
     int back = trf->back_idx;
     Bool ret;
+
+    vbl->pending = FALSE;
 
     if (!crtc->enabled)
         return;
@@ -999,6 +1004,14 @@ bail:
 }
 
 static void
+ms_tearfree_vblank_abort(void *data)
+{
+    xf86CrtcPtr crtc = data;
+    drmmode_crtc_private_ptr dc = crtc->driver_private;
+    dc->vblank.pending = FALSE;
+}
+
+static void
 msBlockHandler(ScreenPtr pScreen, void *timeout)
 {
     modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(pScreen));
@@ -1019,8 +1032,31 @@ msBlockHandler(ScreenPtr pScreen, void *timeout)
         int c;
 
         for (c = 0; c < xf86_config->num_crtc; c++) {
-            drmmode_tearfree_poll_fence(xf86_config->crtc[c]);
-            ms_tearfree_update_crtc(pScreen, xf86_config->crtc[c]);
+            xf86CrtcPtr crtc = xf86_config->crtc[c];
+            drmmode_crtc_private_ptr dc = crtc->driver_private;
+            drmmode_tearfree_ptr trf = &dc->tearfree;
+            drmmode_vblank_ptr vbl = &dc->vblank;
+
+            drmmode_tearfree_poll_fence(crtc);
+
+            if (!vbl->pending && !trf->async_tear &&
+                !ms->drmmode.present_flipping && trf->fence_fd < 0 &&
+                trf->damage && RegionNotEmpty(DamageRegion(trf->damage))) {
+                uint64_t msc;
+                uint32_t seq;
+
+                ms_get_crtc_ust_msc(crtc, NULL, &msc);
+                seq = ms_drm_queue_alloc(crtc, crtc,
+                                         ms_tearfree_vblank_handler,
+                                         ms_tearfree_vblank_abort);
+                if (seq) {
+                    if (ms_queue_vblank(crtc, MS_QUEUE_NEXT_ON_MISS,
+                                        msc + 1, NULL, seq)) {
+                        vbl->pending = TRUE;
+                        vbl->sequence = seq;
+                    }
+                }
+            }
         }
     }
 }
