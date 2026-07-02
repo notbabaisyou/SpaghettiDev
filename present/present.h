@@ -30,13 +30,14 @@
 #include "presentext.h"
 
 typedef enum {
-    PRESENT_FLIP_REASON_UNKNOWN,
-    PRESENT_FLIP_REASON_BUFFER_FORMAT,
-
     /* PREEMPTED is placed before the TearFree block so that
      * `reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE` still works.
      */
-    PRESENT_FLIP_REASON_TEARFREE_PREEMPTED,
+    PRESENT_FLIP_REASON_TEARFREE_PREEMPTED = -1,
+
+    PRESENT_FLIP_REASON_UNKNOWN = 0,
+    PRESENT_FLIP_REASON_BUFFER_FORMAT,
+
 
     /* Don't add new flip reasons after the TearFree ones, since it's expected
      * that the TearFree reasons are the highest ones in order to allow doing
