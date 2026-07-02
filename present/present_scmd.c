@@ -119,7 +119,21 @@ present_check_flip(RRCrtcPtr            crtc,
     if (reason)
         *reason = PRESENT_FLIP_REASON_UNKNOWN;
 
-    return screen_priv->check_flip_driver(crtc, window, pixmap, sync_flip, reason);
+    if (screen_priv->check_flip_driver(crtc, window, pixmap, sync_flip, reason))
+        return TRUE;
+
+    /* If the base check rejected due to TearFree and a v3 commit callback
+     * exists, retry, check_commit allows flips that yield TearFree.
+     */
+    if (reason && *reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE &&
+        screen_priv->check_commit_driver) {
+        present_flip_type type =
+            sync_flip ? PRESENT_TYPE_SYNCHRONOUS : PRESENT_TYPE_ASYNCHRONOUS;
+        if (screen_priv->check_commit_driver(crtc, window, pixmap, type, reason))
+            return TRUE;
+    }
+
+    return FALSE;
 }
 
 static Bool
@@ -132,8 +146,8 @@ present_flip(RRCrtcPtr crtc,
     ScreenPtr                   screen = crtc->pScreen;
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
 
-    if (screen_priv->info->version >= 2 && *screen_priv->info->flip2) {
-        return (*screen_priv->info->flip2) (crtc, event_id, target_msc, pixmap, type);
+    if (screen_priv->info->version >= 3 && *screen_priv->info->commit) {
+        return (*screen_priv->info->commit) (crtc, event_id, target_msc, pixmap, type);
     } else {
         return (*screen_priv->info->flip) (crtc, event_id, target_msc, pixmap, (type == PRESENT_TYPE_SYNCHRONOUS));
     }
@@ -538,6 +552,7 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
 
     if (pixmap && window &&
         (vblank->reason < PRESENT_FLIP_REASON_DRIVER_TEARFREE ||
+         vblank->reason == PRESENT_FLIP_REASON_TEARFREE_PREEMPTED ||
          vblank->exec_msc != vblank->target_msc)) {
 
         if (vblank->flip) {
@@ -827,6 +842,8 @@ present_scmd_pixmap(WindowPtr window,
     if (vblank->reason == PRESENT_FLIP_REASON_DRIVER_TEARFREE_FLIPPING &&
         !msc_is_after(vblank->exec_msc, crtc_msc + 1))
         vblank->exec_msc -= 2;
+    else if (vblank->reason == PRESENT_FLIP_REASON_TEARFREE_PREEMPTED)
+        vblank->exec_msc--;
     else if (vblank->reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE ||
              (vblank->flip && vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS))
         vblank->exec_msc--;
@@ -945,6 +962,12 @@ present_scmd_init_driver_flip(present_screen_priv_ptr screen_priv)
     else
 unsupported:
         screen_priv->check_flip_driver = present_flip_unsupported;
+
+    /* v3 commit callbacks */
+    if (screen_priv->info->version >= 3) {
+        screen_priv->check_commit_driver = screen_priv->info->check_commit;
+        screen_priv->commit_driver = screen_priv->info->commit;
+    }
 }
 
 Bool

@@ -203,6 +203,10 @@ struct present_screen_priv {
 
     present_priv_abort_vblank_ptr       abort_vblank;
     present_priv_flip_destroy_ptr       flip_destroy;
+
+    /* version 3 - commit */
+    present_check_commit_ptr            check_commit_driver;
+    present_commit_ptr                  commit_driver;
 };
 
 #define wrap(priv,real,mem,func) {\

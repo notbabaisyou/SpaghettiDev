@@ -33,6 +33,11 @@ typedef enum {
     PRESENT_FLIP_REASON_UNKNOWN,
     PRESENT_FLIP_REASON_BUFFER_FORMAT,
 
+    /* PREEMPTED is placed before the TearFree block so that
+     * `reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE` still works.
+     */
+    PRESENT_FLIP_REASON_TEARFREE_PREEMPTED,
+
     /* Don't add new flip reasons after the TearFree ones, since it's expected
      * that the TearFree reasons are the highest ones in order to allow doing
      * `reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE` to check if a reason is
@@ -110,23 +115,40 @@ typedef Bool (*present_flip_ptr) (RRCrtcPtr crtc,
                                   PixmapPtr pixmap,
                                   Bool sync_flip);
 
-/* Flip pixmap, return false if it didn't happen.
+/* Commit pixmap, return false if it didn't happen.
  *
  * 'crtc' is to be used for any necessary synchronization.
  *
- * 'type' represents the choice between one of the following flips:
+ * 'type' represents the choice between one of the following:
  * - SYNCHRONOUS (sync_flip)
  * - ASYNCHRONOUS (!sync_flip)
  * - ASYNC_TEARING (!sync_flip if not supported)
  *
- * present_event_notify should be called with 'event_id' when the flip
+ * present_event_notify should be called with 'event_id' when the commit
  * occurs
  */
-typedef Bool (*present_flip2_ptr) (RRCrtcPtr crtc,
-                                   uint64_t event_id,
-                                   uint64_t target_msc,
-                                   PixmapPtr pixmap,
-                                   present_flip_type type);
+typedef Bool (*present_commit_ptr) (RRCrtcPtr crtc,
+                                    uint64_t event_id,
+                                    uint64_t target_msc,
+                                    PixmapPtr pixmap,
+                                    present_flip_type type);
+
+/* Check if 'pixmap' is suitable for committing to 'window'.
+ *
+ * Like check_flip2, but uses present_flip_type instead of Bool sync_flip,
+ * and allows flips even when TearFree is active (yielding TearFree).
+ */
+typedef Bool (*present_check_commit_ptr) (RRCrtcPtr crtc, WindowPtr window,
+                                          PixmapPtr pixmap,
+                                          present_flip_type type,
+                                          PresentFlipReason *reason);
+
+/* Yield or resume TearFree on 'crtc'.
+ *
+ * When 'enabled' is TRUE, TearFree stops blitting on this CRTC so a direct
+ * commit can proceed without competition. When FALSE, TearFree resumes.
+ */
+typedef void (*present_set_tearfree_yielded_ptr) (RRCrtcPtr crtc, Bool enabled);
 
 /* Flip pixmap for window, return false if it didn't happen.
  *
@@ -156,7 +178,7 @@ typedef void (*present_unflip_ptr) (ScreenPtr screen,
  */
 typedef void (*present_wnmd_flips_stop_ptr) (WindowPtr window);
 
-#define PRESENT_SCREEN_INFO_VERSION        2
+#define PRESENT_SCREEN_INFO_VERSION        3
 
 typedef struct present_screen_info {
     uint32_t                            version;
@@ -172,8 +194,10 @@ typedef struct present_screen_info {
     present_unflip_ptr                  unflip;
     present_check_flip2_ptr             check_flip2;
 
-    /* version 2 - Spaghetti */
-    present_flip2_ptr                   flip2;
+    /* version 3 - commit */
+    present_check_commit_ptr            check_commit;
+    present_commit_ptr                  commit;
+    present_set_tearfree_yielded_ptr    set_tearfree_yielded;
 
 } present_screen_info_rec, *present_screen_info_ptr;
 
