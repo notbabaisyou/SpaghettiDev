@@ -113,7 +113,7 @@ typedef RRCrtcPtr (*present_priv_get_crtc_ptr)(present_screen_priv_ptr screen_pr
 typedef Bool (*present_priv_check_flip_ptr)(RRCrtcPtr crtc,
                                             WindowPtr window,
                                             PixmapPtr pixmap,
-                                            Bool sync_flip,
+                                            present_flip_type type,
                                             RegionPtr valid,
                                             int16_t x_off,
                                             int16_t y_off,

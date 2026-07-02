@@ -59,7 +59,7 @@ static Bool
 present_check_flip(RRCrtcPtr            crtc,
                    WindowPtr            window,
                    PixmapPtr            pixmap,
-                   Bool                 sync_flip,
+                   present_flip_type    type,
                    RegionPtr            valid,
                    int16_t              x_off,
                    int16_t              y_off,
@@ -119,9 +119,7 @@ present_check_flip(RRCrtcPtr            crtc,
     if (reason)
         *reason = PRESENT_FLIP_REASON_UNKNOWN;
 
-    return screen_priv->check_flip_driver(crtc, window, pixmap,
-        sync_flip ? PRESENT_TYPE_SYNCHRONOUS : PRESENT_TYPE_ASYNCHRONOUS,
-        reason);
+    return screen_priv->check_flip_driver(crtc, window, pixmap, type, reason);
 }
 
 static Bool
@@ -407,9 +405,8 @@ present_check_flip_window (WindowPtr window)
          * Check pending flip
          */
         if (flip_pending->window == window) {
-            Bool sync_flip = flip_pending->flip_type == PRESENT_TYPE_SYNCHRONOUS;
             if (!present_check_flip(flip_pending->crtc, window, flip_pending->pixmap,
-                                    sync_flip, NULL, 0, 0, NULL))
+                                    flip_pending->flip_type, NULL, 0, 0, NULL))
                 present_set_abort_flip(screen);
         }
     } else if (flip_active) {
@@ -417,22 +414,20 @@ present_check_flip_window (WindowPtr window)
          * Check current flip
          */
         if (window == flip_active->window) {
-            Bool sync_flip = flip_active->flip_type == PRESENT_TYPE_SYNCHRONOUS;
             if (!present_check_flip(flip_active->crtc, window, flip_active->pixmap,
-                                    sync_flip, NULL, 0, 0, NULL))
+                                    flip_active->flip_type, NULL, 0, 0, NULL))
                 present_unflip(screen);
         }
     }
 
     /* Now check any queued vblanks */
     xorg_list_for_each_entry(vblank, &window_priv->vblank, window_list) {
-        Bool sync_flip = vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS;
-        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, sync_flip, NULL, 0, 0, &reason)) {
+        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, vblank->flip_type, NULL, 0, 0, &reason)) {
             vblank->flip = FALSE;
             /* Don't spuriously flag this as a TearFree presentation */
             if (reason < PRESENT_FLIP_REASON_DRIVER_TEARFREE)
                 vblank->reason = reason;
-            if (sync_flip)
+            if (vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS)
                 vblank->exec_msc = vblank->target_msc;
         }
     }

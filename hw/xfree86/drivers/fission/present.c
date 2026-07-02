@@ -335,9 +335,6 @@ ms_set_tearfree_yielded(RRCrtcPtr crtc, Bool enabled)
 
 /*
  * Check if 'pixmap' is suitable for committing to 'window'.
- *
- * Like ms_present_check_flip, but allows commits even when TearFree is
- * active, yielding TearFree for the duration of the direct commit.
  */
 static Bool
 ms_present_check_commit(RRCrtcPtr crtc,
