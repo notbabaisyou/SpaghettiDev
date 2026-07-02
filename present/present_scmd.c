@@ -119,21 +119,9 @@ present_check_flip(RRCrtcPtr            crtc,
     if (reason)
         *reason = PRESENT_FLIP_REASON_UNKNOWN;
 
-    if (screen_priv->check_flip_driver(crtc, window, pixmap, sync_flip, reason))
-        return TRUE;
-
-    /* If the base check rejected due to TearFree and a v3 commit callback
-     * exists, retry, check_commit allows flips that yield TearFree.
-     */
-    if (reason && *reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE &&
-        screen_priv->check_commit_driver) {
-        present_flip_type type =
-            sync_flip ? PRESENT_TYPE_SYNCHRONOUS : PRESENT_TYPE_ASYNCHRONOUS;
-        if (screen_priv->check_commit_driver(crtc, window, pixmap, type, reason))
-            return TRUE;
-    }
-
-    return FALSE;
+    return screen_priv->check_flip_driver(crtc, window, pixmap,
+        sync_flip ? PRESENT_TYPE_SYNCHRONOUS : PRESENT_TYPE_ASYNCHRONOUS,
+        reason);
 }
 
 static Bool
@@ -932,7 +920,7 @@ static Bool
 present_flip_unsupported(RRCrtcPtr crtc,
                          WindowPtr window,
                          PixmapPtr pixmap,
-                         Bool sync_flip,
+                         present_flip_type type,
                          PresentFlipReason *reason)
 {
     return FALSE;
@@ -942,11 +930,36 @@ static Bool
 present_flip_v1_adapter(RRCrtcPtr crtc,
                         WindowPtr window,
                         PixmapPtr pixmap,
-                        Bool sync_flip,
+                        present_flip_type type,
                         PresentFlipReason *reason)
 {
     present_screen_priv_ptr sp = present_screen_priv(crtc->pScreen);
-    return (*sp->info->check_flip)(crtc, window, pixmap, sync_flip);
+    return (*sp->info->check_flip)(crtc, window, pixmap,
+                                   (type == PRESENT_TYPE_SYNCHRONOUS));
+}
+
+static Bool
+present_flip_v2_adapter(RRCrtcPtr crtc,
+                        WindowPtr window,
+                        PixmapPtr pixmap,
+                        present_flip_type type,
+                        PresentFlipReason *reason)
+{
+    present_screen_priv_ptr sp = present_screen_priv(crtc->pScreen);
+    return (*sp->info->check_flip2)(crtc, window, pixmap,
+                                    (type == PRESENT_TYPE_SYNCHRONOUS),
+                                    reason);
+}
+
+static Bool
+present_check_commit_adapter(RRCrtcPtr crtc,
+                             WindowPtr window,
+                             PixmapPtr pixmap,
+                             present_flip_type type,
+                             PresentFlipReason *reason)
+{
+    present_screen_priv_ptr sp = present_screen_priv(crtc->pScreen);
+    return (*sp->check_commit_driver)(crtc, window, pixmap, type, reason);
 }
 
 void
@@ -955,8 +968,10 @@ present_scmd_init_driver_flip(present_screen_priv_ptr screen_priv)
     if (!screen_priv->info)
         goto unsupported;
 
-    if (screen_priv->info->version >= 1 && screen_priv->info->check_flip2)
-        screen_priv->check_flip_driver = screen_priv->info->check_flip2;
+    if (screen_priv->info->version >= 3 && screen_priv->info->check_commit)
+        screen_priv->check_flip_driver = present_check_commit_adapter;
+    else if (screen_priv->info->version >= 1 && screen_priv->info->check_flip2)
+        screen_priv->check_flip_driver = present_flip_v2_adapter;
     else if (screen_priv->info->check_flip)
         screen_priv->check_flip_driver = present_flip_v1_adapter;
     else

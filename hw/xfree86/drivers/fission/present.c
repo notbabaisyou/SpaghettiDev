@@ -321,56 +321,6 @@ ms_tearfree_is_active_on_crtc(xf86CrtcPtr crtc)
            xf86_crtc_on(crtc);
 }
 
-static Bool
-ms_present_check_flip(RRCrtcPtr crtc,
-                      WindowPtr window,
-                      PixmapPtr pixmap,
-                      Bool sync_flip,
-                      PresentFlipReason *reason)
-{
-    ScreenPtr screen = window->drawable.pScreen;
-    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    modesettingPtr ms = modesettingPTR(scrn);
-    Bool async_flip = !sync_flip;
-
-    if (ms->drmmode.sprites_visible > 0)
-        goto no_flip;
-
-    if (ms->drmmode.pending_modeset)
-        goto no_flip;
-
-    if (!ms_present_check_unflip(crtc, window, pixmap, sync_flip, reason)) {
-        if (reason && *reason == PRESENT_FLIP_REASON_BUFFER_FORMAT)
-            ms_window_update_async_flip(window, async_flip);
-        goto no_flip;
-    }
-
-    ms_window_update_async_flip(window, async_flip);
-
-    if (reason && async_flip != ms_window_has_async_flip_modifiers(window)) {
-        *reason = PRESENT_FLIP_REASON_BUFFER_FORMAT;
-        goto no_flip;
-    }
-
-    ms->flip_window = window;
-    return TRUE;
-
-no_flip:
-    if (reason && *reason == PRESENT_FLIP_REASON_UNKNOWN && crtc) {
-        xf86CrtcPtr xf86_crtc = crtc->devPrivate;
-
-        if (ms_tearfree_is_active_on_crtc(xf86_crtc)) {
-            drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
-
-            *reason = drmmode_crtc->tearfree.flip_pending ?
-                      PRESENT_FLIP_REASON_DRIVER_TEARFREE_FLIPPING :
-                      PRESENT_FLIP_REASON_DRIVER_TEARFREE;
-        }
-    }
-
-    return FALSE;
-}
-
 /*
  * Yield or resume TearFree on 'crtc'.
  */
@@ -457,7 +407,7 @@ ms_present_commit(RRCrtcPtr crtc,
     struct ms_present_vblank_event *event;
     Bool ret;
 
-    if (!ms_present_check_flip(crtc, ms->flip_window, pixmap, sync_flip, NULL))
+    if (!ms_present_check_commit(crtc, ms->flip_window, pixmap, type, NULL))
         return FALSE;
 
     event = calloc(1, sizeof(struct ms_present_vblank_event));
@@ -490,7 +440,7 @@ ms_present_commit(RRCrtcPtr crtc,
     ret = ms_do_pageflip(screen, pixmap, event, drmmode_crtc->vblank_pipe,
                          !sync_flip,
                          ms_present_flip_handler, ms_present_flip_abort,
-                         "Present-commit");
+                         "PRESENT-commit");
     if (ret) {
         ms->drmmode.present_flipping = TRUE;
     } else if (ms->drmmode.tearfree) {
@@ -571,9 +521,6 @@ static present_screen_info_rec ms_present_screen_info = {
 
     .capabilities = PresentCapabilityNone,
 #ifdef GLAMOR_HAS_GBM
-    .check_flip = NULL,
-    .check_flip2 = ms_present_check_flip,
-
     .flip = NULL,
     .unflip = ms_present_unflip,
 
@@ -597,8 +544,8 @@ ms_present_screen_init(ScreenPtr screen)
 
     ret = drmGetCap(ms->fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &value);
     if (ret == 0 && value == 1) {
-        ms_present_screen_info.capabilities |= PresentCapabilityAsync;
-        ms_present_screen_info.capabilities |= PresentCapabilityAsyncMayTear;
+        ms_present_screen_info.capabilities = 
+            (PresentCapabilityAsync | PresentCapabilityAsyncMayTear);
         ms->drmmode.can_async_flip = TRUE;
     }
 
