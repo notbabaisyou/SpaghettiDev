@@ -165,7 +165,7 @@ if build_xorg
      'input.c',
      'list.c',
      'misc.c',
-     'sha1.c',
+     'rapidhash.c',
      'signal-logging.c',
      'string.c',
      'test_xkb.c',

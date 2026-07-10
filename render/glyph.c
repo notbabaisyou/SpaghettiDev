@@ -26,7 +26,7 @@
 #include <dix-config.h>
 #endif
 
-#include "os/xsha1.h"
+#include "os/rapidhash.h"
 
 #include "misc.h"
 #include "scrnintstr.h"
@@ -165,18 +165,17 @@ int
 HashGlyph(xGlyphInfo * gi,
           CARD8 *bits, unsigned long size, unsigned char sha1[20])
 {
-    sha1_context* ctx;
+    uint64_t h;
 
-    ctx = malloc(sizeof(sha1_context));
-    if (_X_UNLIKELY(!ctx))
-        return BadAlloc;
+    h = rapidhash_withSeed(gi, sizeof(xGlyphInfo), 0);
+    memcpy(sha1, &h, 8);
 
-    sha1_init(ctx);
-    sha1_update(ctx, gi, sizeof(xGlyphInfo));
-    sha1_update(ctx, bits, size);
-    sha1_finalize(ctx, sha1);
+    h = rapidhash_withSeed(bits, size, 0x9e3779b97f4a7c15ULL);
+    memcpy(sha1 + 8, &h, 8);
 
-    free(ctx);
+    h = rapidhash_withSeed(sha1, 16, 0xbf58476d1ce4e5b9ULL);
+    memcpy(sha1 + 16, &h, 4);
+
     return Success;
 }
 
