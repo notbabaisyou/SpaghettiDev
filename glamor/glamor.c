@@ -280,17 +280,12 @@ glamor_block_handler(ScreenPtr screen)
     glamor_flush(glamor_priv);
 }
 
-static void
-_glamor_block_handler(ScreenPtr screen, void *timeout)
+void
+glamor_screen_handler(void *blockData, void *timeout)
 {
+    ScreenPtr screen = (ScreenPtr)blockData;
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
-
     glamor_flush(glamor_priv);
-
-    screen->BlockHandler = glamor_priv->saved_procs.block_handler;
-    screen->BlockHandler(screen, timeout);
-    glamor_priv->saved_procs.block_handler = screen->BlockHandler;
-    screen->BlockHandler = _glamor_block_handler;
 }
 
 static void
@@ -672,6 +667,12 @@ glamor_init(ScreenPtr screen, unsigned int flags)
 
     glamor_priv->glsl_version = epoxy_glsl_version();
 
+    if (!epoxy_has_egl_extension(glamor_priv->ctx.display,
+                                 "EGL_KHR_fence_sync")) {
+        ErrorF("EGL_KHR_fence_sync is required\n");
+        goto fail;
+    }
+
     /* We'd like to require GL_ARB_map_buffer_range or
      * GL_OES_map_buffer_range, since it offers more information to
      * the driver than plain old glMapBuffer() or glBufferSubData().
@@ -812,13 +813,15 @@ glamor_init(ScreenPtr screen, unsigned int flags)
     if (!glamor_font_init(screen))
         goto fail;
 
-    glamor_priv->saved_procs.block_handler = screen->BlockHandler;
-    screen->BlockHandler = _glamor_block_handler;
-
     if (!glamor_composite_glyphs_init(screen)) {
         ErrorF("Failed to initialize composite masks\n");
         goto fail;
     }
+
+    if (!RegisterBlockAndWakeupHandlers((ServerBlockHandlerProcPtr)glamor_screen_handler,
+                                        (ServerWakeupHandlerProcPtr) NoopDDA,
+                                        screen))
+        goto fail;
 
     glamor_priv->saved_procs.create_gc = screen->CreateGC;
     screen->CreateGC = glamor_create_gc;
@@ -925,7 +928,12 @@ glamor_close_screen(ScreenPtr screen)
         glamor_priv->saved_procs.change_window_attributes;
     screen->CopyWindow = glamor_priv->saved_procs.copy_window;
     screen->BitmapToRegion = glamor_priv->saved_procs.bitmap_to_region;
-    screen->BlockHandler = glamor_priv->saved_procs.block_handler;
+
+    RemoveBlockAndWakeupHandlers((ServerBlockHandlerProcPtr)glamor_screen_handler,
+                                 (ServerWakeupHandlerProcPtr)NoopDDA,
+                                 screen);
+
+    glamor_free_sync(glamor_priv);
 
     if (ps) {
         ps->Composite = glamor_priv->saved_procs.composite;

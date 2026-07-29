@@ -672,16 +672,33 @@ glamor_make_current(glamor_screen_private *glamor_priv)
         lastGLContext = glamor_priv->ctx.ctx;
         glamor_priv->ctx.make_current(&glamor_priv->ctx);
     }
-    glamor_priv->dirty = TRUE;
 }
 
 static inline void
 glamor_flush(glamor_screen_private *glamor_priv)
 {
-    if (glamor_priv->dirty) {
-        glamor_make_current(glamor_priv);
-        glFlush();
-        glamor_priv->dirty = FALSE;
+    if (glamor_priv->sync[glamor_priv->sync_id]) {
+        eglClientWaitSyncKHR(glamor_priv->ctx.display,
+                             glamor_priv->sync[glamor_priv->sync_id],
+                             EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
+                             EGL_FOREVER_KHR);
+        eglDestroySyncKHR(glamor_priv->ctx.display,
+                          glamor_priv->sync[glamor_priv->sync_id]);
+    }
+
+    glamor_priv->sync[glamor_priv->sync_id] =
+        eglCreateSyncKHR(glamor_priv->ctx.display, EGL_SYNC_FENCE_KHR, NULL);
+    glamor_priv->sync_id = (glamor_priv->sync_id + 1) % 2;
+}
+
+static inline void
+glamor_free_sync(glamor_screen_private *glamor_priv)
+{
+    for (int i = 0; i < 2; i++) {
+        if (glamor_priv->sync[i]) {
+            eglDestroySyncKHR(glamor_priv->ctx.display,
+                              glamor_priv->sync[i]);
+        }
     }
 }
 

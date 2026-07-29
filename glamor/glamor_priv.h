@@ -215,7 +215,6 @@ struct glamor_saved_procs {
 #if XSYNC
     SyncScreenFuncsRec sync_screen_funcs;
 #endif
-    ScreenBlockHandlerProcPtr block_handler;
 };
 
 typedef struct glamor_screen_private {
@@ -226,7 +225,6 @@ typedef struct glamor_screen_private {
 
     Bool is_gles;
     Bool dri3_enabled;
-    Bool dirty;
     Bool use_quads;
     Bool use_gpu_shader4;
     Bool can_copyplane;
@@ -242,6 +240,9 @@ typedef struct glamor_screen_private {
     Bool has_dual_blend;
     Bool has_clear_texture;
     Bool has_texture_swizzle;
+
+    int sync_id;
+    EGLSyncKHR sync[2];
 
     /**
      * Stores information about supported formats. Note, that this list contains all
