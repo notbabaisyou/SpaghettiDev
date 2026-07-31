@@ -103,12 +103,12 @@ static Bool xorgHWOpenConsole = FALSE;
 
 static PixmapFormatRec formats[MAXFORMATS] = {
     {1, 1, BITMAP_SCANLINE_PAD},
-    {4, 8, BITMAP_SCANLINE_PAD},
     {8, 8, BITMAP_SCANLINE_PAD},
     {15, 16, BITMAP_SCANLINE_PAD},
     {16, 16, BITMAP_SCANLINE_PAD},
     {24, 32, BITMAP_SCANLINE_PAD},
     {32, 32, BITMAP_SCANLINE_PAD},
+    {64, 64, BITMAP_SCANLINE_PAD2},
 };
 
 static int numFormats = 7;

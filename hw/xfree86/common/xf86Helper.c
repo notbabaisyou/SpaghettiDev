@@ -324,11 +324,13 @@ xf86AddPixFormat(ScrnInfoPtr pScrn, int depth, int bpp, int pad)
             bpp = 16;
         else if (depth <= 32)
             bpp = 32;
+        else if (depth <= 64)
+            bpp = 64;
         else
             return FALSE;
     }
     if (pad <= 0)
-        pad = BITMAP_SCANLINE_PAD;
+        pad = (bpp == 64) ? BITMAP_SCANLINE_PAD2 : BITMAP_SCANLINE_PAD;
 
     i = pScrn->numFormats++;
     pScrn->formats[i].depth = depth;
@@ -458,6 +460,8 @@ xf86SetDepthBpp(ScrnInfoPtr scrp, int depth, int dummy, int fbbpp,
             }
             else if (scrp->depth <= 32)
                 scrp->bitsPerPixel = 32;
+            else if (scrp->depth <= 64)
+                scrp->bitsPerPixel = 64;
             else {
                 xf86DrvMsg(scrp->scrnIndex, X_ERROR,
                            "No bpp for depth (%d)\n", scrp->depth);
@@ -498,9 +502,9 @@ xf86SetDepthBpp(ScrnInfoPtr scrp, int depth, int dummy, int fbbpp,
     }
 
     /* Sanity checks */
-    if (scrp->depth < 1 || scrp->depth > 32) {
+    if (scrp->depth < 1 || scrp->depth > 64) {
         xf86DrvMsg(scrp->scrnIndex, X_ERROR,
-                   "Specified depth (%d) is not in the range 1-32\n",
+                   "Specified depth (%d) is not in the range 1-64\n",
                    scrp->depth);
         return FALSE;
     }
@@ -510,6 +514,7 @@ xf86SetDepthBpp(ScrnInfoPtr scrp, int depth, int dummy, int fbbpp,
     case 8:
     case 16:
     case 32:
+    case 64:
         break;
     default:
         xf86DrvMsg(scrp->scrnIndex, X_ERROR,

@@ -126,7 +126,7 @@ static vfbScreenInfo defaultScreenInfo = {
     .lineBias = VFB_DEFAULT_LINEBIAS,
 };
 
-static Bool vfbPixmapDepths[33];
+static Bool vfbPixmapDepths[65];
 
 #ifdef HAVE_MMAP
 static char *pfbdir = NULL;
@@ -189,7 +189,7 @@ vfbInitializePixmapDepths(void)
     int i;
 
     vfbPixmapDepths[1] = TRUE;  /* always need bitmaps */
-    for (i = 2; i <= 32; i++)
+    for (i = 2; i <= 64; i++)
         vfbPixmapDepths[i] = FALSE;
 }
 
@@ -202,6 +202,8 @@ vfbBitsPerPixel(int depth)
         return 8;
     else if (depth <= 16)
         return 16;
+    else if (depth > 32)
+        return 64;
     else
         return 32;
 }
@@ -372,7 +374,7 @@ ddxProcessArgument(int argc, char *argv[], int i)
 
         CHECK_FOR_REQUIRED_ARGUMENTS(1);
         while ((++i < argc) && (depth = atoi(argv[i])) != 0) {
-            if (depth < 0 || depth > 32) {
+            if (depth < 0 || depth > 64) {
                 ErrorF("Invalid pixmap depth %d\n", depth);
                 UseMsg();
                 FatalError("Invalid pixmap depth %d passed to -pixdepths\n",
@@ -1127,17 +1129,19 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv)
         vfbPixmapDepths[30] = TRUE;
 #endif
         vfbPixmapDepths[32] = TRUE;
+        vfbPixmapDepths[64] = TRUE;
     }
 
     xorgGlxCreateVendor();
 
-    for (i = 1; i <= 32; i++) {
+    for (i = 1; i <= 64; i++) {
         if (vfbPixmapDepths[i]) {
             if (NumFormats >= MAXFORMATS)
                 FatalError("MAXFORMATS is too small for this server\n");
             screen_info->formats[NumFormats].depth = i;
             screen_info->formats[NumFormats].bitsPerPixel = vfbBitsPerPixel(i);
-            screen_info->formats[NumFormats].scanlinePad = BITMAP_SCANLINE_PAD;
+            screen_info->formats[NumFormats].scanlinePad =
+                (i == 64) ? BITMAP_SCANLINE_PAD2 : BITMAP_SCANLINE_PAD;
             NumFormats++;
         }
     }

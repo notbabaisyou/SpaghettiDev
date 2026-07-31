@@ -189,9 +189,6 @@ PictureCreateDefaultFormats(ScreenPtr pScreen, int *nformatp)
     formats[nformats].format = PICT_a8;
     formats[nformats].depth = 8;
     nformats++;
-    formats[nformats].format = PICT_a4;
-    formats[nformats].depth = 4;
-    nformats++;
     formats[nformats].format = PICT_a8r8g8b8;
     formats[nformats].depth = 32;
     nformats++;
