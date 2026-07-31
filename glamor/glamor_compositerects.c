@@ -222,7 +222,7 @@ glamor_composite_rectangles(CARD8 op,
 
     boxes = pixman_region_rectangles(&region, &num_boxes);
     if (op == PictOpSrc || op == PictOpClear) {
-        CARD32 pixel;
+        unsigned long pixel = 0L;
 
         pixman_region_translate(&region, -dst->pDrawable->x, -dst->pDrawable->y);
 
@@ -231,12 +231,10 @@ glamor_composite_rectangles(CARD8 op,
                RegionExtents(&region)->x1, RegionExtents(&region)->y1,
                RegionExtents(&region)->x2, RegionExtents(&region)->y2);
 
-        if (op == PictOpClear)
-            pixel = 0;
-        else
-            miRenderColorToPixel(dst->pFormat, color, &pixel);
+        if (op != PictOpClear)
+            miRenderColorToPixel64(dst->pFormat, color, &pixel);
+            
         glamor_solid_boxes(dst->pDrawable, boxes, num_boxes, pixel);
-
         goto done;
     }
     else {
