@@ -89,6 +89,8 @@ elif cc.compiles('''
     conf_data.set('HAVE_PTHREAD_SETNAME_NP_WITHOUT_TID', 1)
 endif
 
+conf_data.set('PIXMAN_HAS_64BPP', pixman_dep.version() >= '0.46.0' ? '1' : false)
+
 conf_data.set('HAVE_LIBBSD', libbsd_dep.found() ? '1' : false)
 # Note: this symbol is used by libXtrans.
 conf_data.set('HAVE_SYSTEMD_DAEMON', libsystemd_daemon_dep.found() ? '1' : false)

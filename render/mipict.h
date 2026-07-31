@@ -90,6 +90,9 @@ extern _X_EXPORT void
  miRenderColorToPixel(PictFormatPtr pPict, xRenderColor * color, CARD32 *pixel);
 
 extern _X_EXPORT void
+ miRenderColorToPixel64(PictFormatPtr pPict, xRenderColor * color, CARD64 *pixel);
+
+extern _X_EXPORT void
  miRenderPixelToColor(PictFormatPtr pPict, CARD32 pixel, xRenderColor * color);
 
 extern _X_EXPORT Bool

@@ -39,13 +39,13 @@ miColorRects(PicturePtr pDst,
              xRenderColor * color,
              int nRect, xRectangle *rects, int xoff, int yoff)
 {
-    CARD32 pixel;
+    CARD64 pixel;
     GCPtr pGC;
     ChangeGCVal tmpval[5];
     RegionPtr pClip;
     unsigned long mask;
 
-    miRenderColorToPixel(pDst->pFormat, color, &pixel);
+    miRenderColorToPixel64(pDst->pFormat, color, &pixel);
 
     pGC = GetScratchGC(pDst->pDrawable->depth, pDst->pDrawable->pScreen);
     if (!pGC)

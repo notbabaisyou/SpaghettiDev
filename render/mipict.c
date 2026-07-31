@@ -424,6 +424,42 @@ miRenderColorToPixel(PictFormatPtr format, xRenderColor * color, CARD32 *pixel)
     }
 }
 
+void
+miRenderColorToPixel64(PictFormatPtr format, xRenderColor * color, CARD64 *pixel)
+{
+    CARD64 r, g, b, a;
+    miIndexedPtr pIndexed;
+
+    switch (format->type) {
+    case PictTypeDirect:
+        r = color->red >> (16 - Ones(format->direct.redMask));
+        g = color->green >> (16 - Ones(format->direct.greenMask));
+        b = color->blue >> (16 - Ones(format->direct.blueMask));
+        a = color->alpha >> (16 - Ones(format->direct.alphaMask));
+        r = r << format->direct.red;
+        g = g << format->direct.green;
+        b = b << format->direct.blue;
+        a = a << format->direct.alpha;
+        *pixel = r | g | b | a;
+        break;
+    case PictTypeIndexed:
+        pIndexed = (miIndexedPtr) (format->index.devPrivate);
+        if (pIndexed->color) {
+            r = color->red >> 11;
+            g = color->green >> 11;
+            b = color->blue >> 11;
+            *pixel = miIndexToEnt15(pIndexed, (r << 10) | (g << 5) | b);
+        }
+        else {
+            r = color->red >> 8;
+            g = color->green >> 8;
+            b = color->blue >> 8;
+            *pixel = miIndexToEntY24(pIndexed, (r << 16) | (g << 8) | b);
+        }
+        break;
+    }
+}
+
 static CARD16
 miFillColor(CARD32 pixel, int bits)
 {

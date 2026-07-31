@@ -219,4 +219,7 @@
 /* byte order */
 #mesondefine X_BYTE_ORDER
 
+/* 64bpp support */
+#mesondefine PIXMAN_HAS_64BPP
+
 #endif /* _XORG_SERVER_H_ */
