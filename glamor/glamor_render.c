@@ -628,8 +628,7 @@ glamor_set_composite_texture(glamor_screen_private *glamor_priv, int unit,
      * alpha channel, as GL will return an alpha for 1 if the texture
      * is RGB (no alpha), which we use for 16bpp textures.
      */
-    if (glamor_pixmap_priv_is_large(pixmap_priv) ||
-        (!PICT_FORMAT_A(picture->format) &&
+    if ((!PICT_FORMAT_A(picture->format) &&
          repeat_type == RepeatNone && picture->transform)) {
         glamor_pixmap_fbo_fix_wh_ratio(wh, pixmap, pixmap_priv);
         glUniform4fv(wh_location, 1, wh);
@@ -1728,9 +1727,7 @@ glamor_composite(CARD8 op,
     PixmapPtr source_pixmap = NULL, mask_pixmap = NULL;
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     RegionRec region;
-    BoxPtr extent;
     int nbox, ok = FALSE;
-    int force_clip = 0;
 
     if (source->pDrawable) {
         source_pixmap = glamor_get_drawable_pixmap(source->pDrawable);
@@ -1790,53 +1787,17 @@ glamor_composite(CARD8 op,
     nbox = REGION_NUM_RECTS(&region);
     DEBUGF("first clipped when compositing.\n");
     DEBUGRegionPrint(&region);
-    extent = RegionExtents(&region);
     if (nbox == 0)
         return;
 
-    /* If destination is not a large pixmap, but the region is larger
-     * than texture size limitation, and source or mask is memory pixmap,
-     * then there may be need to load a large memory pixmap to a
-     * texture, and this is not permitted. Then we force to clip the
-     * destination and make sure latter will not upload a large memory
-     * pixmap. */
-    if (!glamor_check_fbo_size(glamor_priv,
-                               extent->x2 - extent->x1, extent->y2 - extent->y1)
-        && glamor_pixmap_is_large(dest_pixmap)
-        && ((source_pixmap
-             && (glamor_pixmap_is_memory(source_pixmap) ||
-                 source->repeatType == RepeatPad))
-            || (mask_pixmap &&
-                (glamor_pixmap_is_memory(mask_pixmap) ||
-                 mask->repeatType == RepeatPad))
-            || (!source_pixmap &&
-                (source->pSourcePict->type != SourcePictTypeSolidFill))
-            || (!mask_pixmap && mask &&
-                mask->pSourcePict->type != SourcePictTypeSolidFill)))
-        force_clip = 1;
-
-    if (force_clip || glamor_pixmap_is_large(dest_pixmap)
-        || (source_pixmap
-            && glamor_pixmap_is_large(source_pixmap))
-        || (mask_pixmap && glamor_pixmap_is_large(mask_pixmap)))
-        ok = glamor_composite_largepixmap_region(op,
-                                                 source, mask, dest,
-                                                 source_pixmap,
-                                                 mask_pixmap,
-                                                 dest_pixmap,
-                                                 &region, force_clip,
-                                                 x_source, y_source,
-                                                 x_mask, y_mask,
-                                                 x_dest, y_dest, width, height);
-    else
-        ok = glamor_composite_clipped_region(op, source,
-                                             mask, dest,
-                                             source_pixmap,
-                                             mask_pixmap,
-                                             dest_pixmap,
-                                             &region,
-                                             x_source, y_source,
-                                             x_mask, y_mask, x_dest, y_dest);
+    ok = glamor_composite_clipped_region(op, source,
+                                         mask, dest,
+                                         source_pixmap,
+                                         mask_pixmap,
+                                         dest_pixmap,
+                                         &region,
+                                         x_source, y_source,
+                                         x_mask, y_mask, x_dest, y_dest);
 
     REGION_UNINIT(dest->pDrawable->pScreen, &region);
 

@@ -240,18 +240,16 @@ glamor_composite_rectangles(CARD8 op,
         goto done;
     }
     else {
-        if (_X_LIKELY(glamor_pixmap_priv_is_small(priv))) {
-            int error;
+        int error;
 
-            source = CreateSolidPicture(0, color, &error);
-            if (!source)
-                goto done;
-            if (glamor_composite_clipped_region(op, source,
-                                                NULL, dst,
-                                                NULL, NULL, pixmap,
-                                                &region, 0, 0, 0, 0, 0, 0))
-                goto done;
-        }
+        source = CreateSolidPicture(0, color, &error);
+        if (!source)
+            goto done;
+        if (glamor_composite_clipped_region(op, source,
+                                            NULL, dst,
+                                            NULL, NULL, pixmap,
+                                            &region, 0, 0, 0, 0, 0, 0))
+            goto done;
     }
  fallback:
     miCompositeRects(op, dst, color, num_rects, rects);

@@ -473,7 +473,7 @@ glamor_copy_fbo_fbo_draw(DrawablePtr src,
                 .y2 = min(-args.dy + src_box->y2 - src_box->y1, bounds.y2),
             };
             if (scissor.x1 >= scissor.x2 || scissor.y1 >= scissor.y2)
-                continue;
+                goto out;
 
             if (!glamor_set_destination_drawable(dst, dst_box_index, FALSE, FALSE,
                                                  prog->matrix_uniform,
@@ -489,6 +489,7 @@ glamor_copy_fbo_fbo_draw(DrawablePtr src,
         }
     }
 
+out:
     ret = TRUE;
 
 bail_ctx:
@@ -734,10 +735,6 @@ glamor_copy_blit(DrawablePtr src, DrawablePtr dst, GCPtr gc,
 
     if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(src_priv) ||
         !GLAMOR_PIXMAP_PRIV_HAS_FBO(dst_priv))
-        return FALSE;
-
-    if (glamor_pixmap_priv_is_large(src_priv) ||
-        glamor_pixmap_priv_is_large(dst_priv))
         return FALSE;
 
     if (src_priv->fbo->is_red != dst_priv->fbo->is_red ||

@@ -392,43 +392,7 @@ typedef struct glamor_pixmap_private {
     Bool used_modifiers;
     EGLImageKHR image;
 #endif
-    /** block width of this large pixmap. */
-    int block_w;
-    /** block height of this large pixmap. */
-    int block_h;
-
-    /** block_wcnt: block count in one block row. */
-    int block_wcnt;
-    /** block_hcnt: block count in one block column. */
-    int block_hcnt;
-
     Bool is_cbcr;
-
-    /**
-     * The list of boxes for the bounds of the FBOs making up the
-     * pixmap.
-     *
-     * For a 2048x2048 pixmap with GL FBO size limits of 1024x1024:
-     *
-     * ******************
-     * *  fbo0 * fbo1   *
-     * *       *        *
-     * ******************
-     * *  fbo2 * fbo3   *
-     * *       *        *
-     * ******************
-     *
-     * box[0] = {0,0,1024,1024}
-     * box[1] = {1024,0,2048,2048}
-     * ...
-     */
-    BoxPtr box_array;
-
-    /**
-     * Array of fbo structs containing the actual GL texture/fbo
-     * names.
-     */
-    glamor_pixmap_fbo **fbo_array;
 } glamor_pixmap_private;
 
 extern DevPrivateKeyRec glamor_pixmap_private_key;
@@ -465,28 +429,6 @@ glamor_pixmap_is_memory(PixmapPtr pixmap)
 }
 
 /*
- * Returns TRUE if pixmap requires multiple textures to hold it
- */
-static inline Bool
-glamor_pixmap_priv_is_large(glamor_pixmap_private *priv)
-{
-    return priv->block_wcnt > 1 || priv->block_hcnt > 1;
-}
-
-static inline Bool
-glamor_pixmap_priv_is_small(glamor_pixmap_private *priv)
-{
-    return priv->block_wcnt <= 1 && priv->block_hcnt <= 1;
-}
-
-static inline Bool
-glamor_pixmap_is_large(PixmapPtr pixmap)
-{
-    glamor_pixmap_private *priv = glamor_get_pixmap_private(pixmap);
-
-    return glamor_pixmap_priv_is_large(priv);
-}
-/*
  * Returns TRUE if pixmap has an FBO
  */
 static inline Bool
@@ -497,44 +439,9 @@ glamor_pixmap_has_fbo(PixmapPtr pixmap)
     return priv->gl_fbo == GLAMOR_FBO_NORMAL;
 }
 
-static inline void
-glamor_set_pixmap_fbo_current(glamor_pixmap_private *priv, int idx)
-{
-    if (glamor_pixmap_priv_is_large(priv)) {
-        priv->fbo = priv->fbo_array[idx];
-        priv->box = priv->box_array[idx];
-    }
-}
-
-static inline glamor_pixmap_fbo *
-glamor_pixmap_fbo_at(glamor_pixmap_private *priv, int box)
-{
-    assert(box < priv->block_wcnt * priv->block_hcnt);
-    return priv->fbo_array[box];
-}
-
-static inline BoxPtr
-glamor_pixmap_box_at(glamor_pixmap_private *priv, int box)
-{
-    assert(box < priv->block_wcnt * priv->block_hcnt);
-    return &priv->box_array[box];
-}
-
-static inline int
-glamor_pixmap_wcnt(glamor_pixmap_private *priv)
-{
-    return priv->block_wcnt;
-}
-
-static inline int
-glamor_pixmap_hcnt(glamor_pixmap_private *priv)
-{
-    return priv->block_hcnt;
-}
-
-#define glamor_pixmap_loop(priv, box_index)                            \
-    for (box_index = 0; box_index < glamor_pixmap_hcnt(priv) *         \
-             glamor_pixmap_wcnt(priv); box_index++)                    \
+#define glamor_pixmap_box_at(priv, index) ({ (void)index; &((priv)->box); })
+#define glamor_pixmap_fbo_at(priv, index) ({ (void)index; ((priv)->fbo); })
+#define glamor_pixmap_loop(priv, box_index) { (void)priv; box_index = 0; }
 
 static inline int
 glamor_drawable_effective_depth(DrawablePtr drawable)
@@ -636,11 +543,6 @@ void glamor_bind_texture(glamor_screen_private *glamor_priv,
                          GLenum texture,
                          glamor_pixmap_fbo *fbo,
                          Bool destination_red);
-
-glamor_pixmap_fbo *glamor_create_fbo_array(glamor_screen_private *glamor_priv,
-                                           PixmapPtr pixmap,
-                                           int flag, int block_w, int block_h,
-                                           glamor_pixmap_private *);
 
 void glamor_gldrawarrays_quads_using_indices(glamor_screen_private *glamor_priv,
                                              unsigned count);
@@ -759,33 +661,6 @@ glamor_put_vbo_space(ScreenPtr screen);
  * If the fbo already has a valid glfbo then do nothing.
  */
 Bool glamor_pixmap_ensure_fbo(PixmapPtr pixmap, int flag);
-
-glamor_pixmap_clipped_regions *
-glamor_compute_clipped_regions(PixmapPtr pixmap,
-                               RegionPtr region, int *clipped_nbox,
-                               int repeat_type, int reverse,
-                               int upsidedown);
-
-glamor_pixmap_clipped_regions *
-glamor_compute_clipped_regions_ext(PixmapPtr pixmap,
-                                   RegionPtr region, int *n_region,
-                                   int inner_block_w, int inner_block_h,
-                                   int reverse, int upsidedown);
-
-Bool glamor_composite_largepixmap_region(CARD8 op,
-                                         PicturePtr source,
-                                         PicturePtr mask,
-                                         PicturePtr dest,
-                                         PixmapPtr source_pixmap,
-                                         PixmapPtr mask_pixmap,
-                                         PixmapPtr dest_pixmap,
-                                         RegionPtr region, Bool force_clip,
-                                         INT16 x_source,
-                                         INT16 y_source,
-                                         INT16 x_mask,
-                                         INT16 y_mask,
-                                         INT16 x_dest, INT16 y_dest,
-                                         CARD16 width, CARD16 height);
 
 /**
  * Upload a picture to gl texture. Similar to the

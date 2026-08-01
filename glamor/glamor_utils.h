@@ -54,15 +54,10 @@
     *(_pyscale_) = 1.0 / (_pixmap_priv_)->fbo->height;			\
   } while(0)
 
-#define PIXMAP_PRIV_GET_ACTUAL_SIZE(pixmap, priv, w, h)          \
+#define PIXMAP_PRIV_GET_ACTUAL_SIZE(pixmap, priv, w, h) \
   do {								\
-	if (_X_UNLIKELY(glamor_pixmap_priv_is_large(priv))) {	\
-		w = priv->box.x2 - priv->box.x1;	\
-		h = priv->box.y2 - priv->box.y1;	\
-	} else {						\
-		w = (pixmap)->drawable.width;		\
-		h = (pixmap)->drawable.height;		\
-	}							\
+	w = (pixmap)->drawable.width;	\
+	h = (pixmap)->drawable.height;	\
   } while(0)
 
 #define glamor_pixmap_fbo_fix_wh_ratio(wh, pixmap, priv)         \
@@ -77,13 +72,8 @@
 
 #define pixmap_priv_get_fbo_off(_priv_, _xoff_, _yoff_)		\
    do {								\
-        if (_X_UNLIKELY(_priv_ && glamor_pixmap_priv_is_large(_priv_))) { \
-		*(_xoff_) = - (_priv_)->box.x1;	\
-		*(_yoff_) = - (_priv_)->box.y1;	\
-	} else {						\
-		*(_xoff_) = 0;					\
-		*(_yoff_) = 0;					\
-	}							\
+		*(_xoff_) = 0;				\
+		*(_yoff_) = 0;				\
    } while(0)
 
 #define xFixedToFloat(_val_) ((float)xFixedToInt(_val_)			\
@@ -362,44 +352,10 @@
 							 texcoords,	\
 							 stride)	\
   do {									\
-    if (_X_LIKELY(glamor_pixmap_priv_is_small(priv))) {		\
 	glamor_set_transformed_normalize_tcoords_ext(priv, matrix, xscale,	\
-						 yscale, _x1_, _y1_,	\
-						 _x2_, _y2_,	\
-						 texcoords, stride);	\
-    } else {								\
-    float tx1, ty1, tx2, ty2, tx3, ty3, tx4, ty4;			\
-    float ttx1, tty1, ttx2, tty2, ttx3, tty3, ttx4, tty4;		\
-    DEBUGF("original coords %d %d %d %d\n", _x1_, _y1_, _x2_, _y2_);	\
-    glamor_transform_point(matrix, tx1, ty1, _x1_, _y1_);		\
-    glamor_transform_point(matrix, tx2, ty2, _x2_, _y1_);		\
-    glamor_transform_point(matrix, tx3, ty3, _x2_, _y2_);		\
-    glamor_transform_point(matrix, tx4, ty4, _x1_, _y2_);		\
-    DEBUGF("transformed %f %f %f %f %f %f %f %f\n",			\
-	   tx1, ty1, tx2, ty2, tx3, ty3, tx4, ty4);			\
-    glamor_get_repeat_transform_coords(pixmap, priv, repeat_type, \
-				       ttx1, tty1, 			\
-				       tx1, ty1);			\
-    glamor_get_repeat_transform_coords(pixmap, priv, repeat_type, 	\
-				       ttx2, tty2, 			\
-				       tx2, ty2);			\
-    glamor_get_repeat_transform_coords(pixmap, priv, repeat_type, 	\
-				       ttx3, tty3, 			\
-				       tx3, ty3);			\
-    glamor_get_repeat_transform_coords(pixmap, priv, repeat_type, 	\
-				       ttx4, tty4, 			\
-				       tx4, ty4);			\
-    DEBUGF("repeat transformed %f %f %f %f %f %f %f %f\n", ttx1, tty1, 	\
-	    ttx2, tty2,	ttx3, tty3, ttx4, tty4);			\
-    _glamor_set_normalize_tpoint(xscale, yscale, ttx1, tty1,		\
-				 texcoords);			\
-    _glamor_set_normalize_tpoint(xscale, yscale, ttx2, tty2,		\
-				 texcoords + 1 * stride);	\
-    _glamor_set_normalize_tpoint(xscale, yscale, ttx3, tty3,		\
-				 texcoords + 2 * stride);	\
-    _glamor_set_normalize_tpoint(xscale, yscale, ttx4, tty4,		\
-				 texcoords + 3 * stride);	\
-   }									\
+						                         yscale, _x1_, _y1_,	\
+						                         _x2_, _y2_,	        \
+						                         texcoords, stride);	\
   } while (0)
 
 #define glamor_set_repeat_transformed_normalize_tcoords( pixmap,        \
@@ -445,20 +401,8 @@
 				     x1, y1, x2, y2,			\
                                      vertices, stride)	\
   do {									\
-     if (_X_UNLIKELY(glamor_pixmap_priv_is_large(priv))) {		\
-	float tx1, tx2, ty1, ty2;					\
-	int fbo_x_off, fbo_y_off;					\
-	pixmap_priv_get_fbo_off(priv, &fbo_x_off, &fbo_y_off);		\
-	tx1 = x1 + fbo_x_off; 						\
-	tx2 = x2 + fbo_x_off;						\
-	ty1 = y1 + fbo_y_off;						\
-	ty2 = y2 + fbo_y_off;						\
-	_glamor_set_normalize_tcoords(xscale, yscale, tx1, ty1,		\
-                                      tx2, ty2, vertices,               \
-				   stride);				\
-     } else								\
-	_glamor_set_normalize_tcoords(xscale, yscale, x1, y1,		\
-                                      x2, y2, vertices, stride);        \
+    _glamor_set_normalize_tcoords(xscale, yscale, x1, y1,		\
+                                  x2, y2, vertices, stride);    \
  } while(0)
 
 #define glamor_set_repeat_normalize_tcoords_ext(pixmap, priv, repeat_type, \
@@ -466,25 +410,8 @@
 					    _x1_, _y1_, _x2_, _y2_,	\
 	                                    vertices, stride)		\
   do {									\
-     if (_X_UNLIKELY(glamor_pixmap_priv_is_large(priv))) {		\
-	float tx1, tx2, ty1, ty2;					\
-	if (repeat_type == RepeatPad) {					\
-		tx1 = _x1_ - priv->box.x1;			        \
-		ty1 = _y1_ - priv->box.y1;			        \
-		tx2 = tx1 + ((_x2_) - (_x1_));				\
-		ty2 = ty1 + ((_y2_) - (_y1_));				\
-	} else {							\
-            glamor_get_repeat_coords(pixmap, priv, repeat_type,         \
-				 tx1, ty1, tx2, ty2,			\
-				 _x1_, _y1_, _x2_, _y2_);		\
-	}								\
-	_glamor_set_normalize_tcoords(xscale, yscale, tx1, ty1,		\
-                                      tx2, ty2, vertices,               \
-				   stride);				\
-     } else								\
-	_glamor_set_normalize_tcoords(xscale, yscale, _x1_, _y1_,	\
-                                      _x2_, _y2_, vertices,             \
-				   stride);				\
+    _glamor_set_normalize_tcoords(xscale, yscale, _x1_, _y1_,	 \
+                                  _x2_, _y2_, vertices, stride); \
  } while(0)
 
 #define glamor_set_normalize_tcoords_tri_stripe(xscale, yscale,		\
@@ -654,15 +581,6 @@ glamor_get_rgba_from_color(const xRenderColor *color, float rgba[4])
     rgba[1] = color->green / (float)UINT16_MAX;
     rgba[2] = color->blue  / (float)UINT16_MAX;
     rgba[3] = color->alpha / (float)UINT16_MAX;
-}
-
-inline static Bool
-glamor_is_large_pixmap(PixmapPtr pixmap)
-{
-    glamor_pixmap_private *priv;
-
-    priv = glamor_get_pixmap_private(pixmap);
-    return (glamor_pixmap_priv_is_large(priv));
 }
 
 static inline void

@@ -23,7 +23,6 @@ srcs_glamor = [
     'glamor_glyphblt.c',
     'glamor_points.c',
     'glamor_pixmap.c',
-    'glamor_largepixmap.c',
     'glamor_picture.c',
     'glamor_vbo.c',
     'glamor_window.c',

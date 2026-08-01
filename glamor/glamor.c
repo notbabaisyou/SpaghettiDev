@@ -81,12 +81,6 @@ glamor_init_pixmap_private_small(PixmapPtr pixmap, glamor_pixmap_private *pixmap
     pixmap_priv->box.x2 = pixmap->drawable.width;
     pixmap_priv->box.y1 = 0;
     pixmap_priv->box.y2 = pixmap->drawable.height;
-    pixmap_priv->block_w = pixmap->drawable.width;
-    pixmap_priv->block_h = pixmap->drawable.height;
-    pixmap_priv->block_hcnt = 1;
-    pixmap_priv->block_wcnt = 1;
-    pixmap_priv->box_array = &pixmap_priv->box;
-    pixmap_priv->fbo_array = &pixmap_priv->fbo;
 }
 
 void
@@ -241,16 +235,10 @@ glamor_create_pixmap(ScreenPtr screen, int w, int h, int depth,
         return pixmap;
     }
     else if (usage == GLAMOR_CREATE_NO_LARGE ||
-        glamor_check_fbo_size(glamor_priv, w, h))
+             glamor_check_fbo_size(glamor_priv, w, h))
     {
         glamor_init_pixmap_private_small(pixmap, pixmap_priv);
         fbo = glamor_create_fbo(glamor_priv, pixmap, w, h, usage);
-    } else {
-        int tile_size = glamor_priv->max_fbo_size;
-        DEBUGF("Create LARGE pixmap %p width %d height %d, tile size %d\n",
-               pixmap, w, h, tile_size);
-        fbo = glamor_create_fbo_array(glamor_priv, pixmap, usage,
-                                      tile_size, tile_size, pixmap_priv);
     }
 
     if (fbo == NULL) {

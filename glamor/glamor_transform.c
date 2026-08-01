@@ -173,9 +173,6 @@ glamor_set_texture_pixmap(PixmapPtr texture, Bool destination_red)
     if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(texture_priv))
         return FALSE;
 
-    if (glamor_pixmap_priv_is_large(texture_priv))
-        return FALSE;
-
     glamor_bind_texture(glamor_get_screen_private(texture->drawable.pScreen),
                         GL_TEXTURE0,
                         texture_priv->fbo, destination_red);
