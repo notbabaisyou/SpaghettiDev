@@ -77,7 +77,7 @@ glamor_prep_drawable_box(DrawablePtr drawable, glamor_access_t access, BoxPtr bo
          * we'll assume that it's directly mapped
          * by a lower level driver
          */
-        if (!priv->prepared)
+        if (priv->map_access == GLAMOR_ACCESS_NONE)
             return TRUE;
 
         /* In X, multiple Drawables can be stored in the same Pixmap (such as
@@ -160,7 +160,6 @@ glamor_prep_drawable_box(DrawablePtr drawable, glamor_access_t access, BoxPtr bo
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     }
 
-    priv->prepared = TRUE;
     return TRUE;
 }
 
@@ -178,7 +177,7 @@ glamor_finish_access(DrawablePtr drawable)
     if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(priv))
         return;
 
-    if (!priv->prepared)
+    if (priv->map_access == GLAMOR_ACCESS_NONE)
         return;
 
     if (priv->pbo &&
@@ -210,7 +209,7 @@ glamor_finish_access(DrawablePtr drawable)
         pixmap->devPrivate.ptr = NULL;
     }
 
-    priv->prepared = FALSE;
+    priv->map_access = GLAMOR_ACCESS_NONE;
 }
 
 Bool

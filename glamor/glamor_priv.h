@@ -346,6 +346,7 @@ typedef struct glamor_screen_private {
 } glamor_screen_private;
 
 typedef enum glamor_access {
+    GLAMOR_ACCESS_NONE,
     GLAMOR_ACCESS_RO,
     GLAMOR_ACCESS_RW,
 } glamor_access_t;
@@ -378,8 +379,9 @@ typedef struct glamor_pixmap_private {
     enum glamor_fbo_state gl_fbo;
     /**
      * If devPrivate.ptr is non-NULL (meaning we're within
-     * glamor_prepare_access), determies whether we should re-upload
-     * that data on glamor_finish_access().
+     * glamor_prepare_access), determines whether we should re-upload
+     * that data on glamor_finish_access(). GLAMOR_ACCESS_NONE means we're
+     * not currently inside glamor_prepare_access.
      */
     glamor_access_t map_access;
     GLuint pbo;
@@ -387,12 +389,11 @@ typedef struct glamor_pixmap_private {
     /** current fbo's coords in the whole pixmap. */
     BoxRec box;
     RegionRec prepare_region;
-    Bool prepared;
+    Bool is_cbcr;
 #ifdef GLAMOR_HAS_GBM
     Bool used_modifiers;
     EGLImageKHR image;
 #endif
-    Bool is_cbcr;
 } glamor_pixmap_private;
 
 extern DevPrivateKeyRec glamor_pixmap_private_key;
