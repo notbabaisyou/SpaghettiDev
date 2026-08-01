@@ -430,17 +430,15 @@ glamor_make_pixmap_exportable(PixmapPtr pixmap, Bool modifiers_ok)
 {
     ScreenPtr screen = pixmap->drawable.pScreen;
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    struct glamor_screen_private *glamor_priv =
+        glamor_get_screen_private(screen);
     struct glamor_egl_screen_private *glamor_egl =
         glamor_egl_get_screen_private(scrn);
     struct glamor_pixmap_private *pixmap_priv =
         glamor_get_pixmap_private(pixmap);
-    unsigned width = pixmap->drawable.width;
-    unsigned height = pixmap->drawable.height;
     uint32_t format;
-    struct gbm_bo *bo = NULL;
-    Bool used_modifiers = FALSE;
-    PixmapPtr exported;
-    GCPtr scratch_gc;
+    EGLImageKHR image;
+    struct gbm_bo *bo;
 
     if (pixmap_priv->image &&
         (modifiers_ok || !pixmap_priv->used_modifiers))
@@ -454,73 +452,51 @@ glamor_make_pixmap_exportable(PixmapPtr pixmap, Bool modifiers_ok)
         return FALSE;
     }
 
-#ifdef GBM_BO_WITH_MODIFIERS
-    if (modifiers_ok && glamor_egl->dmabuf_capable) {
-        uint32_t num_modifiers;
-        uint64_t *modifiers = NULL;
+    BUG_RETURN_VAL_MSG(!pixmap_priv->fbo || !pixmap_priv->fbo->tex, FALSE,
+        "glamor: pixmap has no single texture to wrap, "
+        "cannot zero-copy export\n");
 
-        glamor_get_modifiers(screen, format, &num_modifiers, &modifiers);
+    glamor_make_current(glamor_priv);
 
-        bo = gbm_bo_create_with_modifiers(glamor_egl->gbm, width, height,
-                                          format, modifiers, num_modifiers);
-        if (bo)
-            used_modifiers = TRUE;
-        free(modifiers);
-    }
-#endif
+    image = eglCreateImageKHR(glamor_egl->display,
+                              glamor_egl->context,
+                              EGL_GL_TEXTURE_2D,
+                              (EGLClientBuffer)(uint64_t)pixmap_priv->fbo->tex,
+                              NULL);
 
-    if (!bo)
-    {
-        bo = gbm_bo_create(glamor_egl->gbm, width, height, format,
-#ifdef GLAMOR_HAS_GBM_LINEAR
-                (pixmap->usage_hint == CREATE_PIXMAP_USAGE_SHARED ?
-                 GBM_BO_USE_LINEAR : 0) |
-#endif
-                GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
+    if (image == EGL_NO_IMAGE_KHR) {
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                   "glamor: eglCreateImageKHR from texture failed\n");
+        return FALSE;
     }
 
+    bo = gbm_bo_import(glamor_egl->gbm, GBM_BO_IMPORT_EGL_IMAGE, image, 0);
     if (!bo) {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                   "Failed to make %dx%dx%dbpp GBM bo\n",
-                   width, height, pixmap->drawable.bitsPerPixel);
+                   "glamor: failed to import EGL image as GBM BO\n");
+        eglDestroyImageKHR(glamor_egl->display, image);
         return FALSE;
     }
-
-    exported = screen->CreatePixmap(screen, 0, 0, pixmap->drawable.depth, 0);
-    screen->ModifyPixmapHeader(exported, width, height, 0, 0,
-                               gbm_bo_get_stride(bo), NULL);
-    if (!glamor_egl_create_textured_pixmap_from_gbm_bo(exported, bo,
-                                                       used_modifiers)) {
-        xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                   "Failed to make %dx%dx%dbpp pixmap from GBM bo\n",
-                   width, height, pixmap->drawable.bitsPerPixel);
-        screen->DestroyPixmap(exported);
-        gbm_bo_destroy(bo);
-        return FALSE;
-    }
-    gbm_bo_destroy(bo);
-
-    scratch_gc = GetScratchGC(pixmap->drawable.depth, screen);
-    ValidateGC(&pixmap->drawable, scratch_gc);
-    (void) scratch_gc->ops->CopyArea(&pixmap->drawable, &exported->drawable,
-                              scratch_gc,
-                              0, 0, width, height, 0, 0);
-    FreeScratchGC(scratch_gc);
 
     /* In case that the pixmap backing BO importer's command stream accidentally
      * gets flushed first.
      */
     glFlush();
 
-    /* Now, swap the tex/gbm/EGLImage/etc. of the exported pixmap into
-     * the original pixmap struct.
-     */
-    glamor_egl_exchange_buffers(pixmap, exported);
+    glamor_egl_set_pixmap_image(pixmap, image,
+#ifdef GBM_BO_WITH_MODIFIERS
+                                gbm_bo_get_modifier(bo) != DRM_FORMAT_MOD_LINEAR
+#else
+                                FALSE
+#endif
+    );
+    glamor_set_pixmap_type(pixmap, GLAMOR_TEXTURE_DRM);
 
-    /* Swap the devKind into the original pixmap, reflecting the bo's stride */
-    screen->ModifyPixmapHeader(pixmap, 0, 0, 0, 0, exported->devKind, NULL);
+    /* Update the pixmap's stride to reflect the wrapped buffer. */
+    screen->ModifyPixmapHeader(pixmap, 0, 0, 0, 0,
+                               gbm_bo_get_stride(bo), NULL);
 
-    screen->DestroyPixmap(exported);
+    gbm_bo_destroy(bo);
 
     return TRUE;
 }
