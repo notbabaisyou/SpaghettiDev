@@ -245,6 +245,13 @@ void ListenToAllClients(void);
 /* allow DDX to force using another clock */
 void ForceClockId(clockid_t forced_clockid);
 
+/* timekeeping: single cached monotonic clock maintained by a background
+   thread (os/timethread.c) */
+CARD32 os_monotonic_millis(void);
+CARD32 TimeGetTime(void);
+void TimeThreadInit(void);
+void TimeThreadFini(void);
+
 Bool WaitForSomething(Bool clients_are_ready);
 void CloseDownConnection(ClientPtr client);
 

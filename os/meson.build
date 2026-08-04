@@ -11,6 +11,7 @@ srcs_os = [
     'oscolor.c',
     'osinit.c',
     'ospoll.c',
+    'timethread.c',
     'utils.c',
     'xdmauth.c',
     'xsha1.c',
@@ -76,7 +77,7 @@ if srcs_libc.length() > 0
     )
 endif
 
-if enable_input_thread
+if enable_input_thread or enable_time_thread
     os_dep += cc.find_library('pthread')
 endif
 

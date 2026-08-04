@@ -321,7 +321,7 @@ OsInit(void)
      * log file name if logging to a file is desired.
      */
     LogInit(NULL, NULL);
-    SmartScheduleInit();
+    TimeThreadInit();
 }
 
 void

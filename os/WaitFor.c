@@ -170,17 +170,6 @@ WaitForSomething(Bool are_ready)
     int i;
     int timeout;
     int pollerr;
-    static Bool were_ready;
-    Bool timer_is_running;
-
-    timer_is_running = were_ready;
-
-    if (were_ready && !are_ready) {
-        timer_is_running = FALSE;
-        SmartScheduleStopTimer();
-    }
-
-    were_ready = FALSE;
 
 #ifdef BUSFAULT
     busfault_check();
@@ -229,12 +218,8 @@ WaitForSomething(Bool are_ready)
         if (InputCheckPending())
             return FALSE;
 
-        if (are_ready) {
-            were_ready = TRUE;
-            if (!timer_is_running)
-                SmartScheduleStartTimer();
+        if (are_ready)
             return TRUE;
-        }
     }
 }
 

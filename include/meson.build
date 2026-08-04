@@ -71,6 +71,11 @@ else
 endif
 conf_data.set('INPUTTHREAD', enable_input_thread ? '1' : false)
 
+# The timekeeping thread only needs pthread_create; when pthreads are
+# unavailable GetTimeInMillis() falls back to reading the clock directly.
+enable_time_thread = cc.has_header_symbol('pthread.h', 'pthread_create')
+conf_data.set('TIMETHREAD', enable_time_thread ? '1' : false)
+
 if cc.compiles('''
     #define _GNU_SOURCE 1
     #include <pthread.h>

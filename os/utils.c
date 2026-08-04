@@ -453,7 +453,7 @@ ForceClockId(clockid_t forced_clockid)
 typedef ULONGLONG (WINAPI *LPFN_GETTICKCOUNT64)();
 
 CARD32
-GetTimeInMillis(void)
+os_monotonic_millis(void)
 {
     return GetTickCount();
 }
@@ -480,7 +480,7 @@ GetTimeInMicros(void)
 }
 #else
 CARD32
-GetTimeInMillis(void)
+os_monotonic_millis(void)
 {
     struct timeval tv;
 
@@ -529,6 +529,12 @@ GetTimeInMicros(void)
     return (CARD64) tv.tv_sec * (CARD64)1000000 + (CARD64) tv.tv_usec;
 }
 #endif
+
+CARD32
+GetTimeInMillis(void)
+{
+    return TimeGetTime();
+}
 
 void
 UseMsg(void)
@@ -1049,9 +1055,6 @@ ProcessCommandLine(int argc, char *argv[])
 #endif
         else if (strcmp(argv[i], "-dumbSched") == 0) {
             InputThreadEnable = FALSE;
-#ifdef HAVE_SETITIMER
-            SmartScheduleSignalEnable = FALSE;
-#endif
         }
         else if (strcmp(argv[i], "-schedInterval") == 0) {
             if (++i < argc) {
@@ -1253,94 +1256,6 @@ XNFstrdup(const char *s)
     return ret;
 }
 
-void
-SmartScheduleStopTimer(void)
-{
-#ifdef HAVE_SETITIMER
-    struct itimerval timer;
-
-    if (!SmartScheduleSignalEnable)
-        return;
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = 0;
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = 0;
-    (void) setitimer(ITIMER_REAL, &timer, 0);
-#endif
-}
-
-void
-SmartScheduleStartTimer(void)
-{
-#ifdef HAVE_SETITIMER
-    struct itimerval timer;
-
-    if (!SmartScheduleSignalEnable)
-        return;
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = SmartScheduleInterval * 1000;
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = SmartScheduleInterval * 1000;
-    setitimer(ITIMER_REAL, &timer, 0);
-#endif
-}
-
-#ifdef HAVE_SETITIMER
-static void
-SmartScheduleTimer(int sig)
-{
-    SmartScheduleTime += SmartScheduleInterval;
-}
-
-static int
-SmartScheduleEnable(void)
-{
-    int ret = 0;
-    struct sigaction act;
-
-    if (!SmartScheduleSignalEnable)
-        return 0;
-
-    memset((char *) &act, 0, sizeof(struct sigaction));
-
-    /* Set up the timer signal function */
-    act.sa_flags = SA_RESTART;
-    act.sa_handler = SmartScheduleTimer;
-    sigemptyset(&act.sa_mask);
-    sigaddset(&act.sa_mask, SIGALRM);
-    ret = sigaction(SIGALRM, &act, 0);
-    return ret;
-}
-
-static int
-SmartSchedulePause(void)
-{
-    int ret = 0;
-    struct sigaction act;
-
-    if (!SmartScheduleSignalEnable)
-        return 0;
-
-    memset((char *) &act, 0, sizeof(struct sigaction));
-
-    act.sa_handler = SIG_IGN;
-    sigemptyset(&act.sa_mask);
-    ret = sigaction(SIGALRM, &act, 0);
-    return ret;
-}
-#endif
-
-void
-SmartScheduleInit(void)
-{
-#ifdef HAVE_SETITIMER
-    if (SmartScheduleEnable() < 0) {
-        perror("sigaction for smart scheduler");
-        SmartScheduleSignalEnable = FALSE;
-    }
-#endif
-}
-
 #ifdef HAVE_SIGPROCMASK
 static sigset_t PreviousSignalMask;
 static int BlockedSignalCount;
@@ -1489,26 +1404,11 @@ Popen(const char *command, const char *type)
         return NULL;
     }
 
-    /* Ignore the smart scheduler while this is going on */
-#ifdef HAVE_SETITIMER
-    if (SmartSchedulePause() < 0) {
-        close(pdes[0]);
-        close(pdes[1]);
-        free(cur);
-        perror("signal");
-        return NULL;
-    }
-#endif
-
     switch (pid = fork()) {
     case -1:                   /* error */
         close(pdes[0]);
         close(pdes[1]);
         free(cur);
-#ifdef HAVE_SETITIMER
-        if (SmartScheduleEnable() < 0)
-            perror("signal");
-#endif
         return NULL;
     case 0:                    /* child */
         if (setgid(getgid()) == -1)
@@ -1554,10 +1454,6 @@ Popen(const char *command, const char *type)
 
     if (!iop) {
         free(cur);
-#ifdef HAVE_SETITIMER
-        if (SmartScheduleEnable() < 0)
-            perror("signal");
-#endif
         return NULL;
     }
 
@@ -1623,13 +1519,6 @@ Pclose(void *iop)
 
     /* allow EINTR again */
     OsReleaseSignals();
-
-#ifdef HAVE_SETITIMER
-    if (SmartScheduleEnable() < 0) {
-        perror("signal");
-        return -1;
-    }
-#endif
 
     return pid == -1 ? -1 : pstat;
 }

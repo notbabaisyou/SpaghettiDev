@@ -241,14 +241,9 @@ UpdateCurrentTimeIf(void)
 #define SMART_SCHEDULE_DEFAULT_INTERVAL	5
 #define SMART_SCHEDULE_MAX_SLICE	15
 
-#ifdef HAVE_SETITIMER
-Bool SmartScheduleSignalEnable = TRUE;
-#endif
-
 long SmartScheduleSlice = SMART_SCHEDULE_DEFAULT_INTERVAL;
 long SmartScheduleInterval = SMART_SCHEDULE_DEFAULT_INTERVAL;
 long SmartScheduleMaxSlice = SMART_SCHEDULE_MAX_SLICE;
-volatile long SmartScheduleTime;
 int SmartScheduleLatencyLimited = 0;
 static ClientPtr SmartLastClient;
 static int SmartLastIndex[SMART_MAX_PRIORITY - SMART_MIN_PRIORITY + 1];
@@ -331,7 +326,7 @@ SmartScheduleClient(void)
 {
     ClientPtr pClient, best = NULL;
     int bestRobin, robin;
-    long now = SmartScheduleTime;
+    long now = GetTimeInMillis();
     long idle;
     int nready = 0;
 
@@ -503,13 +498,13 @@ Dispatch(void)
 
             isItTimeToYield = FALSE;
 
-            start_tick = SmartScheduleTime;
+            start_tick = GetTimeInMillis();
             while (!isItTimeToYield) {
                 if (InputCheckPending())
                     ProcessInputEvents();
 
                 FlushIfCriticalOutputPending();
-                if ((SmartScheduleTime - start_tick) >= SmartScheduleSlice)
+                if ((GetTimeInMillis() - start_tick) >= SmartScheduleSlice)
                 {
                     /* Penalize clients which consume ticks */
                     if (client->smart_priority > SMART_MIN_PRIORITY)
@@ -554,8 +549,6 @@ Dispatch(void)
                         currentClient = NULL;
                     }
                 }
-                if (!SmartScheduleSignalEnable)
-                    SmartScheduleTime = GetTimeInMillis();
 
 #ifdef XSERVER_DTRACE
                 if (XSERVER_REQUEST_DONE_ENABLED())
@@ -577,7 +570,7 @@ Dispatch(void)
             }
             FlushAllOutput();
             if (client == SmartLastClient)
-                client->smart_stop_tick = SmartScheduleTime;
+                client->smart_stop_tick = GetTimeInMillis();
         }
         dispatchException &= ~DE_PRIORITYCHANGE;
     }
@@ -3542,6 +3535,8 @@ KillAllClients(void)
 void
 InitClient(ClientPtr client, int i, void *ospriv)
 {
+    long now = GetTimeInMillis();
+
     client->index = i;
     xorg_list_init(&client->ready);
     xorg_list_init(&client->output_pending);
@@ -3550,8 +3545,8 @@ InitClient(ClientPtr client, int i, void *ospriv)
     client->requestVector = InitialVector;
     client->osPrivate = ospriv;
     QueryMinMaxKeyCodes(&client->minKC, &client->maxKC);
-    client->smart_start_tick = SmartScheduleTime;
-    client->smart_stop_tick = SmartScheduleTime;
+    client->smart_start_tick = now;
+    client->smart_stop_tick = now;
     client->clientIds = NULL;
 }
 
