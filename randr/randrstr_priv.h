@@ -110,6 +110,22 @@ Bool RRLeaseInit(void);
 /* rrprovider.c */
 #define PRIME_SYNC_PROP         "PRIME Synchronization"
 
+/*
+ * Data passed to listeners of RRPropertyChangeCallback
+ */
+typedef struct {
+    RROutputPtr output;
+    int state;                  /* PropertyNewValue or PropertyDelete */
+    Bool pending;               /* TRUE if the change is still a pending value */
+    RRPropertyValuePtr value;
+    Atom property;
+} RRPropertyChangeRec;
+
+extern CallbackListPtr RRPropertyChangeCallback;
+
+/* rrproperty.c */
+Bool RRPropertyInit(void);
+
 void RRMonitorInit(ScreenPtr screen);
 
 Bool RRMonitorMakeList(ScreenPtr screen, Bool get_active, RRMonitorPtr *monitors_ret, int *nmon_ret);

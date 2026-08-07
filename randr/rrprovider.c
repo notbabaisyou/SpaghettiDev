@@ -266,6 +266,40 @@ ProcRRGetProviderInfo (ClientPtr client)
 }
 
 static void
+RRPrimeSyncChangeCallback(CallbackListPtr *list, void *closure, void *data)
+{
+    RRPropertyChangeRec *rec = data;
+    const char *syncStr = PRIME_SYNC_PROP;
+    Atom syncProp = MakeAtom(syncStr, strlen(syncStr), FALSE);
+    RRCrtcPtr crtc;
+    Bool sync = TRUE;
+    int i;
+
+    if (rec->property != syncProp)
+        return;
+
+    crtc = rec->output->crtc;
+    if (!crtc)
+        return;
+
+    /* If one output of the crtc doesn't want sync, no sync.
+       A missing property (e.g. just deleted) is treated as wanting sync. */
+    for (i = 0; i < crtc->numOutputs; i++) {
+        RRPropertyValuePtr val =
+            RRGetOutputProperty(crtc->outputs[i], syncProp, TRUE);
+
+        if (val && val->data) {
+            if (!(*(char *) val->data)) {
+                sync = FALSE;
+                break;
+            }
+        }
+    }
+
+    crtc->primeSyncEnabled = sync;
+}
+
+static void
 RRInitPrimeSyncProps(ScreenPtr pScreen)
 {
     /*
@@ -293,6 +327,10 @@ RRInitPrimeSyncProps(ScreenPtr pScreen)
                                    FALSE, FALSE);
         }
     }
+
+    if (!AddCallback(&RRPropertyChangeCallback, RRPrimeSyncChangeCallback,
+                     pScreen))
+        ErrorF("randr: failed to add PRIME sync property callback\n");
 }
 
 static void
@@ -311,6 +349,9 @@ RRFiniPrimeSyncProps(ScreenPtr pScreen)
     Atom syncProp = MakeAtom(syncStr, strlen(syncStr), FALSE);
     if (syncProp == None)
         return;
+
+    DeleteCallback(&RRPropertyChangeCallback, RRPrimeSyncChangeCallback,
+                   pScreen);
 
     for (i = 0; i < pScrPriv->numOutputs; i++) {
         RRDeleteOutputProperty(pScrPriv->outputs[i], syncProp);

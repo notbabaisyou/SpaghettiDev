@@ -87,6 +87,7 @@ RRCrtcCreate(ScreenPtr pScreen, void *devPrivate)
     crtc->gammaSize = 0;
     crtc->gammaRed = crtc->gammaBlue = crtc->gammaGreen = NULL;
     crtc->changed = FALSE;
+    crtc->primeSyncEnabled = TRUE;
     crtc->devPrivate = devPrivate;
     RRTransformInit(&crtc->client_pending_transform);
     RRTransformInit(&crtc->client_current_transform);
@@ -447,31 +448,6 @@ rrCreateSharedPixmap(RRCrtcPtr crtc, ScreenPtr primary,
     return spix;
 }
 
-static Bool
-rrGetPixmapSharingSyncProp(int numOutputs, RROutputPtr * outputs)
-{
-    /* Determine if the user wants prime syncing */
-    int o;
-    const char *syncStr = PRIME_SYNC_PROP;
-    Atom syncProp = MakeAtom(syncStr, strlen(syncStr), FALSE);
-    if (syncProp == None)
-        return TRUE;
-
-    /* If one output doesn't want sync, no sync */
-    for (o = 0; o < numOutputs; o++) {
-        RRPropertyValuePtr val;
-
-        if ((val = RRGetOutputProperty(outputs[o], syncProp, TRUE)) &&
-            val->data) {
-            if (!(*(char *) val->data))
-                return FALSE;
-            continue;
-        }
-    }
-
-    return TRUE;
-}
-
 static void
 rrSetPixmapSharingSyncProp(char val, int numOutputs, RROutputPtr * outputs)
 {
@@ -583,6 +559,7 @@ fail: /* If flipping funcs fail, just fall back to unsynchronized */
 
         /* Set output property to 0 to indicate to user */
         rrSetPixmapSharingSyncProp(0, numOutputs, outputs);
+        crtc->primeSyncEnabled = FALSE;
     }
 
     if (!pSecondaryScrPriv->rrCrtcSetScanoutPixmap(crtc, spix_front)) {
@@ -782,7 +759,7 @@ RRCrtcSet(RRCrtcPtr crtc,
                 return FALSE;
 
             if (pScreen->current_primary) {
-                Bool sync = rrGetPixmapSharingSyncProp(numOutputs, outputs);
+                Bool sync = crtc->primeSyncEnabled;
                 ret = rrSetupPixmapSharing(crtc, width, height,
                                            x, y, rotation, sync,
                                            numOutputs, outputs);
