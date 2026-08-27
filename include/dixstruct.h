@@ -105,9 +105,9 @@ typedef struct _Client {
     unsigned char xkbClientFlags;
     KeyCode minKC, maxKC;
 
-    signed char smart_priority;
-    int smart_start_tick;
-    int smart_stop_tick;
+    signed char sjf_bucket;
+    int ema_us;
+    int deficit;
 
     DeviceIntPtr clientPtr;
     ClientIdPtr clientIds;
