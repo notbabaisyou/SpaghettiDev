@@ -60,7 +60,7 @@ DamageNoteCritical(ClientPtr pClient)
     /* Composite extension marks clients with manual Subwindows as critical */
     if (pDamageClient->critical > 0) {
         SetCriticalOutputPending();
-        pClient->smart_priority = SMART_MAX_PRIORITY;
+        pClient->sjf_bucket = 0;
     }
 }
 

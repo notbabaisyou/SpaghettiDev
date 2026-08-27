@@ -238,8 +238,16 @@ UpdateCurrentTimeIf(void)
 #undef SMART_DEBUG
 
 /* in milliseconds */
-#define SMART_SCHEDULE_DEFAULT_INTERVAL	5
-#define SMART_SCHEDULE_MAX_SLICE	15
+#define SMART_SCHEDULE_DEFAULT_INTERVAL	4
+#define SMART_SCHEDULE_MAX_SLICE        12
+
+#define SJF_MAX_BUCKET    20
+#define SJF_BUCKET_COUNT (SJF_MAX_BUCKET + 1)
+#define SJF_DEFICIT_LIMIT 30000
+#define SJF_MIN_COST      500
+#define SJF_MAX_COST      20000
+#define SJF_BUCKET_SCALE  1024
+#define SJF_EMA_ALPHA_SHIFT 3
 
 #ifdef HAVE_SETITIMER
 Bool SmartScheduleSignalEnable = TRUE;
@@ -250,8 +258,9 @@ long SmartScheduleInterval = SMART_SCHEDULE_DEFAULT_INTERVAL;
 long SmartScheduleMaxSlice = SMART_SCHEDULE_MAX_SLICE;
 volatile long SmartScheduleTime;
 int SmartScheduleLatencyLimited = 0;
-static ClientPtr SmartLastClient;
-static int SmartLastIndex[SMART_MAX_PRIORITY - SMART_MIN_PRIORITY + 1];
+static ClientPtr SchedLastClient;
+static int SchedBucketHistory[SJF_BUCKET_COUNT];
+static int SchedQuantumUs;
 
 #ifdef SMART_DEBUG
 long SmartLastPrint;
@@ -299,6 +308,9 @@ void mark_client_saved_ready(ClientPtr client)
 void
 mark_client_not_ready(ClientPtr client)
 {
+    int quantum = SchedQuantumUs ? SchedQuantumUs : SmartScheduleInterval * 1000;
+
+    client->deficit = min(client->deficit, quantum);
     xorg_list_del(&client->ready);
 }
 
@@ -326,79 +338,99 @@ mark_client_ungrab(void)
     }
 }
 
+static long SchedLastStartTick;
+
+static inline void
+update_sjf_bucket(ClientPtr client)
+{
+    CARD32 pending = client->req_len << 2;
+    int bucket = pending / SJF_BUCKET_SCALE;
+
+    bucket = min(bucket, SJF_MAX_BUCKET);
+    bucket = max(bucket, 0);
+    client->sjf_bucket = (signed char) bucket;
+}
+
 static ClientPtr
 SmartScheduleClient(void)
 {
     ClientPtr pClient, best = NULL;
     int bestRobin, robin;
     long now = SmartScheduleTime;
-    long idle;
     int nready = 0;
 
+    SchedQuantumUs = SmartScheduleSlice * 1000;
     bestRobin = 0;
-    idle = 2 * SmartScheduleSlice;
 
     xorg_list_for_each_entry(pClient, &ready_clients, ready) {
         nready++;
 
-        /* Praise clients which haven't run in a while */
-        if ((now - pClient->smart_stop_tick) >= idle) {
-            if (pClient->smart_priority < 0)
-                pClient->smart_priority++;
-        }
+        update_sjf_bucket(pClient);
 
-        /* check priority to select best client */
-        robin =
-            (pClient->index -
-             SmartLastIndex[pClient->smart_priority -
-                            SMART_MIN_PRIORITY]) & 0xff;
+        /* DRR deficit increment */
+        pClient->deficit += SchedQuantumUs;
+        pClient->deficit = min(pClient->deficit, SJF_DEFICIT_LIMIT);
+        pClient->deficit = max(pClient->deficit, -SJF_DEFICIT_LIMIT);
 
-        /* pick the best client */
+        robin = (pClient->index - SchedBucketHistory[pClient->sjf_bucket]) & 0xff;
+
+        /* Pick by priority, then SJF bucket (smaller is better), then deficit, then robin */
         if (!best ||
             pClient->priority > best->priority ||
             (pClient->priority == best->priority &&
-             (pClient->smart_priority > best->smart_priority ||
-              (pClient->smart_priority == best->smart_priority && robin > bestRobin))))
+             (pClient->sjf_bucket < best->sjf_bucket ||
+              (pClient->sjf_bucket == best->sjf_bucket &&
+               (pClient->deficit > best->deficit ||
+                (pClient->deficit == best->deficit && robin > bestRobin))))))
         {
             best = pClient;
             bestRobin = robin;
         }
-#ifdef SMART_DEBUG
-        if ((now - SmartLastPrint) >= 5000)
-            fprintf(stderr, " %2d: %3d", pClient->index, pClient->smart_priority);
-#endif
     }
-#ifdef SMART_DEBUG
-    if ((now - SmartLastPrint) >= 5000) {
-        fprintf(stderr, " use %2d\n", best->index);
-        SmartLastPrint = now;
+
+    if (!best)
+        return NULL;
+
+    SchedBucketHistory[best->sjf_bucket] = best->index;
+
+    if (SchedLastClient != best) {
+        SchedLastStartTick = now;
+        SchedLastClient = best;
     }
-#endif
-    SmartLastIndex[best->smart_priority - SMART_MIN_PRIORITY] = best->index;
-    /*
-     * Set current client pointer
-     */
-    if (SmartLastClient != best) {
-        best->smart_start_tick = now;
-        SmartLastClient = best;
+
+    /* Charge deficit for the selected client */
+    {
+        int cost = max(best->ema_us, SJF_MIN_COST);
+
+        best->deficit -= cost;
+        best->deficit = max(best->deficit, -SJF_DEFICIT_LIMIT);
     }
+
     /*
      * Adjust slice
      */
-    if (nready == 1 && SmartScheduleLatencyLimited == 0) {
+    if (SmartScheduleLatencyLimited) {
+        SmartScheduleSlice = SmartScheduleInterval;
+    }
+    else if (nready == 1) {
         /*
          * If it's been a long time since another client
          * has run, bump the slice up to get maximal
          * performance from a single client
          */
-        if ((now - best->smart_start_tick) > 1000 &&
+        if ((now - SchedLastStartTick) > 1000 &&
             SmartScheduleSlice < SmartScheduleMaxSlice) {
             SmartScheduleSlice += SmartScheduleInterval;
         }
     }
     else {
-        SmartScheduleSlice = SmartScheduleInterval;
+        long s = SmartScheduleMaxSlice - (nready - 1) * SmartScheduleInterval;
+
+        s = max(s, SmartScheduleInterval);
+        s = min(s, SmartScheduleMaxSlice);
+        SmartScheduleSlice = s;
     }
+
     return best;
 }
 
@@ -477,6 +509,8 @@ Dispatch(void)
     int result;
     ClientPtr client;
     long start_tick;
+    long elapsed;
+    CARD32 t0, t1;
 
     nextFreeClientID = 1;
     nClients = 0;
@@ -510,12 +544,7 @@ Dispatch(void)
 
                 FlushIfCriticalOutputPending();
                 if ((SmartScheduleTime - start_tick) >= SmartScheduleSlice)
-                {
-                    /* Penalize clients which consume ticks */
-                    if (client->smart_priority > SMART_MIN_PRIORITY)
-                        client->smart_priority--;
                     break;
-                }
 
                 /* now, finally, deal with client requests */
                 result = ReadRequestFromClient(client);
@@ -548,10 +577,16 @@ Dispatch(void)
                 else {
                     result = XaceHookDispatch(client, client->majorOp);
                     if (result == Success) {
+                        t0 = GetTimeInMillis();
                         currentClient = client;
                         result =
                             (*client->requestVector[client->majorOp]) (client);
                         currentClient = NULL;
+                        t1 = GetTimeInMillis();
+                        elapsed = (long) (t1 - t0) * 1000;
+                        elapsed = max((long) SJF_MIN_COST, min(elapsed, (long) SJF_MAX_COST));
+                        client->ema_us += (elapsed - client->ema_us) >> SJF_EMA_ALPHA_SHIFT;
+                        client->ema_us = max(client->ema_us, SJF_MIN_COST);
                     }
                 }
                 if (!SmartScheduleSignalEnable)
@@ -576,8 +611,6 @@ Dispatch(void)
                 }
             }
             FlushAllOutput();
-            if (client == SmartLastClient)
-                client->smart_stop_tick = SmartScheduleTime;
         }
         dispatchException &= ~DE_PRIORITYCHANGE;
     }
@@ -3525,7 +3558,8 @@ CloseDownClient(ClientPtr client)
         if (client->index < nextFreeClientID)
             nextFreeClientID = client->index;
         clients[client->index] = NullClient;
-        SmartLastClient = NullClient;
+        if (SchedLastClient == client)
+            SchedLastClient = NullClient;
         dixFreeObjectWithPrivates(client, PRIVATE_CLIENT);
 
         while (!clients[currentMaxClients - 1])
@@ -3560,8 +3594,9 @@ InitClient(ClientPtr client, int i, void *ospriv)
     client->requestVector = InitialVector;
     client->osPrivate = ospriv;
     QueryMinMaxKeyCodes(&client->minKC, &client->maxKC);
-    client->smart_start_tick = SmartScheduleTime;
-    client->smart_stop_tick = SmartScheduleTime;
+    client->ema_us = 2000;
+    client->deficit = 0;
+    client->sjf_bucket = 0;
     client->clientIds = NULL;
 }
 
