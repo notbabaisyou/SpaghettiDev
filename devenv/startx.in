@@ -1,0 +1,208 @@
+#!/bin/sh
+# Wrapper based upon Xorg's xinit, adapted for Spaghetti.
+
+xinitdir="/etc/X11/xinit"
+xterm="xterm"
+xserver="@XORG@"
+xinit="xinit"
+xauth="xauth"
+mk_cookie="/usr/bin/mcookie"
+has_cookie_maker="true"
+
+unset SESSION_MANAGER
+
+userclientrc="$HOME/.xinitrc"
+if [ -n "${XINITRC}" ] && [ -f "${XINITRC}" ]; then
+    userclientrc="${XINITRC}"
+fi
+sysclientrc="/etc/X11/xinit/xinitrc"
+
+userserverrc="$HOME/.xserverrc"
+if [ -n "${XSERVERRC}" ] && [ -f "${XSERVERRC}" ]; then
+    userserverrc="${XSERVERRC}"
+fi
+sysserverrc="$xinitdir/xserverrc"
+defaultclient="$xterm"
+defaultserver="$xserver"
+defaultclientargs=""
+defaultserverargs=""
+defaultdisplay=""
+clientargs=""
+serverargs=""
+vtarg=""
+enable_xauth=1
+
+d=0
+while true; do
+    if [ ! -e "/tmp/.X$d-lock" ] && [ ! -S "/tmp/.X11-unix/X$d" ]; then
+        break
+    fi
+    d=$((d + 1))
+done
+defaultdisplay=":$d"
+unset d
+
+whoseargs="client"
+while [ "$1" != "" ]; do
+    case "$1" in
+    /''*|\./''*)
+        if [ "$whoseargs" = "client" ]; then
+            if [ -z "$client" ] && [ -z "$clientargs" ]; then
+                client="$1"
+            else
+                clientargs="$clientargs $1"
+            fi
+        else
+            if [ -z "$server" ] && [ -z "$serverargs" ]; then
+                server="$1"
+            else
+                serverargs="$serverargs $1"
+            fi
+        fi
+        ;;
+    --)
+        whoseargs="server"
+        ;;
+    *)
+        if [ "$whoseargs" = "client" ]; then
+            clientargs="$clientargs $1"
+        else
+            if [ -z "$serverargs" ] && expr "$1" : ':[0-9][0-9]*$' > /dev/null 2>&1; then
+                display="$1"
+            else
+                serverargs="$serverargs $1"
+            fi
+        fi
+        ;;
+    esac
+    shift
+done
+
+if [ -z "$client" ]; then
+    client="$defaultclient"
+    if [ -z "$clientargs" ]; then
+        if [ -f "$userclientrc" ]; then
+            client="$userclientrc"
+        elif [ -f "$sysclientrc" ]; then
+            client="$sysclientrc"
+        fi
+    fi
+fi
+
+if [ -z "$clientargs" ]; then
+    clientargs="$defaultclientargs"
+fi
+
+if [ -z "$server" ]; then
+    server="$defaultserver"
+    if [ "$(uname -s)" = "Linux" ]; then
+        tty=$(tty)
+        if expr "$tty" : '/dev/tty[0-9][0-9]*$' > /dev/null 2>&1; then
+            tty_num="${tty#/dev/tty}"
+            vtarg="vt$tty_num -keeptty"
+        fi
+        unset tty
+        unset tty_num
+    fi
+fi
+
+if [ -z "$serverargs" ]; then
+    serverargs="$defaultserverargs"
+fi
+
+have_vtarg="no"
+for i in $serverargs; do
+    if expr "$i" : 'vt[0-9][0-9]*$' > /dev/null 2>&1; then
+        have_vtarg="yes"
+    fi
+done
+if [ "$have_vtarg" = "no" ]; then
+    serverargs="$serverargs $vtarg"
+fi
+
+if [ -z "$display" ]; then
+    display="$defaultdisplay"
+fi
+
+if [ "$enable_xauth" = 1 ]; then
+    if [ -z "$XAUTHORITY" ]; then
+        XAUTHORITY="$HOME/.Xauthority"
+        export XAUTHORITY
+    fi
+    removelist=""
+    hostname=$(uname -n)
+    authdisplay=${display:-:0}
+    if [ -n "$has_cookie_maker" ] && [ -n "$mk_cookie" ]; then
+        mcookie=$($mk_cookie)
+    else
+        if [ -r /dev/urandom ]; then
+            mcookie=$(dd if=/dev/urandom bs=16 count=1 2>/dev/null | od -An -tx | tr -d ' \n')
+        else
+            mcookie=$(dd if=/dev/random bs=16 count=1 2>/dev/null | od -An -tx | tr -d ' \n')
+        fi
+    fi
+    if [ -z "$mcookie" ]; then
+        echo "Couldn't create cookie" >&2
+        exit 1
+    fi
+    dummy=0
+    xserverauthfile=$(mktemp -p /tmp serverauth.XXXXXXXXXX)
+    trap "rm -f '$xserverauthfile'" HUP INT QUIT ILL TRAP BUS TERM
+    xauth -q -f "$xserverauthfile" << EOF
+add :$dummy . $mcookie
+EOF
+    case "$(uname -s)" in
+    CYGWIN*|Darwin)
+        xserverauthfilequoted=$(printf "%s" "$xserverauthfile" | sed "s/'/'\\\\''/g")
+        serverargs="$serverargs -auth '$xserverauthfilequoted'"
+        ;;
+    *)
+        serverargs="$serverargs -auth $xserverauthfile"
+        ;;
+    esac
+    for displayname in $authdisplay $hostname$authdisplay; do
+        authcookie=$(xauth list "$displayname" 2>/dev/null | sed -n 's/.*'"$displayname"'[[:space:]]*[[:space:]]*//p')
+        if [ "z${authcookie}" = "z" ]; then
+            xauth -q << EOF
+add $displayname . $mcookie
+EOF
+            removelist="$displayname $removelist"
+        else
+            dummy=$((dummy + 1))
+            xauth -q -f "$xserverauthfile" << EOF
+add :$dummy . $authcookie
+EOF
+        fi
+    done
+fi
+
+case "$(uname -s)" in
+CYGWIN_NT*|Darwin)
+    eval "$xinit" \"$client\" $clientargs -- \"$server\" $display $serverargs
+    ;;
+*)
+    "$xinit" "$client" $clientargs -- "$server" $display $serverargs
+    ;;
+esac
+retval=$?
+
+if [ "$enable_xauth" = 1 ]; then
+    if [ -n "$removelist" ]; then
+        xauth remove $removelist
+    fi
+    if [ -n "$xserverauthfile" ]; then
+        rm -f "$xserverauthfile"
+    fi
+fi
+
+if [ "$(uname -s)" = "Linux" ]; then
+    if command -v deallocvt > /dev/null 2>&1; then
+        deallocvt
+    fi
+fi
+
+if [ "$(uname -s)" = "SunOS" ]; then
+    kbd_mode -a
+fi
+
+exit $retval
