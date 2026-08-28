@@ -62,11 +62,14 @@ if [ -n "$_build_root" ] && [ -d "$_build_root/hw/xfree86" ]; then
     unset _old_ifs
     unset _candidates
     # Always append system default module path as fallback even if not yet installed
+    # Explicit fallback includes input for libinput
+    _sys_path="/usr/lib/xorg/modules,/usr/lib/xorg/modules/input,/usr/lib/xorg/modules/drivers,/usr/lib/xorg/modules/extensions"
     if [ -n "$_filtered" ]; then
-        _filtered="$_filtered,/usr/local/lib/xorg/modules"
+        _filtered="$_filtered,$_sys_path"
     else
-        _filtered="/usr/local/lib/xorg/modules"
+        _filtered="$_sys_path"
     fi
+    unset _sys_path
     defaultserverargs="-modulepath $_filtered"
     unset _filtered
     unset _d
