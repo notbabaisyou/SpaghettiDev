@@ -32,6 +32,47 @@ serverargs=""
 vtarg=""
 enable_xauth=1
 
+# Runtime module path for devenv. Compute build root from xserver path or
+# script location so it works even on older commits without rebuild.
+_build_root=""
+if [ -n "$xserver" ] && expr "$xserver" : ".*/hw/xfree86/Xorg" > /dev/null 2>&1; then
+    _xdir=$(dirname "$xserver")
+    _build_root=$(dirname "$(dirname "$_xdir")")
+    unset _xdir
+else
+    _script_path=$(readlink -f "$0" 2>/dev/null || printf "%s" "$0")
+    _build_root=$(dirname "$(dirname "$_script_path")")
+    unset _script_path
+fi
+if [ -n "$_build_root" ] && [ -d "$_build_root/hw/xfree86" ]; then
+    _candidates="$_build_root/hw/xfree86:$_build_root/hw/xfree86/dixmods:$_build_root/hw/xfree86/exa:$_build_root/hw/xfree86/fbdevhw:$_build_root/hw/xfree86/glamor_egl:$_build_root/hw/xfree86/int10:$_build_root/hw/xfree86/shadowfb:$_build_root/hw/xfree86/vgahw:$_build_root/hw/xfree86/drivers/fission:$_build_root/hw/xfree86/drivers/modesetting:$_build_root/hw/xfree86/drivers/inputtest"
+    _filtered=""
+    _old_ifs="$IFS"
+    IFS=":"
+    for _d in $_candidates; do
+        if [ -d "$_d" ]; then
+            if [ -z "$_filtered" ]; then
+                _filtered="$_d"
+            else
+                _filtered="$_filtered,$_d"
+            fi
+        fi
+    done
+    IFS="$_old_ifs"
+    unset _old_ifs
+    unset _candidates
+    # Always append system default module path as fallback even if not yet installed
+    if [ -n "$_filtered" ]; then
+        _filtered="$_filtered,/usr/local/lib/xorg/modules"
+    else
+        _filtered="/usr/local/lib/xorg/modules"
+    fi
+    defaultserverargs="-modulepath $_filtered"
+    unset _filtered
+    unset _d
+fi
+unset _build_root
+
 d=0
 while true; do
     if [ ! -e "/tmp/.X$d-lock" ] && [ ! -S "/tmp/.X11-unix/X$d" ]; then
@@ -108,6 +149,20 @@ fi
 
 if [ -z "$serverargs" ]; then
     serverargs="$defaultserverargs"
+else
+    case "$serverargs" in
+        *-modulepath*) ;;
+        *)
+            case "$defaultserverargs" in
+                *-modulepath*)
+                    # Prepend build module path when server is local Xorg
+                    case "$server" in
+                        */Xorg|"$xserver") serverargs="$defaultserverargs $serverargs" ;;
+                    esac
+                    ;;
+            esac
+            ;;
+    esac
 fi
 
 have_vtarg="no"
