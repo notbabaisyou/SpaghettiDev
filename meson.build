@@ -716,6 +716,10 @@ libxserver += libxserver_dri3
 
 subdir('hw')
 
+if build_xorg
+    subdir('devenv')
+endif
+
 if host_machine.system() != 'windows'
     subdir('test')
 endif
