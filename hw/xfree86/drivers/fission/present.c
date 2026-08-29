@@ -347,7 +347,6 @@ ms_present_check_commit(RRCrtcPtr crtc,
 
     if (reason && async_flip != ms_window_has_async_flip_modifiers(window)) {
         *reason = PRESENT_FLIP_REASON_BUFFER_FORMAT;
-        goto no_flip;
     }
 
     ms->flip_window = window;
