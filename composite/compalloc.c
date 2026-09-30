@@ -234,6 +234,13 @@ compRestoreWindow(WindowPtr pWin, PixmapPtr pPixmap)
     ScreenPtr pScreen = pWin->drawable.pScreen;
     WindowPtr pParent = pWin->parent;
 
+    /*
+     * Mixed-depth restore (e.g. depth-8 Pseudo pixmap onto a depth-24
+     * parent) is intentionally a no-op. CopyArea cannot translate
+     * indices to RGB, and Pseudo windows are expected to stay
+     * automatically redirected for their lifetime. Unredirecting one
+     * drops its content until the next repaint instead of crashing.
+     */
     if (pParent->drawable.depth == pWin->drawable.depth) {
         GCPtr pGC = GetScratchGC(pWin->drawable.depth, pScreen);
         int bw = (int) pWin->borderWidth;
