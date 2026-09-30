@@ -283,6 +283,9 @@ void
 void
  compSetPixmap(WindowPtr pWin, PixmapPtr pPixmap, int bw);
 
+void
+ compDamageWindowsUsingColormap(ScreenPtr pScreen, ColormapPtr pColormap);
+
 Bool
  compCheckRedirect(WindowPtr pWin);
 

@@ -373,6 +373,28 @@ compImplicitRedirect(WindowPtr pWin, WindowPtr pParent)
     return FALSE;
 }
 
+static int
+compDamageColormapWindow(WindowPtr pWin, void *data)
+{
+    ColormapPtr pColormap = (ColormapPtr) data;
+
+    if (pWin->drawable.class != InputOnly &&
+        wColormap(pWin) == pColormap->mid &&
+        pWin->redirectDraw != RedirectDrawNone) {
+        DamageDamageRegion(&pWin->drawable, &pWin->borderSize);
+    }
+    return WT_WALKCHILDREN;
+}
+
+void
+compDamageWindowsUsingColormap(ScreenPtr pScreen, ColormapPtr pColormap)
+{
+    WindowPtr pRoot = pScreen->root;
+
+    if (pRoot)
+        TraverseTree(pRoot, compDamageColormapWindow, (void *) pColormap);
+}
+
 static void
 compFreeOldPixmap(WindowPtr pWin)
 {

@@ -116,6 +116,15 @@ compStoreColors(ColormapPtr pColormap, int ndef, xColorItem *pdefs)
     (*pScreen->StoreColors) (pColormap, ndef, pdefs);
     cs->StoreColors = pScreen->StoreColors;
     pScreen->StoreColors = compStoreColors;
+
+    /*
+     * Private Pseudo palettes never reach the HW LUT (Install is a
+     * no-op for alternate visuals). Damage redirected windows using
+     * this colormap so the next automatic composite picks up the new
+     * colors via the per-window LUT refresh.
+     */
+    if (pColormap->class == PseudoColor)
+        compDamageWindowsUsingColormap(pScreen, pColormap);
 }
 
 static void
