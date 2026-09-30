@@ -46,6 +46,7 @@
 #endif
 
 #include "compint.h"
+#include "mipict.h"
 
 #ifdef PANORAMIX
 #include "panoramiXsrv.h"
@@ -395,6 +396,51 @@ compDamageWindowsUsingColormap(ScreenPtr pScreen, ColormapPtr pColormap)
         TraverseTree(pRoot, compDamageColormapWindow, (void *) pColormap);
 }
 
+#define COMP_PSEUDO_LUT_SIZE 256
+
+/*
+ * Refresh the shared Indexed format LUT from a window's private
+ * PseudoColor colormap just before compositing that window. The server
+ * is single-threaded and each CompositePicture completes synchronously,
+ * so sharing one format across windows with different palettes is safe
+ * as long as we refresh per window.
+ */
+static void
+compRefreshPseudoLUT(WindowPtr pWin, PictFormatPtr pFormat)
+{
+    ColormapPtr pColormap = NULL;
+    Colormap cmap = wColormap(pWin);
+    miIndexedPtr pIndexed;
+    Pixel pixels[COMP_PSEUDO_LUT_SIZE];
+    xrgb rgb[COMP_PSEUDO_LUT_SIZE];
+    int nentries, i;
+
+    if (!pFormat || pFormat->type != PictTypeIndexed)
+        return;
+    pIndexed = (miIndexedPtr) pFormat->index.devPrivate;
+    if (!pIndexed || cmap == None)
+        return;
+    if (dixLookupResourceByType((void **) &pColormap, cmap,
+                                X11_RESTYPE_COLORMAP, serverClient,
+                                DixGetAttrAccess) != Success)
+        return;
+    if (!pColormap || pColormap->class != PseudoColor)
+        return;
+    nentries = pColormap->pVisual->ColormapEntries;
+    if (nentries <= 0 || nentries > COMP_PSEUDO_LUT_SIZE)
+        return;
+    for (i = 0; i < nentries; i++)
+        pixels[i] = (Pixel) i;
+    QueryColors(pColormap, nentries, pixels, rgb, serverClient);
+    for (i = 0; i < nentries; i++) {
+        pIndexed->rgba[pixels[i] & 0xff] =
+            (0xff000000 |
+             ((rgb[i].red & 0xff00) << 8) |
+             (rgb[i].green & 0xff00) |
+             ((rgb[i].blue & 0xff00) >> 8));
+    }
+}
+
 static void
 compFreeOldPixmap(WindowPtr pWin)
 {
@@ -727,6 +773,13 @@ compWindowUpdateAutomatic(WindowPtr pWin)
      * Now translate from screen to dest coordinates
      */
     RegionTranslate(pRegion, -pParent->drawable.x, -pParent->drawable.y);
+
+    /*
+     * Pseudo windows carry private colormaps but share one Indexed
+     * format per visual. Refresh the LUT from this window's colormap
+     * so c8->rgba32 expansion uses the right palette.
+     */
+    compRefreshPseudoLUT(pWin, pSrcFormat);
 
     /*
      * Clip the picture and paint
