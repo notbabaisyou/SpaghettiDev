@@ -152,6 +152,12 @@ typedef struct _CompScreen {
     InstallColormapProcPtr InstallColormap;
 
     /*
+     * StoreColors wrapper to damage redirected Pseudo windows so
+     * palette changes recomposite via Render.
+     */
+    StoreColorsProcPtr StoreColors;
+
+    /*
      * Fake backing store via automatic redirection
      */
     ChangeWindowAttributesProcPtr ChangeWindowAttributes;

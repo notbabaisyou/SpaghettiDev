@@ -65,6 +65,7 @@ compCloseScreen(ScreenPtr pScreen)
 
     pScreen->CloseScreen = cs->CloseScreen;
     pScreen->InstallColormap = cs->InstallColormap;
+    pScreen->StoreColors = cs->StoreColors;
     pScreen->ChangeWindowAttributes = cs->ChangeWindowAttributes;
     pScreen->ReparentWindow = cs->ReparentWindow;
     pScreen->ConfigNotify = cs->ConfigNotify;
@@ -103,6 +104,18 @@ compInstallColormap(ColormapPtr pColormap)
     (*pScreen->InstallColormap) (pColormap);
     cs->InstallColormap = pScreen->InstallColormap;
     pScreen->InstallColormap = compInstallColormap;
+}
+
+static void
+compStoreColors(ColormapPtr pColormap, int ndef, xColorItem *pdefs)
+{
+    ScreenPtr pScreen = pColormap->pScreen;
+    CompScreenPtr cs = GetCompScreen(pScreen);
+
+    pScreen->StoreColors = cs->StoreColors;
+    (*pScreen->StoreColors) (pColormap, ndef, pdefs);
+    cs->StoreColors = pScreen->StoreColors;
+    pScreen->StoreColors = compStoreColors;
 }
 
 static void
@@ -417,6 +430,9 @@ compScreenInit(ScreenPtr pScreen)
 
     cs->InstallColormap = pScreen->InstallColormap;
     pScreen->InstallColormap = compInstallColormap;
+
+    cs->StoreColors = pScreen->StoreColors;
+    pScreen->StoreColors = compStoreColors;
 
     cs->ChangeWindowAttributes = pScreen->ChangeWindowAttributes;
     pScreen->ChangeWindowAttributes = compChangeWindowAttributes;
