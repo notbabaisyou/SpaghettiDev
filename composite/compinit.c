@@ -364,6 +364,18 @@ compScreenInit(ScreenPtr pScreen)
         return FALSE;
     }
 
+    /*
+     * Treat server-provided PseudoColor visuals (e.g. Xvfb depth-8
+     * emulation) like alternate visuals: implicit automatic redirect
+     * when paired with a TrueColor parent, and InstallColormap suppression
+     * so each window keeps a private palette without HW flashing.
+     */
+    for (int i = 0; i < pScreen->numVisuals; i++) {
+        if (pScreen->visuals[i].class == PseudoColor) {
+            compRegisterAlternateVisuals(cs, &pScreen->visuals[i].vid, 1);
+        }
+    }
+
     if (!disableBackingStore)
         pScreen->backingStoreSupport = WhenMapped;
 
