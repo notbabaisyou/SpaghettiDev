@@ -1061,6 +1061,17 @@ vfbScreenInit(ScreenPtr pScreen, int argc, char **argv)
         return FALSE;
     }
 
+    /*
+     * Advertise a depth-8 PseudoColor visual alongside a TrueColor root
+     * so legacy 8-bit clients can create windows. The windows are
+     * expected to live in redirected 8bpp pixmaps and composite to the
+     * root via Render (pixman indexed lookup). The visual must be added
+     * after the root visual so the root stays depth 24.
+     */
+    if (pvfb->depth == 24) {
+        miSetVisualTypes(8, PseudoColorMask, 8, PseudoColor);
+    }
+
     miSetPixmapDepths();
 
     ret = fbScreenInit(pScreen, pbits, pvfb->width, pvfb->height,
