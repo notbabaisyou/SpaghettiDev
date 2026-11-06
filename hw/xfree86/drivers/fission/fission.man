@@ -75,20 +75,23 @@ The default is
 .sp 2
 Not supported on soft2d.
 .TP
-.BI "Option \*qTearFree\*q \*q" boolean \*q
-Enable tearing prevention using the hardware page flipping mechanism.
-It allocates two extra scanout buffers for each CRTC and utilizes damage
-tracking to minimize buffer copying and skip unnecessary flips when the
-screen's contents have not changed. It works on transformed screens too, such
-as rotated and scaled CRTCs.
+.BI "Option \*qCompositing\*q \*q" boolean \*q
+Compose redirected windows into a separate pair of mode-sized framebuffers
+for each CRTC, with independent page flips. Requires GLAMOR, PageFlip and
+the Composite extension. Enabled by default on primary GPU screens when
+those requirements are met.
 .sp 2
-Not supported on soft2d.
+The server owns the compositor selection while Compositing is enabled.
+Opaque fullscreen PRESENT windows may scan out directly on their monitor.
+Rotated or scaled outputs and outputs with a software cursor are composited.
+VariableRefresh follows the directly scanned out window on each CRTC.
 .sp 2
-TearFree does not mitigate against applications that utilize
-PresentOptionAsyncMayTear.
-.sp 2
-The default is
-.B on.
+The server's
+.B -fakescreenfps
+option controls the presentation rate for off-screen and fully covered
+windows. Hardware-backed screens default to 1 frame per second for these
+windows. Presentation by the same client to visible windows continues at
+the normal rate.
 .TP
 .SH "SEE ALSO"
 .BR @xservername@ (@appmansuffix@),
