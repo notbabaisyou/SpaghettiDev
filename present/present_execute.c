@@ -22,6 +22,7 @@
 #include <dix-config.h>
 
 #include "present_priv.h"
+#include "compositeext.h"
 #include <unistd.h>
 #ifdef DRI3
 #include <sys/eventfd.h>
@@ -117,6 +118,8 @@ present_execute_copy(present_vblank_ptr vblank, PixmapPtr pixmap, WindowPtr wind
     }
 
     present_copy_region(&window->drawable, pixmap, vblank->update, vblank->x_off, vblank->y_off);
+    vblank->executed = TRUE;
+    CompositeServerPresented(window, pixmap);
 
     /* present_copy_region sticks the region into a scratch GC,
      * which is then freed, freeing the region
@@ -139,7 +142,7 @@ void
 present_execute_post(present_vblank_ptr vblank, PixmapPtr pixmap,
                      WindowPtr window, uint64_t ust, uint64_t crtc_msc)
 {
-    if (vblank->has_suboptimal && vblank->reason == PRESENT_FLIP_REASON_BUFFER_FORMAT)
+    if (present_vblank_suboptimal(vblank))
         vblank->mode = PresentCompleteModeSuboptimalCopy;
 
     present_vblank_notify(vblank, ust, crtc_msc);
