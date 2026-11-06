@@ -342,3 +342,20 @@ if build_xorg and build_fission
     )
     test('fission compositor events', fission_events_test)
 endif
+
+foreach legacy : [false, true]
+    present_abi_args = []
+    present_abi_name = 'present info ABI'
+    if legacy
+        present_abi_args += ['-DTEST_LEGACY_PRESENT_ABI']
+        present_abi_name += ' legacy'
+    endif
+    present_abi = executable(
+        legacy ? 'present-info-abi-legacy' : 'present-info-abi',
+        'present-info-abi.c',
+        include_directories: inc,
+        c_args: present_abi_args,
+        dependencies: common_dep,
+    )
+    test(present_abi_name, present_abi)
+endforeach
