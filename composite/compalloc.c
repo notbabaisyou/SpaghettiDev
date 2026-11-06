@@ -46,6 +46,7 @@
 #endif
 
 #include "compint.h"
+#include "present.h"
 
 static Bool
 compScreenUpdate(ClientPtr pClient, void *closure)
@@ -149,6 +150,9 @@ compRedirectWindow(ClientPtr pClient, WindowPtr pWin, int update)
     if (!pWin->parent)
         return BadMatch;
 
+    if (pClient != serverClient)
+        compServerUndeferTree(pWin);
+
     /*
      * Only one Manual update is allowed
      */
@@ -224,6 +228,9 @@ compRedirectWindow(ClientPtr pClient, WindowPtr pWin, int update)
 
     if (anyMarked)
         compHandleMarkedWindows(pWin, pLayerWin);
+
+    if (status == Success && pClient != serverClient)
+        present_check_flips(pWin);
 
     return status;
 }
@@ -553,7 +560,11 @@ compNewPixmap(WindowPtr pWin, int x, int y, int w, int h)
     pPixmap->screen_x = x;
     pPixmap->screen_y = y;
 
-    if (pParent->drawable.depth == pWin->drawable.depth) {
+    if (CompositeIsServerRoot(pParent)) {
+        if (compGetBackgroundState(pWin) == None)
+            compServerInitPixmap(pWin, pPixmap);
+    }
+    else if (pParent->drawable.depth == pWin->drawable.depth) {
         GCPtr pGC = GetScratchGC(pWin->drawable.depth, pScreen);
 
         if (pGC) {
@@ -654,6 +665,8 @@ compSetParentPixmap(WindowPtr pWin)
     PixmapPtr pParentPixmap;
     CompWindowPtr cw = GetCompWindow(pWin);
 
+    compServerForgetDeferred(pWin);
+
     if (cw->damageRegistered) {
         DamageUnregister(cw->damage);
         cw->damageRegistered = FALSE;
@@ -695,6 +708,10 @@ compReallocPixmap(WindowPtr pWin, int draw_x, int draw_y,
     pix_y = draw_y - bw;
     pix_w = w + (bw << 1);
     pix_h = h + (bw << 1);
+    if (CompositeIsServerRoot(pWin->parent))
+        compServerReconfigureFrame(pWin, pOld, pix_x, pix_y, pix_w, pix_h);
+    else
+        compServerReconfigureClient(pWin, pOld, pix_w, pix_h);
     if (pix_w != pOld->drawable.width || pix_h != pOld->drawable.height) {
         pNew = compNewPixmap(pWin, pix_x, pix_y, pix_w, pix_h);
         if (!pNew)

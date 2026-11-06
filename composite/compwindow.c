@@ -162,8 +162,8 @@ compCheckRedirect(WindowPtr pWin)
     should = pWin->realized && (pWin->drawable.class != InputOnly) &&
         (cw != NULL) && (pWin->parent != NULL);
 
-    /* Never redirect the overlay window */
-    if (cs->pOverlayWin != NULL) {
+    /* Never redirect the overlay window, unless the server composites it */
+    if (cs->pOverlayWin != NULL && !cs->server) {
         if (pWin == cs->pOverlayWin) {
             should = FALSE;
         }
@@ -276,6 +276,11 @@ compRealizeWindow(WindowPtr pWin)
         ret = FALSE;
     cs->RealizeWindow = pScreen->RealizeWindow;
     pScreen->RealizeWindow = compRealizeWindow;
+
+    if (!pWin->parent && cs->server) {
+        RegionEmpty(&pWin->clipList);
+        RegionEmpty(&pWin->borderClip);
+    }
     compCheckTree(pWin->drawable.pScreen);
     return ret;
 }
@@ -362,7 +367,8 @@ compImplicitRedirect(WindowPtr pWin, WindowPtr pParent)
         XID winVisual = wVisual(pWin);
         XID parentVisual = wVisual(pParent);
 
-        if (CompositeIsImplicitRedirectException(pScreen, parentVisual, winVisual))
+        if (!CompositeServerActive(pScreen) &&
+            CompositeIsImplicitRedirectException(pScreen, parentVisual, winVisual))
             return FALSE;
 
         if (winVisual != parentVisual &&
@@ -590,6 +596,10 @@ compCreateWindow(WindowPtr pWin)
         if (compImplicitRedirect(pWin, pWin->parent))
             compRedirectWindow(serverClient, pWin, CompositeRedirectAutomatic);
     }
+    else if (ret && cs->server) {
+        ret = compRedirectSubwindows(serverClient, pWin,
+                                     CompositeRedirectAutomatic) == Success;
+    }
     cs->CreateWindow = pScreen->CreateWindow;
     pScreen->CreateWindow = compCreateWindow;
     compCheckTree(pWin->drawable.pScreen);
@@ -604,6 +614,8 @@ compDestroyWindow(WindowPtr pWin)
     CompWindowPtr cw;
     CompSubwindowsPtr csw;
     Bool ret;
+
+    compServerDestroyWindow(pWin);
 
     pScreen->DestroyWindow = cs->DestroyWindow;
     while ((cw = GetCompWindow(pWin)))
@@ -667,8 +679,8 @@ compGetRedirectBorderClip(WindowPtr pWin)
     return &cw->borderClip;
 }
 
-static void
-compWindowUpdateAutomatic(WindowPtr pWin)
+void
+compWindowUpdateParent(WindowPtr pWin, RegionPtr pRegion)
 {
     CompWindowPtr cw = GetCompWindow(pWin);
     ScreenPtr pScreen = pWin->drawable.pScreen;
@@ -677,7 +689,6 @@ compWindowUpdateAutomatic(WindowPtr pWin)
     PictFormatPtr pSrcFormat = PictureWindowFormat(pWin);
     PictFormatPtr pDstFormat = PictureWindowFormat(pWin->parent);
     int error;
-    RegionPtr pRegion = DamageRegion(cw->damage);
     PicturePtr pSrcPicture = CreatePicture(0, &pSrcPixmap->drawable,
                                            pSrcFormat,
                                            0, 0,
@@ -722,6 +733,14 @@ compWindowUpdateAutomatic(WindowPtr pWin)
     if (_X_LIKELY(pSrcPicture)) FreePicture(pSrcPicture, 0);
     if (_X_LIKELY(pDstPicture)) FreePicture(pDstPicture, 0);
 
+}
+
+static void
+compWindowUpdateAutomatic(WindowPtr pWin)
+{
+    CompWindowPtr cw = GetCompWindow(pWin);
+
+    compWindowUpdateParent(pWin, DamageRegion(cw->damage));
     /*
      * Empty the damage region.  This has the nice effect of
      * rendering the translations above harmless
@@ -738,7 +757,10 @@ compPaintWindowToParent(WindowPtr pWin)
         CompWindowPtr cw = GetCompWindow(pWin);
 
         if (cw->damaged) {
-            compWindowUpdateAutomatic(pWin);
+            if (CompositeIsServerRoot(pWin->parent))
+                compServerCollectDamage(pWin);
+            else if (!compServerDeferUpdate(pWin))
+                compWindowUpdateAutomatic(pWin);
             cw->damaged = FALSE;
         }
     }
