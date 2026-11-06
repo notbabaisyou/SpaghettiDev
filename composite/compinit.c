@@ -60,6 +60,8 @@ compCloseScreen(ScreenPtr pScreen)
     CompScreenPtr cs = GetCompScreen(pScreen);
     Bool ret;
 
+    compServerCloseScreen(pScreen);
+
     free(cs->alternateVisuals);
     free(cs->implicitRedirectExceptions);
 
@@ -132,6 +134,10 @@ compChangeWindowAttributes(WindowPtr pWin, unsigned long mask)
         pScreen->backingStoreSupport != NotUseful)
         compCheckBackingStore(pWin);
 
+    if (ret && cs->server && !pWin->parent &&
+        (mask & (CWBackPixel | CWBackPixmap)))
+        compServerAddDamage(cs->server, &pWin->winSize);
+
     pScreen->ChangeWindowAttributes = compChangeWindowAttributes;
 
     return ret;
@@ -146,8 +152,10 @@ compSourceValidate(DrawablePtr pDrawable,
     CompScreenPtr cs = GetCompScreen(pScreen);
 
     pScreen->SourceValidate = cs->SourceValidate;
-    if (pDrawable->type == DRAWABLE_WINDOW && subWindowMode == IncludeInferiors)
+    if (pDrawable->type == DRAWABLE_WINDOW && subWindowMode == IncludeInferiors) {
         compPaintChildrenToWindow((WindowPtr) pDrawable);
+        compServerFlushInferiors((WindowPtr) pDrawable);
+    }
     (*pScreen->SourceValidate) (pDrawable, x, y, width, height,
                                 subWindowMode);
     cs->SourceValidate = pScreen->SourceValidate;
@@ -341,6 +349,8 @@ compScreenInit(ScreenPtr pScreen)
         return FALSE;
     if (!dixRegisterPrivateKey(&CompSubwindowsPrivateKeyRec, PRIVATE_WINDOW, 0))
         return FALSE;
+    if (!dixRegisterPrivateKey(&CompServerWindowPrivateKeyRec, PRIVATE_WINDOW, 0))
+        return FALSE;
 
     if (GetCompScreen(pScreen))
         return TRUE;
@@ -358,6 +368,8 @@ compScreenInit(ScreenPtr pScreen)
     cs->alternateVisuals = NULL;
     cs->numImplicitRedirectExceptions = 0;
     cs->implicitRedirectExceptions = NULL;
+
+    cs->server = NULL;
 
     if (!compAddAlternateVisuals(pScreen, cs)) {
         free(cs);
