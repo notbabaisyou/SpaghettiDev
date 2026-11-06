@@ -23,6 +23,8 @@
 
 #include "present_priv.h"
 #include "compositeext.h"
+#include "os/ftrace.h"
+
 #include <unistd.h>
 #ifdef DRI3
 #include <sys/eventfd.h>
@@ -99,6 +101,11 @@ present_wait_shown(present_vblank_ptr vblank, uint64_t crtc_msc)
     if (now - vblank->hidden_since >= hold)
         return FALSE;
 
+    ftrace_print("present-hidden event %" PRIu64 " window %08" PRIx32
+                 " elapsed %" PRIu64 " hold %" PRIu64,
+                 vblank->event_id, window->drawable.id,
+                 now - vblank->hidden_since, hold);
+
     return screen_priv->queue_vblank(screen, window, vblank->crtc,
                                      vblank->event_id, crtc_msc + 1) == Success;
 }
@@ -114,6 +121,7 @@ present_rendering_done(int fd, int xevents, void *data)
     close(fd);
     vblank->rendering_fd = -1;
 
+    ftrace_print_end(vblank->event_id, "present-rendering");
     screen_priv->re_execute(vblank);
 }
 
@@ -141,8 +149,10 @@ present_wait_rendering(present_vblank_ptr vblank)
     if (vblank->rendering_fd < 0)
         return FALSE;
 
-    SetNotifyFd(vblank->rendering_fd, present_rendering_done, X_NOTIFY_READ,
-                vblank);
+    ftrace_print_begin(vblank->event_id,
+                       "present-rendering window %08" PRIx32 " pixmap %08" PRIx32,
+                       vblank->window->drawable.id, vblank->pixmap->drawable.id);
+    SetNotifyFd(vblank->rendering_fd, present_rendering_done, X_NOTIFY_READ, vblank);
     return TRUE;
 #else
     return FALSE;
@@ -209,6 +219,9 @@ present_execute_copy(present_vblank_ptr vblank, PixmapPtr pixmap, WindowPtr wind
         return;
     }
 
+    ftrace_print_begin(vblank->event_id,
+                       "present-copy window %08" PRIx32 " pixmap %08" PRIx32,
+                       window->drawable.id, pixmap->drawable.id);
     present_copy_region(&window->drawable, pixmap, vblank->update, vblank->x_off, vblank->y_off);
     vblank->executed = TRUE;
     CompositeServerPresented(window, pixmap);
@@ -228,6 +241,7 @@ present_execute_copy(present_vblank_ptr vblank, PixmapPtr pixmap, WindowPtr wind
         screen_priv->flush(window);
         present_pixmap_idle(vblank);
     }
+    ftrace_print_end(vblank->event_id, "present-copy");
 }
 
 void

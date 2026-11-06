@@ -26,6 +26,8 @@
 #include "dix-config.h"
 #include "driver.h"
 #include <present.h>
+#include <inttypes.h>
+#include "os/ftrace.h"
 
 /* Present completions belong to the CRTC whose commit displays the frame. */
 struct ms_compositor_completion {
@@ -108,6 +110,7 @@ ms_compositor_queue_present(xf86CrtcPtr target, WindowPtr window,
             dc->compositor.events = event;
         dc->compositor.events_tail = event;
         event->next = NULL;
+        ftrace_print("fission-queue event %" PRIu64 " crtc %p", event_id, crtc);
         ms_compositor_damage_crtc(crtc);
     }
     return TRUE;
@@ -120,6 +123,9 @@ ms_compositor_flip_submitted(xf86CrtcPtr crtc)
     dc->compositor.submitted_events = dc->compositor.events;
     dc->compositor.events = NULL;
     dc->compositor.events_tail = NULL;
+
+    ftrace_print("fission-submit crtc %p seq %u direct %d",
+                 crtc, dc->compositor.flip_seq, dc->compositor.direct_pending);
 }
 
 static void
@@ -138,8 +144,10 @@ ms_compositor_notify(struct ms_compositor_event *events,
         if (!--completion->remaining) {
             uint64_t id = completion->id;
             uint64_t ust = completion->usec, msc = completion->frame;
-            free(completion);
+
+            ftrace_print("fission-notify event %" PRIu64 " msc %" PRIu64, id, msc);
             present_event_notify(id, ust, msc);
+            free(completion);
         }
         events = next;
     }
@@ -210,8 +218,10 @@ ms_compositor_prepare_crtc(xf86CrtcPtr crtc)
 
     if (comp->scanout_fb)
         ms_compositor_damage_crtc(crtc);
+    ftrace_print_begin((uintptr_t) crtc, "fission-compose");
     comp->prepared = ms_compositor_paint(crtc, comp->pixmap[back],
                                           &comp->stale[back]);
+    ftrace_print_end((uintptr_t) crtc, "fission-compose");
 }
 
 /*
@@ -267,6 +277,9 @@ ms_compositor_flip_handler(uint64_t frame, uint64_t usec, void *data)
 {
     xf86CrtcPtr crtc = data;
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+    ftrace_print("fission-flip crtc %p seq %u msc %" PRIu64,
+                 crtc, drmmode_crtc->compositor.flip_seq, frame);
 
     /* Back buffer is now being scanned out; swap roles. */
     if (!drmmode_crtc->compositor.direct_pending)

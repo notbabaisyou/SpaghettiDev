@@ -1,9 +1,27 @@
 /* SPDX-License-Identifier: MIT */
 /* Regression tests for per-CRTC presentation and scanout buffer retirement. */
 #include "dix-config.h"
+
 #include <assert.h>
 #include "driver.h"
 #include <present.h>
+
+#if FTRACE
+void
+ftrace_print(const char *format, ...)
+{
+}
+
+void
+ftrace_print_begin(unsigned long context, const char *format, ...)
+{
+}
+
+void
+ftrace_print_end(unsigned long context, const char *format, ...)
+{
+}
+#endif
 
 enum {
     TEST_CRTC_COUNT = 2,
