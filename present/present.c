@@ -109,6 +109,17 @@ present_pixmap_idle(present_vblank_ptr vblank)
     }
 }
 
+void
+present_pixmap_idle_for_pixmap(PixmapPtr pixmap, WindowPtr window, CARD32 serial, struct present_fence *present_fence)
+{
+    if (present_fence)
+        present_fence_set_triggered(present_fence);
+    if (window) {
+        DebugPresent(("\ti %08" PRIx32 "\n", pixmap ? pixmap->drawable.id : 0));
+        present_send_idle_notify(window, serial, pixmap, present_fence);
+    }
+}
+
 struct pixmap_visit {
     PixmapPtr   old;
     PixmapPtr   new;
@@ -156,6 +167,68 @@ present_can_window_flip(WindowPtr window)
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
 
     return screen_priv->can_window_flip(window);
+}
+
+Bool
+present_vblank_suboptimal(present_vblank_ptr vblank)
+{
+#ifdef SPAGHETTI
+    present_screen_priv_ptr screen_priv = present_screen_priv(vblank->screen);
+#endif
+
+    if (!vblank->has_suboptimal || !vblank->pixmap || !vblank->window)
+        return FALSE;
+
+#ifdef SPAGHETTI
+    if (screen_priv && screen_priv->info &&
+        screen_priv->info->version >= PRESENT_SCREEN_INFO_VERSION_WINDOW_FLIP &&
+        screen_priv->info->flip_suboptimal &&
+        screen_priv->info->flip_suboptimal(vblank->window, vblank->pixmap))
+        return TRUE;
+
+#endif
+
+    return vblank->reason == PRESENT_FLIP_REASON_BUFFER_FORMAT;
+}
+
+Bool
+present_window_has_pending_frames(WindowPtr window)
+{
+    present_window_priv_ptr window_priv = present_window_priv(window);
+    present_vblank_ptr vblank;
+
+    if (!window_priv)
+        return FALSE;
+
+    xorg_list_for_each_entry(vblank, &window_priv->vblank, window_list) {
+        if (vblank->pixmap && !vblank->executed)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+Bool
+present_window_vblank_timing(WindowPtr window, uint64_t *ust, uint64_t *interval)
+{
+    present_screen_priv_ptr screen_priv = present_screen_priv(window->drawable.pScreen);
+    RRCrtcPtr crtc;
+    RRModePtr mode;
+    uint64_t msc;
+
+    if (!screen_priv || !screen_priv->info)
+        return FALSE;
+
+    crtc = present_get_crtc(window);
+    mode = crtc ? crtc->mode : NULL;
+    if (!mode || !mode->mode.dotClock ||
+        (*screen_priv->info->get_ust_msc) (crtc, ust, &msc) != Success)
+        return FALSE;
+
+#define PRESENT_USEC_PER_SECOND 1000000
+    *interval = (uint64_t) mode->mode.hTotal *
+                           mode->mode.vTotal * PRESENT_USEC_PER_SECOND / mode->mode.dotClock;
+#undef  PRESENT_USEC_PER_SECOND
+    return TRUE;
 }
 
 uint64_t
