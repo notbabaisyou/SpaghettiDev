@@ -336,6 +336,14 @@ ms_present_check_flip(RRCrtcPtr crtc,
 
     if (ms->drmmode.compositing) {
         xf86CrtcPtr target = crtc ? crtc->devPrivate : NULL;
+
+        /* Copies release asynchronous clients independently of scanout. */
+        if (!sync_flip) {
+            if (reason)
+                *reason = PRESENT_FLIP_REASON_UNKNOWN;
+            return FALSE;
+        }
+
         return target && target->scrn == scrn &&
                ms_compositor_is_active_on_crtc(target) &&
                !ms->drmmode.pending_modeset;
@@ -580,7 +588,7 @@ ms_present_screen_init(ScreenPtr screen)
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     Bool async_supported = ms_present_async_supported(ms);
-    
+
     if (async_supported && ms->drmmode.glamor) {
         ms_present_screen_info.capabilities |= PresentCapabilityAsync;
 

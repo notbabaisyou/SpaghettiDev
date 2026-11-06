@@ -104,6 +104,7 @@ main(void)
     DevUnion privates[] = { { .ptr = &config } };
     drmmode_crtc_private_rec dc = { 0 };
     RRCrtcRec rr_crtc = { 0 };
+    PresentFlipReason reason = PRESENT_FLIP_REASON_DRIVER_TEARFREE;
 
     test_screen = &screen;
     test_scrn.driverPrivate = &ms;
@@ -135,10 +136,15 @@ main(void)
     assert(!ms_present_check_flip(&rr_crtc, NULL, &pixmap, TRUE, NULL));
     assert(!ms_present_check_flip(&rr_crtc, &window, NULL, TRUE, NULL));
 
-    /* A cached legacy window cannot enable a screen flip while compositing. */
+    /* Copied-frame notifications carry a NULL pixmap. */
     ms.flip_window = &window;
-    assert(!ms_present_flip(&rr_crtc, TEST_EVENT, TEST_MSC, &pixmap, TRUE));
+    assert(!ms_present_flip(&rr_crtc, TEST_EVENT, TEST_MSC, NULL, TRUE));
     assert(!screen_flips);
+
+    /* Asynchronous frames use copies without a display-flip completion wait. */
+    assert(!ms_present_check_flip(&rr_crtc, &window, &pixmap, FALSE, &reason));
+    assert(reason == PRESENT_FLIP_REASON_UNKNOWN);
+    assert(ms_present_check_flip(&rr_crtc, &window, &pixmap, TRUE, NULL));
 
     /* Shared-framebuffer presentation retains its legacy callback. */
     ms.drmmode.compositing = FALSE;
