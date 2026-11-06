@@ -329,3 +329,16 @@ if build_xorg
 
     benchmark('fbpolyseg-bench', fbpolyseg_bench)
 endif
+
+if build_xorg and build_fission
+    fission_events_test = executable(
+        'fission-compositor-events',
+        ['fission-compositor-events.c',
+         '../hw/xfree86/drivers/fission/compositor.c'],
+        include_directories: [inc, xorg_inc,
+                              include_directories('../hw/xfree86/drivers/fission')],
+        c_args: xorg_c_args,
+        dependencies: [common_dep, libdrm_dep, gbm_dep],
+    )
+    test('fission compositor events', fission_events_test)
+endif
