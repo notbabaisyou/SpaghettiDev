@@ -69,7 +69,6 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height);
 static PixmapPtr drmmode_create_pixmap_header(ScreenPtr pScreen, int width, int height,
                                               int depth, int bitsPerPixel, int devKind,
                                               void *pPixData);
-static void drmmode_tearfree_realloc_crtc(xf86CrtcPtr crtc);
 
 static const struct drm_color_ctm ctm_identity = { {
     1ULL << 32, 0, 0,
@@ -656,7 +655,6 @@ static void
 drmmode_ConvertToKMode(ScrnInfoPtr scrn,
                        drmModeModeInfo * kmode, DisplayModePtr mode);
 
-
 static int
 plane_add_prop(drmModeAtomicReq *req, drmmode_crtc_private_ptr drmmode_crtc,
                enum drmmode_plane_property prop, uint64_t val)
@@ -855,7 +853,15 @@ drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y)
 
     *fb_id = 0;
 
-    if (drmmode_crtc->prime_pixmap) {
+    if (drmmode_crtc->compositor.scanout_fb) {
+        *fb_id = drmmode_crtc->compositor.scanout_fb;
+        *x = *y = 0;
+    }
+    else if (drmmode_crtc->compositor.fb_id[0]) {
+        *fb_id = drmmode_crtc->compositor.fb_id[drmmode_crtc->compositor.back_idx ^ 1];
+        *x = *y = 0;
+    }
+    else if (drmmode_crtc->prime_pixmap) {
         if (!drmmode->reverse_prime_offload_mode) {
             msPixmapPrivPtr ppriv =
                 msGetPixmapPriv(drmmode, drmmode_crtc->prime_pixmap);
@@ -1161,7 +1167,7 @@ drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
 
     if (ret == 0)
         ret = drmModeAtomicCommit(ms->fd, req, flags, data);
-    
+
     drmModeAtomicFree(req);
     return ret;
 }
@@ -1357,13 +1363,13 @@ drmmode_create_bo(drmmode_ptr drmmode, drmmode_bo *bo,
                                           FALSE, !drmmode->multiplanar, TRUE);
         if (num_modifiers > 0) {
 #ifdef GBM_BO_WITH_MODIFIERS2
-            bo->gbm = gbm_bo_create_with_modifiers2(drmmode->gbm, 
+            bo->gbm = gbm_bo_create_with_modifiers2(drmmode->gbm,
                                                     width, height, format,
                                                     modifiers, num_modifiers,
                                                     GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
 #else
             /* gbm_bo_create_with_modifiers implies GBM_BO_USE_SCANOUT. */
-            bo->gbm = gbm_bo_create_with_modifiers(drmmode->gbm, 
+            bo->gbm = gbm_bo_create_with_modifiers(drmmode->gbm,
                                                    width, height, format,
                                                    modifiers, num_modifiers);
 #endif
@@ -1716,7 +1722,7 @@ depth_bpp_from_format(uint32_t pixel_format, int* depth, int* bpp)
             *depth = 15;
             *bpp = 16;
             return TRUE;
-        
+
         case DRM_FORMAT_RGB565:
             *depth = 16;
             *bpp = 16;
@@ -1829,7 +1835,6 @@ out_free_fb:
 }
 #endif
 
-
 void
 drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 {
@@ -1886,6 +1891,11 @@ static void drmmode_prepare_modeset(ScrnInfoPtr scrn)
     ScreenPtr pScreen = scrn->pScreen;
     modesettingPtr ms = modesettingPTR(scrn);
 
+    if (ms->drmmode.compositing) {
+        ms_drain_drm_events(pScreen);
+        return;
+    }
+
     if (!ms->drmmode.present_flipping)
         return;
 
@@ -1917,6 +1927,8 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
     DisplayModeRec saved_mode;
     Bool ret = TRUE;
     Bool can_test;
+    Bool replaced_compositor = FALSE;
+    drmmode_compositor_rec saved_compositor = { 0 };
     int i;
 
     if (mode)
@@ -1934,11 +1946,22 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
         crtc->rotation = rotation;
 
         if (!xf86CrtcRotate(crtc)) {
+            ret = FALSE;
             goto done;
         }
 
         crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
                                crtc->gamma_blue, crtc->gamma_size);
+
+        if (drmmode->compositing) {
+            saved_compositor = drmmode_crtc->compositor;
+            memset(&drmmode_crtc->compositor, 0, sizeof(drmmode_crtc->compositor));
+            replaced_compositor = TRUE;
+            if (!drmmode_compositor_alloc_crtc(crtc)) {
+                ret = FALSE;
+                goto done;
+            }
+        }
 
         can_test = drmmode_crtc_can_test_mode(crtc);
         if (drmmode_crtc_set_mode(crtc, can_test)) {
@@ -1948,9 +1971,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
             goto done;
         } else
             ret = TRUE;
-
-        if (drmmode->tearfree)
-            drmmode_tearfree_realloc_crtc(crtc);
 
         if (crtc->scrn->pScreen)
             xf86CrtcSetScreenSubpixelOrder(crtc->scrn->pScreen);
@@ -1977,23 +1997,40 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
         }
 
         /* if we only tested the mode previously, really set it now */
-        if (can_test)
-            drmmode_crtc_set_mode(crtc, FALSE);
+        if (can_test && drmmode_crtc_set_mode(crtc, FALSE)) {
+            ret = FALSE;
+            goto done;
+        }
         ms->pending_modeset = FALSE;
     }
 
  done:
+    if (replaced_compositor) {
+        if (ret) {
+            drmmode_compositor_rec current = drmmode_crtc->compositor;
+            current.events = saved_compositor.events;
+            current.events_tail = saved_compositor.events_tail;
+            saved_compositor.events = NULL;
+            saved_compositor.events_tail = NULL;
+            drmmode_crtc->compositor = saved_compositor;
+            drmmode_compositor_free_crtc(crtc);
+            drmmode_crtc->compositor = current;
+        } else {
+            drmmode_compositor_free_crtc(crtc);
+            drmmode_crtc->compositor = saved_compositor;
+        }
+    }
     if (!ret) {
         crtc->x = saved_x;
         crtc->y = saved_y;
         crtc->rotation = saved_rotation;
         crtc->mode = saved_mode;
+        xf86CrtcRotate(crtc);
 
-        if (drmmode->tearfree)
-            drmmode_tearfree_realloc_crtc(crtc);
     } else
         crtc->active = TRUE;
 
+    ms->pending_modeset = FALSE;
     return ret;
 }
 
@@ -2285,7 +2322,7 @@ drmModeAddFBPixmap(drmmode_ptr drmmode, PixmapPtr ppix, msPixmapPrivPtr ppriv)
 
     handles[0] = ppriv->backing_bo->handle;
     pitches[0] = ppix->devKind;
-    
+
     return drmModeAddFB2(drmmode->fd, ppix->drawable.width,
                          ppix->drawable.height, drm_format,
                          handles, pitches, offsets, &ppriv->fb_id, 0);
@@ -2646,7 +2683,7 @@ populate_cursor_sizes(drmmode_ptr drmmode, drmmode_crtc_private_ptr drmmode_crtc
 
     if (!size_hints_len)
         goto fail;
-    
+
     drmmode_crtc->cursor.num_dimensions = size_hints_len;
     drmmode_crtc->cursor.dimensions = xnfrealloc(drmmode_crtc->cursor.dimensions, size_hints_len * sizeof(drmmode_cursor_dim_rec));
 
@@ -2858,6 +2895,8 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, drmModeResPtr mode_res
         return 0;
     drmmode_crtc = XNFcallocarray(1, sizeof(drmmode_crtc_private_rec));
     crtc->driver_private = drmmode_crtc;
+    if (drmmode->compositing)
+        crtc->driverIsPerformingTransform = XF86DriverTransformOutput;
     drmmode_crtc->mode_crtc =
         drmModeGetCrtc(drmmode->fd, mode_res->crtcs[num]);
     drmmode_crtc->drmmode = drmmode;
@@ -3452,7 +3491,7 @@ drmmode_output_commit(drmmode_ptr drmmode, uint32_t object_id,
     if (r >= 0)
         drmModeAtomicCommit(drmmode->fd, req,
                             DRM_MODE_ATOMIC_ALLOW_MODESET, NULL);
-    
+
     drmModeAtomicFree(req);
 }
 
@@ -3945,6 +3984,13 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
     if (scrn->virtualX == width && scrn->virtualY == height)
         return TRUE;
 
+    if (drmmode->compositing) {
+        scrn->virtualX = width;
+        scrn->virtualY = height;
+        scrn->displayWidth = width;
+        return TRUE;
+    }
+
     xf86DrvMsg(scrn->scrnIndex, X_INFO,
                "Allocate new frame buffer %dx%d stride\n", width, height);
 
@@ -4242,7 +4288,7 @@ drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
     if (ms->soft2d.init) {
         if (!ms->soft2d.init(pScreen, ms->drmmode.gbm, ms->fd))
             return FALSE;
-        
+
         ms->soft2d.set_drawable_modifiers_func(pScreen,
                                                drmmode_soft2d_get_drawable_modifiers);
         ms->soft2d.set_formats_func(pScreen, drmmode_soft2d_get_formats);
@@ -4716,14 +4762,17 @@ drmmode_create_initial_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
     width = pScrn->virtualX;
     height = pScrn->virtualY;
 
-    if (!drmmode_create_bo(drmmode, &drmmode->front_bo,
-                           width, height, bpp, !drmmode->glamor))
-        return FALSE;
+    if (!drmmode->compositing) {
+        if (!drmmode_create_bo(drmmode, &drmmode->front_bo,
+                               width, height, bpp, !drmmode->glamor))
+            return FALSE;
 
-    if (drmmode_bo_import(drmmode, &drmmode->front_bo, &drmmode->fb_id) < 0)
-        return FALSE;
+        if (drmmode_bo_import(drmmode, &drmmode->front_bo, &drmmode->fb_id) < 0)
+            return FALSE;
 
-    pScrn->displayWidth = drmmode_bo_get_pitch(&drmmode->front_bo) / cpp;
+        pScrn->displayWidth = drmmode_bo_get_pitch(&drmmode->front_bo) / cpp;
+
+    }
 
     bpp = 32;
     for (i = 0; i < xf86_config->num_crtc; i++) {
@@ -4731,7 +4780,7 @@ drmmode_create_initial_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
         drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
         drmmode_cursor_rec cursor = drmmode_crtc->cursor;
 
-        /* If we don't have any dimensions then 
+        /* If we don't have any dimensions then
          * something has gone terribly wrong. */
         assert(cursor.num_dimensions);
 
@@ -4747,110 +4796,109 @@ drmmode_create_initial_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 }
 
 Bool
-drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc)
+drmmode_compositor_alloc_crtc(xf86CrtcPtr crtc)
 {
     ScrnInfoPtr scrn = crtc->scrn;
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
     ScreenPtr screen = xf86ScrnToScreen(scrn);
-    unsigned width  = scrn->virtualX;
-    unsigned height = scrn->virtualY;
+    unsigned width  = crtc->mode.HDisplay;
+    unsigned height = crtc->mode.VDisplay;
     int i;
 
-    RegionNull(&drmmode_crtc->tearfree.stale[0]);
-    RegionNull(&drmmode_crtc->tearfree.stale[1]);
+    if (!crtc->enabled || !width || !height)
+        return TRUE;
 
-    for (i = 0; i < 2; i++) {
-        if (!drmmode_create_bo(drmmode, &drmmode_crtc->tearfree.bo[i],
+    RegionNull(&drmmode_crtc->compositor.stale[0]);
+    RegionNull(&drmmode_crtc->compositor.stale[1]);
+
+    for (i = 0; i < MS_COMPOSITOR_BUFFER_COUNT; i++) {
+        if (!drmmode_create_bo(drmmode, &drmmode_crtc->compositor.bo[i],
                                width, height, drmmode->kbpp, FALSE))
             goto fail;
 
-        if (drmmode_bo_import(drmmode, &drmmode_crtc->tearfree.bo[i],
-                              &drmmode_crtc->tearfree.fb_id[i]) < 0) {
-            drmmode_bo_destroy(drmmode, &drmmode_crtc->tearfree.bo[i]);
+        if (drmmode_bo_import(drmmode, &drmmode_crtc->compositor.bo[i],
+                              &drmmode_crtc->compositor.fb_id[i]) < 0) {
+            drmmode_bo_destroy(drmmode, &drmmode_crtc->compositor.bo[i]);
             goto fail;
         }
 
-        drmmode_crtc->tearfree.pixmap[i] =
+        drmmode_crtc->compositor.pixmap[i] =
             drmmode_create_pixmap_header(screen, width, height,
                                          scrn->depth, scrn->bitsPerPixel,
-                                         drmmode_bo_get_pitch(&drmmode_crtc->tearfree.bo[i]),
+                                         drmmode_bo_get_pitch(&drmmode_crtc->compositor.bo[i]),
                                          NULL);
-        if (!drmmode_crtc->tearfree.pixmap[i])
+        if (!drmmode_crtc->compositor.pixmap[i])
             goto fail;
 
-        if (!drmmode_set_pixmap_bo(drmmode, drmmode_crtc->tearfree.pixmap[i],
-                                   &drmmode_crtc->tearfree.bo[i]))
+        if (!drmmode_set_pixmap_bo(drmmode, drmmode_crtc->compositor.pixmap[i],
+                                   &drmmode_crtc->compositor.bo[i]))
             goto fail;
+
+        drmmode_clear_pixmap(drmmode_crtc->compositor.pixmap[i]);
     }
 
-    drmmode_crtc->tearfree.back_idx     = 0;
-    drmmode_crtc->tearfree.flip_seq     = 0;
+    drmmode_crtc->compositor.back_idx     = 0;
+    drmmode_crtc->compositor.flip_seq     = 0;
 
     /*
      * Mark both buffers as fully stale so the first blit to each
      * populates the entire CRTC viewport rather than just the
      * first damaged region.
      */
-    BoxRec full_viewport = { .x1 = 0, .y1 = 0, .x2 = width, .y2 = height };
-
-    RegionInitBoxes(&drmmode_crtc->tearfree.stale[0], &full_viewport, 1);
-    RegionInitBoxes(&drmmode_crtc->tearfree.stale[1], &full_viewport, 1);
+    ms_compositor_damage_crtc(crtc);
 
     return TRUE;
 
 fail:
-    while (--i >= 0) {
-        if (drmmode_crtc->tearfree.pixmap[i]) {
-            screen->DestroyPixmap(drmmode_crtc->tearfree.pixmap[i]);
-            drmmode_crtc->tearfree.pixmap[i] = NULL;
+    for (i = 0; i < MS_COMPOSITOR_BUFFER_COUNT; i++) {
+        if (drmmode_crtc->compositor.pixmap[i]) {
+            screen->DestroyPixmap(drmmode_crtc->compositor.pixmap[i]);
+            drmmode_crtc->compositor.pixmap[i] = NULL;
         }
-        if (drmmode_crtc->tearfree.fb_id[i]) {
-            drmModeRmFB(drmmode->fd, drmmode_crtc->tearfree.fb_id[i]);
-            drmmode_crtc->tearfree.fb_id[i] = 0;
+        if (drmmode_crtc->compositor.fb_id[i]) {
+            drmModeRmFB(drmmode->fd, drmmode_crtc->compositor.fb_id[i]);
+            drmmode_crtc->compositor.fb_id[i] = 0;
         }
-        drmmode_bo_destroy(drmmode, &drmmode_crtc->tearfree.bo[i]);
+        drmmode_bo_destroy(drmmode, &drmmode_crtc->compositor.bo[i]);
     }
 
     return FALSE;
 }
 
 void
-drmmode_tearfree_free_crtc(xf86CrtcPtr crtc)
+drmmode_compositor_free_crtc(xf86CrtcPtr crtc)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
     ScreenPtr screen = xf86ScrnToScreen(crtc->scrn);
     int i;
 
-    if (!drmmode_crtc->tearfree.fb_id[0] &&
-        !drmmode_crtc->tearfree.fb_id[1])
+    ms_compositor_free_crtc(crtc);
+
+    if (drmmode_crtc->compositor.untransformed) {
+        dixDestroyPixmap(drmmode_crtc->compositor.untransformed, 0);
+        drmmode_crtc->compositor.untransformed = NULL;
+    }
+
+    if (!drmmode_crtc->compositor.fb_id[0] &&
+        !drmmode_crtc->compositor.fb_id[1])
         return;
 
-    RegionUninit(&drmmode_crtc->tearfree.stale[0]);
-    RegionUninit(&drmmode_crtc->tearfree.stale[1]);
+    RegionUninit(&drmmode_crtc->compositor.stale[0]);
+    RegionUninit(&drmmode_crtc->compositor.stale[1]);
 
-    for (i = 0; i < 2; i++) {
-        if (drmmode_crtc->tearfree.pixmap[i]) {
-            screen->DestroyPixmap(drmmode_crtc->tearfree.pixmap[i]);
-            drmmode_crtc->tearfree.pixmap[i] = NULL;
+    for (i = 0; i < MS_COMPOSITOR_BUFFER_COUNT; i++) {
+        if (drmmode_crtc->compositor.pixmap[i]) {
+            screen->DestroyPixmap(drmmode_crtc->compositor.pixmap[i]);
+            drmmode_crtc->compositor.pixmap[i] = NULL;
         }
-        if (drmmode_crtc->tearfree.fb_id[i]) {
-            drmModeRmFB(drmmode->fd, drmmode_crtc->tearfree.fb_id[i]);
-            drmmode_crtc->tearfree.fb_id[i] = 0;
+        if (drmmode_crtc->compositor.fb_id[i]) {
+            drmModeRmFB(drmmode->fd, drmmode_crtc->compositor.fb_id[i]);
+            drmmode_crtc->compositor.fb_id[i] = 0;
         }
-        drmmode_bo_destroy(drmmode, &drmmode_crtc->tearfree.bo[i]);
+        drmmode_bo_destroy(drmmode, &drmmode_crtc->compositor.bo[i]);
     }
-}
-
-static void
-drmmode_tearfree_realloc_crtc(xf86CrtcPtr crtc)
-{
-    drmmode_tearfree_free_crtc(crtc);
-    if (!drmmode_tearfree_alloc_crtc(crtc))
-        xf86DrvMsg(crtc->scrn->scrnIndex, X_WARNING,
-                   "TearFree reallocation failed; "
-                   "TearFree inactive on this CRTC until next resize\n");
 }
 
 void *
@@ -4916,7 +4964,7 @@ drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 
         dumb_bo_destroy(drmmode->fd, drmmode_crtc->cursor.bo);
 
-        drmmode_tearfree_free_crtc(crtc);
+        drmmode_compositor_free_crtc(crtc);
     }
 }
 
@@ -5040,7 +5088,10 @@ static void drmmode_sprite_set_cursor(DeviceIntPtr pDev, ScreenPtr pScreen,
     sprite_priv->cursor = pCursor;
     drmmode_sprite_do_set_cursor(sprite_priv, scrn, x, y);
 
-    ms->SpriteFuncs->SetCursor(pDev, pScreen, pCursor, x, y);
+    if (ms->drmmode.compositing)
+        ms_compositor_set_cursor(scrn, &sprite_priv->sw_cursor, pCursor, x, y);
+    else
+        ms->SpriteFuncs->SetCursor(pDev, pScreen, pCursor, x, y);
 }
 
 static void drmmode_sprite_move_cursor(DeviceIntPtr pDev, ScreenPtr pScreen,
@@ -5052,7 +5103,10 @@ static void drmmode_sprite_move_cursor(DeviceIntPtr pDev, ScreenPtr pScreen,
 
     drmmode_sprite_do_set_cursor(sprite_priv, scrn, x, y);
 
-    ms->SpriteFuncs->MoveCursor(pDev, pScreen, x, y);
+    if (ms->drmmode.compositing)
+        ms_compositor_move_cursor(scrn, &sprite_priv->sw_cursor, sprite_priv->cursor, x, y);
+    else
+        ms->SpriteFuncs->MoveCursor(pDev, pScreen, x, y);
 }
 
 static Bool drmmode_sprite_realize_realize_cursor(DeviceIntPtr pDev,
@@ -5089,6 +5143,9 @@ static void drmmode_sprite_device_cursor_cleanup(DeviceIntPtr pDev,
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(pScreen);
     modesettingPtr ms = modesettingPTR(scrn);
+
+    if (ms->drmmode.compositing && pDev->spriteInfo->spriteOwner)
+        ms_compositor_set_cursor(scrn, &msGetSpritePriv(pDev, ms, pScreen)->sw_cursor, NULL, 0, 0);
 
     ms->SpriteFuncs->DeviceCursorCleanup(pDev, pScreen);
 }

@@ -570,7 +570,7 @@ can_flip(ScrnInfoPtr scrn, DrawablePtr draw,
     modesettingPtr ms = modesettingPTR(scrn);
 
     return draw->type == DRAWABLE_WINDOW &&
-        ms->drmmode.pageflip &&
+        ms->drmmode.pageflip && !ms->drmmode.compositing &&
         !ms->drmmode.sprites_visible &&
         !ms->drmmode.present_flipping &&
         scrn->vtSema &&

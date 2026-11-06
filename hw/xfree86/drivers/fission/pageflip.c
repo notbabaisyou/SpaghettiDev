@@ -181,7 +181,7 @@ do_queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc, uint32_t flags,
                       uint32_t seq, uint32_t fb_id, int x, int y)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-    drmmode_tearfree_ptr trf = &drmmode_crtc->tearfree;
+    drmmode_compositor_ptr comp = &drmmode_crtc->compositor;
 
     while (drmmode_crtc_flip(crtc, fb_id, x, y, flags, (void *)(long)seq)) {
         /* We may have failed because the event queue was full.  Flush it
@@ -189,10 +189,10 @@ do_queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc, uint32_t flags,
          * some other reason and should just return an error.
          */
         if (ms_flush_drm_events(screen) <= 0) {
-            /* The failure could be caused by a pending TearFree flip, in which
+            /* The failure could be caused by a pending compositor flip, in which
              * case we should wait until there's a new event and try again.
              */
-            if (!trf->flip_seq || ms_flush_drm_events_timeout(screen, -1) < 0) {
+            if (!comp->flip_seq || ms_flush_drm_events_timeout(screen, -1) < 0) {
                 ms_drm_abort_seq(crtc->scrn, seq);
                 return TRUE;
             }
@@ -523,23 +523,3 @@ error_free_event:
     return FALSE;
 }
 #endif
-
-void
-ms_tearfree_flip_handler(uint64_t frame, uint64_t usec, void *data)
-{
-    xf86CrtcPtr crtc = data;
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-    /* Back buffer is now being scanned out; swap roles. */
-    drmmode_crtc->tearfree.back_idx ^= 1;
-    drmmode_crtc->tearfree.flip_seq  = 0;
-}
-
-void
-ms_tearfree_flip_abort(void *data)
-{
-    xf86CrtcPtr crtc = data;
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-    drmmode_crtc->tearfree.flip_seq  = 0;
-}

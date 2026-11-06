@@ -1,4 +1,6 @@
 fission_srcs = [
+    'compositor.c',
+    'compositor-render.c',
     'dri2.c',
     'driver.c',
     'drmmode_display.c',
