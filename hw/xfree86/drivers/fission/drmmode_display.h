@@ -117,7 +117,6 @@ typedef struct {
     drmmode_bo front_bo;
 
     Bool sw_cursor;
-    Bool tearfree;
     Bool compositing;
 
     /* Broken-out options. */
@@ -222,9 +221,6 @@ typedef struct {
     RegionRec  stale[MS_COMPOSITOR_BUFFER_COUNT]; /* screen coordinates */
 } drmmode_compositor_rec, *drmmode_compositor_ptr;
 
-typedef drmmode_compositor_rec drmmode_tearfree_rec;
-typedef drmmode_compositor_ptr drmmode_tearfree_ptr;
-
 typedef struct {
     drmmode_ptr drmmode;
     drmModeCrtcPtr mode_crtc;
@@ -244,7 +240,6 @@ typedef struct {
 
     drmmode_bo rotate_bo;
 
-    drmmode_tearfree_rec tearfree;
     drmmode_compositor_rec compositor;
 
     PixmapPtr prime_pixmap;
@@ -397,5 +392,3 @@ Bool drmmode_compositor_alloc_crtc(xf86CrtcPtr crtc);
 void drmmode_compositor_free_crtc(xf86CrtcPtr crtc);
 
 #endif
-Bool drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc);
-void drmmode_tearfree_free_crtc(xf86CrtcPtr crtc);

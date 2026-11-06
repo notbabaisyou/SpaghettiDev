@@ -306,11 +306,11 @@ ms_present_check_unflip(RRCrtcPtr crtc,
 }
 
 static Bool
-ms_tearfree_is_active_on_crtc(xf86CrtcPtr crtc)
+ms_compositor_is_active_on_crtc(xf86CrtcPtr crtc)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 
-    return drmmode_crtc->tearfree.fb_id[0] &&
+    return drmmode_crtc->compositor.fb_id[0] &&
            crtc->scrn->vtSema &&
            xf86_crtc_on(crtc);
 }
@@ -322,10 +322,24 @@ ms_present_check_flip(RRCrtcPtr crtc,
                       Bool sync_flip,
                       PresentFlipReason *reason)
 {
-    ScreenPtr screen = window->drawable.pScreen;
-    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    modesettingPtr ms = modesettingPTR(scrn);
+    ScreenPtr screen;
+    ScrnInfoPtr scrn;
+    modesettingPtr ms;
     Bool async_flip = !sync_flip;
+
+    if (!window || !pixmap)
+        return FALSE;
+
+    screen = window->drawable.pScreen;
+    scrn = xf86ScreenToScrn(screen);
+    ms = modesettingPTR(scrn);
+
+    if (ms->drmmode.compositing) {
+        xf86CrtcPtr target = crtc ? crtc->devPrivate : NULL;
+        return target && target->scrn == scrn &&
+               ms_compositor_is_active_on_crtc(target) &&
+               !ms->drmmode.pending_modeset;
+    }
 
     if (ms->drmmode.sprites_visible > 0)
         goto no_flip;
@@ -352,10 +366,10 @@ no_flip:
     if (reason && *reason == PRESENT_FLIP_REASON_UNKNOWN && crtc) {
         xf86CrtcPtr xf86_crtc = crtc->devPrivate;
 
-        if (ms_tearfree_is_active_on_crtc(xf86_crtc)) {
+        if (ms_compositor_is_active_on_crtc(xf86_crtc)) {
             drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
 
-            *reason = drmmode_crtc->tearfree.flip_seq ?
+            *reason = drmmode_crtc->compositor.flip_seq ?
                       PRESENT_FLIP_REASON_DRIVER_TEARFREE_FLIPPING :
                       PRESENT_FLIP_REASON_DRIVER_TEARFREE;
         }
@@ -382,6 +396,9 @@ ms_present_flip(RRCrtcPtr crtc,
     drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
     struct ms_present_vblank_event *event;
     Bool ret;
+
+    if (!ms->flip_window)
+        return FALSE;
 
     if (!ms_present_check_flip(crtc, ms->flip_window, pixmap, sync_flip, NULL))
         return FALSE;
@@ -476,8 +493,53 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
 }
 #endif
 
+
+static Bool
+ms_present_window_flip(RRCrtcPtr crtc, uint64_t event_id, WindowPtr window,
+                        PixmapPtr pixmap, Bool sync_flip)
+{
+    xf86CrtcPtr target = crtc->devPrivate;
+    modesettingPtr ms = modesettingPTR(target->scrn);
+
+    return ms->drmmode.compositing &&
+           ms_compositor_queue_present(target, window, event_id);
+}
+
+static void
+ms_present_window_unflip(ScreenPtr screen, WindowPtr window, uint64_t event_id)
+{
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
+    xf86CrtcPtr target = NULL;
+    int c;
+
+    for (c = 0; c < config->num_crtc; c++) {
+        xf86CrtcPtr crtc = config->crtc[c];
+
+        if (!ms_compositor_is_active_on_crtc(crtc))
+            continue;
+        if (!target)
+            target = crtc;
+        ms_compositor_damage_crtc(crtc);
+    }
+    if (!target || !ms_compositor_queue_present(target, NULL, event_id))
+        present_event_notify(event_id, 0, 0);
+}
+
+static int
+ms_present_pixmap_rendering_fd(WindowPtr window, PixmapPtr pixmap)
+{
+#ifdef HAVE_GBM
+    modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(window->drawable.pScreen));
+
+    if (ms->drmmode.compositing && ms->glamor.egl_pixmap_rendering_fd)
+        return ms->glamor.egl_pixmap_rendering_fd(pixmap);
+#endif
+    return -1;
+}
+
 static present_screen_info_rec ms_present_screen_info = {
-    .version = SPAGHETTI,
+    .version = PRESENT_SCREEN_INFO_VERSION,
 
     .get_crtc = ms_present_get_crtc,
     .get_ust_msc = ms_present_get_ust_msc,
@@ -492,6 +554,9 @@ static present_screen_info_rec ms_present_screen_info = {
 
     .flip = ms_present_flip,
     .unflip = ms_present_unflip,
+    .window_flip = ms_present_window_flip,
+    .window_unflip = ms_present_window_unflip,
+    .pixmap_rendering_fd = ms_present_pixmap_rendering_fd,
 #endif
 };
 
@@ -530,5 +595,7 @@ ms_present_screen_init(ScreenPtr screen)
         }
     }
 
-    return present_screen_init(screen, &ms_present_screen_info);
+    if (!present_screen_init(screen, &ms_present_screen_info))
+        return FALSE;
+    return TRUE;
 }

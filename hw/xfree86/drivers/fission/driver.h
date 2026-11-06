@@ -72,7 +72,6 @@ typedef enum {
     OPTION_DOUBLE_SHADOW,
     OPTION_VARIABLE_REFRESH,
     OPTION_USE_GAMMA_LUT,
-    OPTION_TEARFREE,
     OPTION_COMPOSITING
 } modesettingOpts;
 
@@ -293,6 +292,3 @@ Bool ms_compositor_queue_present(xf86CrtcPtr crtc, WindowPtr window,
 void ms_compositor_damage_crtc(xf86CrtcPtr crtc);
 void ms_compositor_prepare_crtc(xf86CrtcPtr crtc);
 void ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc);
-
-void ms_tearfree_flip_handler(uint64_t frame, uint64_t usec, void *data);
-void ms_tearfree_flip_abort(void *data);

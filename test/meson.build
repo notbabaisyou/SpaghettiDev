@@ -5,6 +5,21 @@ simple_xinit = executable(
     dependencies: [ xproto_dep ],
 )
 
+if build_xorg and build_fission
+    if cc.has_multi_arguments('-ffunction-sections', '-fdata-sections') and cc.has_link_argument('-Wl,--gc-sections')
+        fission_present_test = executable(
+            'fission-present',
+            'fission-present.c',
+            include_directories: [inc, xorg_inc,
+                                  include_directories('../hw/xfree86/drivers/fission')],
+            c_args: xorg_c_args + ['-ffunction-sections', '-fdata-sections'],
+            link_args: ['-Wl,--gc-sections'],
+            dependencies: [common_dep, libdrm_dep, gbm_dep],
+        )
+        test('fission Present resize', fission_present_test)
+    endif
+endif
+
 xcb_dep = dependency('xcb', required: false)
 xcb_present_dep = dependency('xcb-present', required: false)
 xcb_dri3_dep = dependency('xcb-dri3', required: false)
