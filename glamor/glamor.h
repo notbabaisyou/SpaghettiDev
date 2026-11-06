@@ -451,4 +451,6 @@ extern _X_EXPORT XF86VideoAdaptorPtr glamor_xv_init(ScreenPtr pScreen,
                                                     int num_texture_ports);
 #endif
 
+extern _X_EXPORT int glamor_egl_pixmap_rendering_fd(PixmapPtr pixmap);
+
 #endif                          /* GLAMOR_H */
