@@ -49,6 +49,7 @@ ms_compositor_damage_crtc(xf86CrtcPtr crtc)
 
     for (i = 0; i < ARRAY_SIZE(dc->compositor.stale); i++)
         RegionReset(&dc->compositor.stale[i], &crtc->bounds);
+    dc->compositor.repaint = TRUE;
 }
 
 Bool
@@ -209,18 +210,22 @@ ms_compositor_prepare_crtc(xf86CrtcPtr crtc)
     drmmode_compositor_ptr comp = &dc->compositor;
     int back = comp->back_idx;
 
-    if (!crtc->enabled || comp->flip_seq || !comp->pixmap[back] ||
+    if (!crtc->enabled || comp->flip_seq || !comp->pixmap[back] || !comp->repaint ||
         RegionNil(&comp->stale[back]))
         return;
 
+    comp->repaint = FALSE;
     if (ms_compositor_direct_flip(crtc))
         return;
 
     if (comp->scanout_fb)
         ms_compositor_damage_crtc(crtc);
+    comp->repaint = FALSE;
     ftrace_print_begin((uintptr_t) crtc, "fission-compose");
     comp->prepared = ms_compositor_paint(crtc, comp->pixmap[back],
                                           &comp->stale[back]);
+    if (!comp->prepared)
+        comp->repaint = TRUE;
     ftrace_print_end((uintptr_t) crtc, "fission-compose");
 }
 
@@ -249,8 +254,10 @@ ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
     seq = ms_drm_queue_alloc(crtc, crtc,
                              ms_compositor_flip_handler,
                              ms_compositor_flip_abort);
-    if (!seq)
+    if (!seq) {
+        comp->repaint = TRUE;
         return;
+    }
 
     if (drmmode_crtc_flip(crtc,
                           comp->fb_id[back],
@@ -266,7 +273,8 @@ ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
      * above it's left intact so the accumulated damage is retried on the
      * next block handler.
      */
-    RegionEmpty(&comp->stale[back]);
+    if (!comp->repaint)
+        RegionEmpty(&comp->stale[back]);
 
     comp->flip_seq = seq;
     ms_compositor_flip_submitted(crtc);
@@ -295,5 +303,6 @@ ms_compositor_flip_abort(void *data)
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 
     drmmode_crtc->compositor.flip_seq = 0;
+    ms_compositor_damage_crtc(crtc);
     ms_compositor_flip_complete(crtc, 0, 0, TRUE);
 }
