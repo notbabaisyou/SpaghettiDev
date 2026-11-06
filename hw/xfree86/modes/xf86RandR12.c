@@ -39,6 +39,9 @@
 #include "xf86cmap.h"
 #include "xf86Crtc.h"
 #include "xf86RandR12.h"
+#ifdef COMPOSITE
+#include "compositeext.h"
+#endif
 
 typedef struct _xf86RandR12Info {
     int virtualX;
@@ -674,6 +677,16 @@ xf86RandR12SetConfig(ScreenPtr pScreen,
     ((crtc)->panningTotalArea.x2 > (crtc)->panningTotalArea.x1 ||       \
      (crtc)->panningTotalArea.y2 > (crtc)->panningTotalArea.y1)
 
+static inline Bool
+xf86RandR12ScreenPixmapCoversScreen(ScreenPtr pScreen)
+{
+#ifdef COMPOSITE
+    return !CompositeServerActive(pScreen);
+#else
+    return TRUE;
+#endif
+}
+
 static Bool
 xf86RandR12ScreenSetSize(ScreenPtr pScreen,
                          CARD16 width,
@@ -717,9 +730,13 @@ xf86RandR12ScreenSetSize(ScreenPtr pScreen,
         }
     }
 
-    pScrnPix = (*pScreen->GetScreenPixmap) (pScreen);
-    pScreen->width = pScrnPix->drawable.width = width;
-    pScreen->height = pScrnPix->drawable.height = height;
+    pScreen->width = width;
+    pScreen->height = height;
+    if (xf86RandR12ScreenPixmapCoversScreen(pScreen)) {
+        pScrnPix = (*pScreen->GetScreenPixmap) (pScreen);
+        pScrnPix->drawable.width = width;
+        pScrnPix->drawable.height = height;
+    }
     randrp->mmWidth = pScreen->mmWidth = mmWidth;
     randrp->mmHeight = pScreen->mmHeight = mmHeight;
 
