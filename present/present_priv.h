@@ -88,8 +88,12 @@ struct present_vblank {
     Bool                flip_ready;     /* wants to flip, but waiting for previous flip or unflip */
     present_flip_type   flip_type;      /* type of flip to perform */
     Bool                abort_flip;     /* aborting this flip */
+    struct present_flip_slot_rec *flip_slot; /* slot this flip is pending on */
     PresentFlipReason   reason;         /* reason for which flip is not possible */
     Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
+    Bool                executed;
+    int                 rendering_fd;   /* readable once the pixmap is rendered */
+    uint64_t            hidden_since;   /* held back while the window is hidden */
 #ifdef DRI3
     struct dri3_syncobj *acquire_syncobj;
     struct dri3_syncobj *release_syncobj;
@@ -166,6 +170,24 @@ typedef void (*present_priv_abort_vblank_ptr)(ScreenPtr screen,
                                               uint64_t msc);
 typedef void (*present_priv_flip_destroy_ptr)(ScreenPtr screen);
 
+typedef struct present_flip_slot_rec {
+    struct xorg_list    entry;
+    Bool                window_flip;
+    int                 pending_flips;
+    WindowPtr           pixmap_window;
+    PixmapPtr           window_pixmap;
+    RRCrtcPtr           crtc;
+    present_vblank_ptr  flip_pending;   /* the newest pending flip */
+    uint64_t            unflip_event_id;
+
+    /* Currently active flipped pixmap and fence */
+    WindowPtr           flip_window;
+    uint32_t            flip_serial;
+    Bool                flip_sync;
+    PixmapPtr           flip_pixmap;
+    present_fence_ptr   flip_idle_fence;
+} present_flip_slot_rec, *present_flip_slot_ptr;
+
 struct present_screen_priv {
     ScreenPtr                   pScreen;
     CloseScreenProcPtr          CloseScreen;
@@ -175,8 +197,8 @@ struct present_screen_priv {
 
     present_vblank_ptr          flip_pending;
     present_vblank_ptr          flip_active;
-
     uint64_t                    unflip_event_id;
+    struct xorg_list            flip_slots;
 
     uint32_t                    fake_interval;
 
@@ -245,6 +267,7 @@ struct present_window_priv {
 #define PresentCrtcNeverSet     ((RRCrtcPtr) 1)
 
 extern DevPrivateKeyRec present_window_private_key;
+extern DevPrivateKeyRec present_client_private_key;
 
 static inline present_window_priv_ptr
 present_window_priv(WindowPtr window)
@@ -284,6 +307,9 @@ present_copy_region(DrawablePtr drawable,
 
 void
 present_pixmap_idle(present_vblank_ptr vblank);
+
+void
+present_pixmap_idle_for_pixmap(PixmapPtr pixmap, WindowPtr window, CARD32 serial, struct present_fence *present_fence);
 
 void
 present_set_tree_pixmap(WindowPtr window,
@@ -445,6 +471,11 @@ sproc_present_dispatch(ClientPtr client);
 /*
  * present_scmd.c
  */
+void
+present_abort_vblank(ScreenPtr screen, RRCrtcPtr crtc, uint64_t event_id, uint64_t msc);
+
+void
+present_flip_destroy(ScreenPtr screen);
 
 void
 present_restore_screen_pixmap(ScreenPtr screen);
@@ -473,6 +504,9 @@ present_screen_priv_init(ScreenPtr screen);
 /*
  * present_vblank.c
  */
+Bool
+present_vblank_suboptimal(present_vblank_ptr vblank);
+
 void
 present_vblank_notify(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc);
 

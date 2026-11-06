@@ -150,13 +150,40 @@ typedef Bool (*present_wnmd_flip_ptr) (WindowPtr window,
 typedef void (*present_unflip_ptr) (ScreenPtr screen,
                                     uint64_t event_id);
 
+#ifdef SPAGHETTI
+typedef Bool (*present_window_flip_ptr) (RRCrtcPtr crtc,
+                                         uint64_t event_id,
+                                         WindowPtr window,
+                                         PixmapPtr pixmap,
+                                         Bool sync_flip);
+
+typedef Bool (*present_flip_suboptimal_ptr) (WindowPtr window,
+                                             PixmapPtr pixmap);
+
+typedef void (*present_window_unflip_ptr) (ScreenPtr screen,
+                                           WindowPtr window,
+                                           uint64_t event_id);
+
+typedef int (*present_pixmap_rendering_fd_ptr) (WindowPtr window,
+                                                PixmapPtr pixmap);
+
+typedef Bool (*present_cancel_window_flip_ptr) (RRCrtcPtr crtc,
+                                                uint64_t event_id);
+
+#endif
+
 /* Doing flips has been discontinued.
  *
  * Inform driver for potential cleanup on its side.
  */
 typedef void (*present_wnmd_flips_stop_ptr) (WindowPtr window);
 
-#define PRESENT_SCREEN_INFO_VERSION        1
+#ifdef SPAGHETTI
+#define PRESENT_SCREEN_INFO_VERSION_WINDOW_FLIP 2
+#define PRESENT_SCREEN_INFO_VERSION PRESENT_SCREEN_INFO_VERSION_WINDOW_FLIP
+#else
+#define PRESENT_SCREEN_INFO_VERSION 1
+#endif
 
 typedef struct present_screen_info {
     uint32_t                            version;
@@ -175,6 +202,14 @@ typedef struct present_screen_info {
     /* Version 1 */
     present_check_flip2_ptr             check_flip2;
 
+#ifdef SPAGHETTI
+    /* Version 2 */
+    present_window_flip_ptr             window_flip;
+    present_window_unflip_ptr           window_unflip;
+    present_flip_suboptimal_ptr         flip_suboptimal;
+    present_pixmap_rendering_fd_ptr     pixmap_rendering_fd;
+    present_cancel_window_flip_ptr      cancel_window_flip;
+#endif
 } present_screen_info_rec, *present_screen_info_ptr;
 
 /*
@@ -190,6 +225,9 @@ present_screen_init(ScreenPtr screen, present_screen_info_ptr info);
 extern _X_EXPORT void
 present_check_flips(WindowPtr window);
 
+extern _X_EXPORT PixmapPtr
+present_window_flip_pixmap(WindowPtr window);
+
 typedef void (*present_complete_notify_proc)(WindowPtr window,
                                              CARD8 kind,
                                              CARD8 mode,
@@ -202,6 +240,12 @@ present_register_complete_notify(present_complete_notify_proc proc);
 
 extern _X_EXPORT Bool
 present_can_window_flip(WindowPtr window);
+
+extern _X_EXPORT Bool
+present_window_has_pending_frames(WindowPtr window);
+
+extern _X_EXPORT Bool
+present_window_vblank_timing(WindowPtr window, uint64_t *ust, uint64_t *interval);
 
 extern _X_EXPORT uint32_t FakeScreenFps;
 
