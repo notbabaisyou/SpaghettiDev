@@ -195,9 +195,6 @@ struct present_screen_priv {
     DestroyWindowProcPtr        DestroyWindow;
     ClipNotifyProcPtr           ClipNotify;
 
-    present_vblank_ptr          flip_pending;
-    present_vblank_ptr          flip_active;
-    uint64_t                    unflip_event_id;
     struct xorg_list            flip_slots;
 
     uint32_t                    fake_interval;
