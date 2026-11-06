@@ -3,6 +3,7 @@
 #include "dix-config.h"
 
 #include <assert.h>
+#include "os/ftrace.h"
 #include "driver.h"
 #include <present.h>
 
@@ -54,6 +55,7 @@ static unsigned paint_calls, direct_calls, commit_calls;
 static uint64_t notification_ids[TEST_MAX_NOTIFICATIONS];
 static uint64_t notified_msc, notified_ust;
 static Bool direct_scanout, paint_success = TRUE, commit_success = TRUE;
+static Bool queue_success = TRUE;
 static BoxRec painted;
 static xf86CrtcPtr queued_crtc;
 static ms_drm_abort_proc queued_abort;
@@ -112,7 +114,7 @@ ms_drm_queue_alloc(xf86CrtcPtr crtc, void *data,
 {
     queued_crtc = crtc;
     queued_abort = abort;
-    return TEST_SEQUENCE;
+    return queue_success ? TEST_SEQUENCE : 0;
 }
 
 void
@@ -222,10 +224,13 @@ main(void)
     ms_compositor_prepare_crtc(&crtcs[0]);
     assert(direct_calls == before_direct + 1 && paint_calls == before_paint);
     assert(!dc[0].compositor.prepared);
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    assert(direct_calls == before_direct + 1 && paint_calls == before_paint);
     direct_scanout = FALSE;
 
     /* A failed paint keeps damage and prevents a commit. */
     before_commit = commit_calls;
+    ms_compositor_damage_crtc(&crtcs[0]);
     paint_success = FALSE;
     ms_compositor_prepare_crtc(&crtcs[0]);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
@@ -259,6 +264,48 @@ main(void)
     ms_compositor_flip_handler(TEST_SECONDARY_MSC, TEST_SECONDARY_UST, &crtcs[1]);
     assert(notifications == before + 1 && notification_ids[before] == TEST_RETRY);
     assert(old.refcnt == 0 && removed_fbs == 1 && destroyed_pixmaps == 1);
+
+    /* A stale back buffer alone must not submit another copy of the frame. */
+    before_paint = paint_calls;
+    before_commit = commit_calls;
+    assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    assert(paint_calls == before_paint && commit_calls == before_commit);
+
+    /* Fresh damage repairs the accumulated stale region on the next frame. */
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    assert(paint_calls == before_paint + 1);
+    assert(!memcmp(&painted, &crtcs[0].bounds, sizeof(BoxRec)));
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
+
+    /* Queue allocation failure leaves the new frame available for retry. */
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    before_commit = commit_calls;
+    queue_success = FALSE;
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    assert(commit_calls == before_commit && !dc[0].compositor.flip_seq);
+    queue_success = TRUE;
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    assert(commit_calls == before_commit + 1);
+    ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
+
+    /* Damage arriving after preparation remains pending after submission. */
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
+    ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
+    before_paint = paint_calls;
+    ms_compositor_prepare_crtc(&crtcs[0]);
+    assert(paint_calls == before_paint + 1);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
 
     /* Aborting a direct commit preserves the current scanout. */
     old.refcnt = 1;

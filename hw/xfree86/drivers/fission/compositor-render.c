@@ -110,6 +110,8 @@ ms_compositor_add_damage(ScrnInfoPtr scrn, RegionPtr damage)
         RegionIntersect(&region, &region, damage);
         for (i = 0; i < ARRAY_SIZE(comp->pixmap); i++)
             RegionUnion(&comp->stale[i], &comp->stale[i], &region);
+        if (RegionNotEmpty(&region))
+            comp->repaint = TRUE;
         RegionUninit(&region);
     }
 }
@@ -594,7 +596,8 @@ ms_compositor_direct_flip(xf86CrtcPtr crtc)
     comp->pending_pixmap = pixmap;
     comp->pending_fb = fb;
     comp->direct_pending = TRUE;
-    RegionEmpty(&comp->stale[comp->back_idx]);
+    if (!comp->repaint)
+        RegionEmpty(&comp->stale[comp->back_idx]);
     comp->flip_seq = seq;
     ms_compositor_flip_submitted(crtc);
     return TRUE;
