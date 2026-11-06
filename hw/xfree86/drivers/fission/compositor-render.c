@@ -595,7 +595,6 @@ ms_compositor_direct_flip(xf86CrtcPtr crtc)
     pixmap->refcnt++;
     comp->pending_pixmap = pixmap;
     comp->pending_fb = fb;
-    comp->direct_pending = TRUE;
     if (!comp->repaint)
         RegionEmpty(&comp->stale[comp->back_idx]);
     comp->flip_seq = seq;

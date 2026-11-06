@@ -210,7 +210,7 @@ typedef struct {
     struct ms_compositor_event *events, *events_tail, *submitted_events;
     PixmapPtr scanout_pixmap, pending_pixmap;
     uint32_t scanout_fb, pending_fb;
-    Bool direct_pending;
+    Bool repaint; /* new damage awaiting preparation */
     Bool prepared;
     PixmapPtr untransformed;
     drmmode_bo bo[MS_COMPOSITOR_BUFFER_COUNT];
@@ -219,7 +219,6 @@ typedef struct {
     uint32_t   flip_seq;   /* DRM queue seq for in-flight compositor flip */
     PixmapPtr  pixmap[MS_COMPOSITOR_BUFFER_COUNT];  /* pixmap wrappers for blitting */
     RegionRec  stale[MS_COMPOSITOR_BUFFER_COUNT]; /* screen coordinates */
-    Bool repaint; /* new damage awaiting preparation */
 } drmmode_compositor_rec, *drmmode_compositor_ptr;
 
 typedef struct {

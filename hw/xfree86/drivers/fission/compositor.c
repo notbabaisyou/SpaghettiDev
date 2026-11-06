@@ -126,7 +126,7 @@ ms_compositor_flip_submitted(xf86CrtcPtr crtc)
     dc->compositor.events_tail = NULL;
 
     ftrace_print("fission-submit crtc %p seq %u direct %d",
-                 crtc, dc->compositor.flip_seq, dc->compositor.direct_pending);
+                 crtc, dc->compositor.flip_seq, dc->compositor.pending_pixmap != NULL);
 }
 
 static void
@@ -161,7 +161,7 @@ ms_compositor_flip_complete(xf86CrtcPtr crtc, uint64_t frame,
     drmmode_crtc_private_ptr dc = crtc->driver_private;
     drmmode_compositor_ptr comp = &dc->compositor;
     struct ms_compositor_event *events = comp->submitted_events;
-    Bool direct = comp->direct_pending;
+    Bool direct = comp->pending_pixmap != NULL;
 
     comp->submitted_events = NULL;
     if (abort) {
@@ -179,7 +179,6 @@ ms_compositor_flip_complete(xf86CrtcPtr crtc, uint64_t frame,
     }
     comp->pending_fb = 0;
     comp->pending_pixmap = NULL;
-    comp->direct_pending = FALSE;
     ms_compositor_notify(events, frame, usec);
     return !direct;
 }
@@ -290,7 +289,7 @@ ms_compositor_flip_handler(uint64_t frame, uint64_t usec, void *data)
                  crtc, drmmode_crtc->compositor.flip_seq, frame);
 
     /* Back buffer is now being scanned out; swap roles. */
-    if (!drmmode_crtc->compositor.direct_pending)
+    if (!drmmode_crtc->compositor.pending_pixmap)
         drmmode_crtc->compositor.back_idx ^= 1;
     drmmode_crtc->compositor.flip_seq = 0;
     ms_compositor_flip_complete(crtc, frame, usec, FALSE);

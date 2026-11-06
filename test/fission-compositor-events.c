@@ -313,7 +313,6 @@ main(void)
     dc[0].compositor.scanout_pixmap = &old;
     dc[0].compositor.pending_fb = TEST_PENDING_FB;
     dc[0].compositor.pending_pixmap = &next;
-    dc[0].compositor.direct_pending = TRUE;
     assert(!ms_compositor_flip_complete(&crtcs[0], 0, 0, TRUE));
     assert(dc[0].compositor.scanout_fb == TEST_ACTIVE_FB && old.refcnt == 1);
     assert(next.refcnt == 0 && removed_fbs == 2 && destroyed_pixmaps == 2);
@@ -322,7 +321,6 @@ main(void)
     old.refcnt++;
     dc[0].compositor.pending_fb = TEST_ACTIVE_FB;
     dc[0].compositor.pending_pixmap = &old;
-    dc[0].compositor.direct_pending = TRUE;
     assert(!ms_compositor_flip_complete(&crtcs[0], TEST_TARGET_MSC,
                                         TEST_TARGET_UST, FALSE));
     assert(old.refcnt == 1 && removed_fbs == 2);
