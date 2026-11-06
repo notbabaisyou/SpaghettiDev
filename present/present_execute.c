@@ -58,6 +58,51 @@ static void present_syncobj_triggered(int fd, int xevents, void *data)
 }
 #endif /* DRI3 */
 
+static uint64_t *
+present_client_last_shown_usec(PixmapPtr pixmap)
+{
+    ClientPtr client = clients[CLIENT_ID(pixmap->drawable.id)];
+
+    return client ? dixLookupPrivate(&client->devPrivates,
+                                     &present_client_private_key) : NULL;
+}
+
+/* Clients like the GPU process of a browser present to all of their windows
+ * from one thread, so holding back a hidden window would also stall the
+ * visible ones.
+ */
+static Bool
+present_wait_shown(present_vblank_ptr vblank, uint64_t crtc_msc)
+{
+    WindowPtr window = vblank->window;
+    ScreenPtr screen = window->drawable.pScreen;
+    present_screen_priv_ptr screen_priv = present_screen_priv(screen);
+    uint64_t hold = screen_priv->fake_interval;
+    uint64_t now = GetTimeInMicros(), *shown;
+
+    if (!vblank->pixmap || !hold)
+        return FALSE;
+
+    shown = present_client_last_shown_usec(vblank->pixmap);
+    if (!CompositeServerWindowHidden(window)) {
+        vblank->hidden_since = 0;
+        if (shown)
+            *shown = now;
+        return FALSE;
+    }
+
+    if (shown && *shown && now - *shown < hold)
+        return FALSE;
+
+    if (!vblank->hidden_since)
+        vblank->hidden_since = now;
+    if (now - vblank->hidden_since >= hold)
+        return FALSE;
+
+    return screen_priv->queue_vblank(screen, window, vblank->crtc,
+                                     vblank->event_id, crtc_msc + 1) == Success;
+}
+
 #ifdef SPAGHETTI
 static void
 present_rendering_done(int fd, int xevents, void *data)
@@ -143,7 +188,8 @@ present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
     }
 #endif /* DRI3 */
 
-    return present_wait_rendering(vblank);
+    return present_wait_shown(vblank, crtc_msc) ||
+        present_wait_rendering(vblank);
 }
 
 void
