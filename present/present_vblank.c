@@ -109,6 +109,7 @@ present_vblank_init(present_vblank_ptr vblank,
         vblank->kind = PresentCompleteKindNotifyMSC;
 
     vblank->serial = serial;
+    vblank->rendering_fd = -1;
 
     if (update) {
         vblank->update = RegionDuplicate(update);
@@ -281,6 +282,11 @@ present_vblank_destroy(present_vblank_ptr vblank)
 
     if (vblank->notifies)
         present_destroy_notifies(vblank->notifies, vblank->num_notifies);
+
+    if (vblank->rendering_fd >= 0) {
+        SetNotifyFd(vblank->rendering_fd, NULL, 0, NULL);
+        close(vblank->rendering_fd);
+    }
 
 #ifdef DRI3
     if (vblank->efd >= 0) {

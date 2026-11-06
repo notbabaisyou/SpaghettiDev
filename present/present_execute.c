@@ -58,6 +58,52 @@ static void present_syncobj_triggered(int fd, int xevents, void *data)
 }
 #endif /* DRI3 */
 
+#ifdef SPAGHETTI
+static void
+present_rendering_done(int fd, int xevents, void *data)
+{
+    present_vblank_ptr vblank = data;
+    present_screen_priv_ptr screen_priv = present_screen_priv(vblank->screen);
+
+    SetNotifyFd(fd, NULL, 0, NULL);
+    close(fd);
+    vblank->rendering_fd = -1;
+
+    screen_priv->re_execute(vblank);
+}
+
+#endif
+
+static Bool
+present_wait_rendering(present_vblank_ptr vblank)
+{
+#ifdef SPAGHETTI
+    ScreenPtr screen = vblank->window->drawable.pScreen;
+    present_screen_info_ptr info = present_screen_priv(screen)->info;
+
+    if (vblank->rendering_fd >= 0)
+        return TRUE;
+    if (!vblank->pixmap || !info || info->version < PRESENT_SCREEN_INFO_VERSION_WINDOW_FLIP ||
+        !info->pixmap_rendering_fd)
+        return FALSE;
+#ifdef DRI3
+    if (vblank->acquire_syncobj)
+        return FALSE;
+#endif /* DRI3 */
+
+    vblank->rendering_fd = info->pixmap_rendering_fd(vblank->window,
+                                                     vblank->pixmap);
+    if (vblank->rendering_fd < 0)
+        return FALSE;
+
+    SetNotifyFd(vblank->rendering_fd, present_rendering_done, X_NOTIFY_READ,
+                vblank);
+    return TRUE;
+#else
+    return FALSE;
+#endif
+}
+
 Bool
 present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
 {
@@ -97,7 +143,7 @@ present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
     }
 #endif /* DRI3 */
 
-    return FALSE;
+    return present_wait_rendering(vblank);
 }
 
 void
