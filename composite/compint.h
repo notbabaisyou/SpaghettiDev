@@ -70,6 +70,8 @@
 #include "damage.h"
 #include "damageextint.h"
 #include "xfixes.h"
+#include "list.h"
+#include "misyncstr.h"
 #include <X11/extensions/compositeproto.h>
 #include "compositeext.h"
 #include <assert.h>
@@ -124,6 +126,151 @@ typedef struct _CompImplicitRedirectException {
     XID winVisual;
 } CompImplicitRedirectException;
 
+typedef struct _CompServerSource {
+    WindowPtr pWin;
+    PixmapPtr pPixmap;
+    int x, y;
+} CompServerSourceRec, *CompServerSourcePtr;
+
+typedef struct _CompServerLayer {
+    CompServerSourceRec src;
+    RegionRec region;
+    RegionRec exposed;
+    CARD16 opacity;
+} CompServerLayerRec, *CompServerLayerPtr;
+
+typedef struct _CompServerSublayer {
+    WindowPtr pWin;
+    WindowPtr pToplevel;
+    int level;
+} CompServerSublayerRec, *CompServerSublayerPtr;
+
+typedef struct _CompServerLayers {
+    CompServerLayerPtr layers;
+    int count;
+    int numSublayers;
+    CompServerSublayerPtr sublayers;
+    RegionRec covered;
+    RegionRec above;
+} CompServerLayersRec, *CompServerLayersPtr;
+
+typedef struct _CompServerHeldLayer {
+    CompServerSourceRec src;
+    RegionRec region;
+} CompServerHeldLayerRec, *CompServerHeldLayerPtr;
+
+typedef struct _CompServerHeldFrame {
+    CompServerHeldLayerPtr layers;
+    int count;
+    RegionRec region;
+} CompServerHeldFrameRec;
+
+typedef enum {
+    COMP_SERVER_DEFERRED_CONFIGURE,
+    COMP_SERVER_DEFERRED_EVENT,
+} CompServerDeferredKind;
+
+typedef struct _CompServerDeferredConfigure {
+    Mask mask;
+    INT16 x, y;
+    CARD16 width, height, borderWidth;
+} CompServerDeferredConfigureRec;
+
+typedef struct _CompServerDeferredEvent {
+    Mask eventMask;
+    xEvent event;
+} CompServerDeferredEventRec;
+
+typedef struct _CompServerDeferredOp {
+    struct xorg_list entry;
+    CompServerDeferredKind kind;
+    XID window;
+    union {
+        CompServerDeferredConfigureRec configure;
+        CompServerDeferredEventRec event;
+    } u;
+} CompServerDeferredOpRec, *CompServerDeferredOpPtr;
+
+typedef struct _CompServerDeferredWm {
+    ClientPtr client;
+    struct xorg_list ops;
+} CompServerDeferredWmRec, *CompServerDeferredWmPtr;
+
+typedef struct _CompServerSyncRequest {
+    SyncTrigger trigger;
+    int64_t value;
+    Bool sent;
+    Bool waiting;
+} CompServerSyncRequestRec;
+
+typedef struct _CompServerFrameWait {
+    Bool active;
+    Bool clientResized;
+    OsTimerPtr timer;
+    CompServerSyncRequestRec sync;
+    CompServerDeferredWmRec deferred;
+} CompServerFrameWaitRec;
+
+typedef struct _CompServerWindow {
+    struct xorg_list entry;
+    WindowPtr pWin;
+    WindowPtr pAbove;
+    RegionRec painted;
+    Bool seen;
+    Bool hidden;
+    uint64_t damageSerial;
+    CARD32 presentCount;
+    CompServerHeldFrameRec held;
+    CompServerFrameWaitRec wait;
+} CompServerWindowRec, *CompServerWindowPtr;
+
+typedef struct _CompServerDeferredUpdate {
+    Bool active;
+    Bool stale;
+    int x, y;
+} CompServerDeferredUpdateRec;
+
+typedef struct _CompServerDirectWindow {
+    struct xorg_list entry;
+    WindowPtr pWin;
+    CompServerDeferredUpdateRec deferred;
+} CompServerDirectWindowRec, *CompServerDirectWindowPtr;
+
+typedef struct _CompServerFrameAck {
+    int64_t value;
+    uint64_t presented;
+    uint32_t interval;
+    Bool scheduled;
+    OsTimerPtr timer;
+} CompServerFrameAckRec;
+
+typedef struct _CompServerFrameClient {
+    struct xorg_list entry;
+    WindowPtr pWin;
+    SyncTrigger trigger;
+    CompServerFrameAckRec ack;
+} CompServerFrameClientRec, *CompServerFrameClientPtr;
+
+typedef struct _CompServerFrameTiming {
+    struct xorg_list clients;
+    Bool active;
+    Bool advertiseQueued;
+    Bool appending;
+} CompServerFrameTimingRec;
+
+typedef struct _CompServer {
+    RegionRec damage;
+    uint64_t damageSerial;
+    uint64_t layoutSerial;
+    struct xorg_list windows;
+    struct xorg_list directWindows;
+    Atom opacityAtom;
+    Bool cmSelectionClaimed;
+    GetImageProcPtr GetImage;
+    ClearToBackgroundProcPtr ClearToBackground;
+    CompServerFrameTimingRec frameTiming;
+} CompServerRec, *CompServerPtr;
+
 typedef struct _CompScreen {
     PositionWindowProcPtr PositionWindow;
     CopyWindowProcPtr CopyWindow;
@@ -169,6 +316,8 @@ typedef struct _CompScreen {
     CompOverlayClientPtr pOverlayClients;
 
     SourceValidateProcPtr SourceValidate;
+
+    CompServerPtr server;
 } CompScreenRec, *CompScreenPtr;
 
 extern DevPrivateKeyRec CompScreenPrivateKeyRec;
@@ -183,12 +332,18 @@ extern DevPrivateKeyRec CompSubwindowsPrivateKeyRec;
 
 #define CompSubwindowsPrivateKey (&CompSubwindowsPrivateKeyRec)
 
+extern DevPrivateKeyRec CompServerWindowPrivateKeyRec;
+
+#define CompServerWindowPrivateKey (&CompServerWindowPrivateKeyRec)
+
 #define GetCompScreen(s) ((CompScreenPtr) \
     dixLookupPrivate(&(s)->devPrivates, CompScreenPrivateKey))
 #define GetCompWindow(w) ((CompWindowPtr) \
     dixLookupPrivate(&(w)->devPrivates, CompWindowPrivateKey))
 #define GetCompSubwindows(w) ((CompSubwindowsPtr) \
     dixLookupPrivate(&(w)->devPrivates, CompSubwindowsPrivateKey))
+#define GetCompServerWindow(w) ((CompServerWindowPtr) \
+    dixLookupPrivate(&(w)->devPrivates, CompServerWindowPrivateKey))
 
 extern RESTYPE CompositeClientSubwindowsType;
 extern RESTYPE CompositeClientOverlayType;
@@ -264,6 +419,178 @@ void
  compDestroyOverlayWindow(ScreenPtr pScreen);
 
 /*
+ * compserver.c
+ */
+
+CompServerPtr
+ compServerGet(ScreenPtr pScreen);
+
+Atom
+ compServerAtom(const char *name);
+
+Bool
+ compServerPropertyHasAtom(WindowPtr pWin, Atom property, Atom atom);
+
+Bool
+ compServerWindowHasAlpha(WindowPtr pWin);
+
+void
+ compServerCloseScreen(ScreenPtr pScreen);
+
+void
+ compServerAddDamage(CompServerPtr server, RegionPtr pRegion);
+
+void
+ compServerCollectDamage(WindowPtr pWin);
+
+void
+ compServerDestroyWindow(WindowPtr pWin);
+
+void
+ compServerUnredirectManual(WindowPtr pWin);
+
+void
+ compServerInitPixmap(WindowPtr pWin, PixmapPtr pPixmap);
+
+WindowPtr
+ compServerToplevel(WindowPtr pWin);
+
+Bool
+ compServerBuildWindowLayers(CompServerPtr server, WindowPtr pWin,
+                             CompServerLayersPtr pLayers);
+
+void
+ compServerFreeLayers(CompServerLayersPtr pLayers);
+
+/*
+ * comphold.c
+ */
+
+void
+ compServerHoldFrame(CompServerWindowPtr sw);
+
+void
+ compServerMoveHeldFrame(CompServerWindowPtr sw, int dx, int dy);
+
+void
+ compServerUpdateHeldFrame(CompServerWindowPtr sw, PixmapPtr pFrame);
+
+void
+ compServerReleaseHeldFrame(CompServerWindowPtr sw);
+
+void
+ compServerFreeHeldFrame(CompServerWindowPtr sw);
+
+Bool
+ compServerWindowHeld(WindowPtr pWin);
+
+Bool
+ compServerHeldFrameOverlaps(WindowPtr pWin, BoxPtr pBox);
+
+void
+ compServerDisplayedRegion(WindowPtr pWin, RegionPtr pRegion);
+
+
+void
+ compServerReleaseHeldWindow(CompServerPtr server, WindowPtr pWin);
+
+/*
+ * compsync.c
+ */
+
+Bool
+ compServerInitFrameSync(void);
+
+void
+ compServerCloseFrameSync(void);
+
+void
+ compServerReconfigureFrame(WindowPtr pWin, PixmapPtr pOld, int x, int y,
+                            int w, int h);
+
+void
+ compServerReconfigureClient(WindowPtr pWin, PixmapPtr pOld, int w, int h);
+
+void
+ compServerInitFrameWait(CompServerWindowPtr sw);
+
+void
+ compServerFreeFrameWait(CompServerWindowPtr sw);
+
+void
+ compServerDeliverWmEvent(ClientPtr client, WindowPtr pWin, Mask eventMask,
+                          xEvent *event);
+
+/*
+ * compdefer.c
+ */
+
+void
+ compServerInitDeferred(CompServerDeferredWmPtr deferred);
+
+Bool
+ compServerHasDeferred(CompServerDeferredWmPtr deferred);
+
+Bool
+ compServerDeferConfigure(CompServerDeferredWmPtr deferred, ClientPtr client,
+                          WindowPtr pWin, Mask mask, const CARD32 *values);
+
+Bool
+ compServerDeferEvent(CompServerDeferredWmPtr deferred, ClientPtr client,
+                      WindowPtr pWin, Mask eventMask, const xEvent *event);
+
+Bool
+ compServerDeferredResizes(CompServerDeferredWmPtr deferred, WindowPtr pWin);
+
+void
+ compServerReplayDeferred(CompServerDeferredWmPtr deferred);
+
+void
+ compServerFreeDeferred(CompServerDeferredWmPtr deferred);
+
+/*
+ * compframe.c
+ */
+
+void
+ compServerInitFrameTiming(CompServerPtr server);
+
+void
+ compServerCloseFrameTiming(CompServerPtr server);
+
+void
+ compServerFramePropertyChanged(CompServerPtr server, PropertyStateRec *rec);
+
+/*
+ * compdirect.c
+ */
+
+int
+ compServerTreeLevel(WindowPtr pWin);
+
+Bool
+ compServerDeferUpdate(WindowPtr pWin);
+
+void
+ compServerFlushInferiors(WindowPtr pWin);
+
+void
+ compServerUndeferTree(WindowPtr pWin);
+
+void
+ compServerUpdateDeferred(CompServerPtr server);
+
+void
+ compServerForgetDeferred(WindowPtr pWin);
+
+
+void
+ compServerDestroyDirectWindow(CompServerPtr server, WindowPtr pWin);
+
+void
+ compServerFreeDirectWindows(CompServerPtr server);
+
+/*
  * compwindow.c
  */
 
@@ -323,6 +650,9 @@ void
 
 void
  compPaintChildrenToWindow(WindowPtr pWin);
+
+void
+ compWindowUpdateParent(WindowPtr pWin, RegionPtr pRegion);
 
 WindowPtr
  CompositeRealChildHead(WindowPtr pWin);
