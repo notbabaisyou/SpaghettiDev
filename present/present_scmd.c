@@ -266,7 +266,8 @@ present_check_window_flip(present_screen_priv_ptr screen_priv,
     PresentFlipReason tmp_reason = PRESENT_FLIP_REASON_UNKNOWN;
 
     if (reason)
-        *reason = PRESENT_FLIP_REASON_DRIVER_TEARFREE;
+        *reason = sync_flip ? PRESENT_FLIP_REASON_DRIVER_TEARFREE :
+                             PRESENT_FLIP_REASON_UNKNOWN;
 
     if (!present_can_flip_pixmap_window(screen_priv, window))
         return FALSE;

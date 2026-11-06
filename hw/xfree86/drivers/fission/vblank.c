@@ -155,6 +155,9 @@ rr_crtc_covering_box(ScreenPtr pScreen, BoxPtr box, Bool screen_is_xf86_hint)
         rr_crtc_box(crtc, &crtc_box);
         box_intersect(&cover_box, &crtc_box, box);
         coverage = box_area(&cover_box);
+        if (!coverage)
+            continue;
+
         if ((coverage > best_coverage) ||
             (coverage == best_coverage && crtc == primary_crtc)) {
             best_crtc = crtc;

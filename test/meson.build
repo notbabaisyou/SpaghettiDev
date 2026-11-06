@@ -44,6 +44,17 @@ if build_xorg and build_fission
             dependencies: [common_dep, libdrm_dep, gbm_dep],
         )
         test('fission Present resize', fission_present_test)
+
+        fission_vblank_test = executable(
+            'fission-vblank',
+            'fission-vblank.c',
+            include_directories: [inc, xorg_inc,
+                                  include_directories('../hw/xfree86/drivers/fission')],
+            c_args: xorg_c_args + ['-ffunction-sections', '-fdata-sections'],
+            link_args: ['-Wl,--gc-sections'],
+            dependencies: [common_dep, libdrm_dep, gbm_dep],
+        )
+        test('fission PRIME CRTC selection', fission_vblank_test)
     endif
 endif
 
