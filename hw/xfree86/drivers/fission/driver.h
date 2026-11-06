@@ -72,7 +72,8 @@ typedef enum {
     OPTION_DOUBLE_SHADOW,
     OPTION_VARIABLE_REFRESH,
     OPTION_USE_GAMMA_LUT,
-    OPTION_TEARFREE
+    OPTION_TEARFREE,
+    OPTION_COMPOSITING
 } modesettingOpts;
 
 typedef struct
@@ -130,12 +131,17 @@ typedef struct _modesettingRec {
     Bool dirty_enabled;
     /** @} */
 
-    /* Screen damage tracking for kernel dirty updates and TearFree */
+    /* Screen damage tracking for kernel dirty updates */
     DamagePtr damage;
 
     /* VRR support */
     WindowPtr flip_window;
     Bool vrr_support;
+
+    struct {
+        xf86EnableDisableFBAccessProc *EnableDisableFBAccess;
+        struct xorg_list sw_cursors;
+    } compositor;
 
     Bool is_connector_vrr_capable;
     uint32_t connector_prop_id;
@@ -173,6 +179,7 @@ typedef struct _modesettingRec {
         Bool (*supports_pixmap_import_export)(ScreenPtr);
         XF86VideoAdaptorPtr (*xv_init)(ScreenPtr, int);
         const char *(*egl_get_driver_name)(ScreenPtr);
+        int (*egl_pixmap_rendering_fd)(PixmapPtr);
     } glamor;
 #endif
 #ifdef FISSION_SOFT2D
@@ -263,6 +270,29 @@ Bool ms_window_has_async_flip(WindowPtr win);
 void ms_window_update_async_flip(WindowPtr win, Bool async_flip);
 Bool ms_window_has_async_flip_modifiers(WindowPtr win);
 void ms_window_update_async_flip_modifiers(WindowPtr win, Bool async_flip);
+
+void ms_compositor_flip_handler(uint64_t frame, uint64_t usec, void *data);
+void ms_compositor_flip_abort(void *data);
+void ms_compositor_screen_init(ScrnInfoPtr scrn);
+Bool ms_compositor_create_screen_resources(ScreenPtr screen);
+void ms_compositor_update_damages(ScreenPtr screen);
+Bool ms_compositor_paint(xf86CrtcPtr crtc, PixmapPtr dst, RegionPtr region);
+Bool ms_compositor_sync_dirty(PixmapDirtyUpdatePtr dirty);
+void ms_compositor_set_cursor(ScrnInfoPtr scrn, ms_sw_cursor_ptr sw_cursor,
+                              CursorPtr cursor, int x, int y);
+void ms_compositor_move_cursor(ScrnInfoPtr scrn, ms_sw_cursor_ptr sw_cursor,
+                               CursorPtr cursor, int x, int y);
+
+Bool ms_compositor_direct_flip(xf86CrtcPtr crtc);
+Bool ms_compositor_flip_complete(xf86CrtcPtr crtc, uint64_t frame,
+                                  uint64_t usec, Bool abort);
+void ms_compositor_flip_submitted(xf86CrtcPtr crtc);
+void ms_compositor_free_crtc(xf86CrtcPtr crtc);
+Bool ms_compositor_queue_present(xf86CrtcPtr crtc, WindowPtr window,
+                                  uint64_t event_id);
+void ms_compositor_damage_crtc(xf86CrtcPtr crtc);
+void ms_compositor_prepare_crtc(xf86CrtcPtr crtc);
+void ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc);
 
 void ms_tearfree_flip_handler(uint64_t frame, uint64_t usec, void *data);
 void ms_tearfree_flip_abort(void *data);

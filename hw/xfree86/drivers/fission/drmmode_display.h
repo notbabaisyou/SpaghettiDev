@@ -118,6 +118,7 @@ typedef struct {
 
     Bool sw_cursor;
     Bool tearfree;
+    Bool compositing;
 
     /* Broken-out options. */
     OptionInfoPtr Options;
@@ -202,14 +203,27 @@ typedef struct {
     struct dumb_bo *bo;
 } drmmode_cursor_rec, *drmmode_cursor_ptr;
 
+enum { MS_COMPOSITOR_BUFFER_COUNT = 2 };
+
+struct ms_compositor_event;
+
 typedef struct {
-    drmmode_bo bo[2];
-    uint32_t   fb_id[2];
+    struct ms_compositor_event *events, *events_tail, *submitted_events;
+    PixmapPtr scanout_pixmap, pending_pixmap;
+    uint32_t scanout_fb, pending_fb;
+    Bool direct_pending;
+    Bool prepared;
+    PixmapPtr untransformed;
+    drmmode_bo bo[MS_COMPOSITOR_BUFFER_COUNT];
+    uint32_t   fb_id[MS_COMPOSITOR_BUFFER_COUNT];
     int        back_idx;   /* index of the buffer being written to */
-    uint32_t   flip_seq;   /* DRM queue seq for in-flight TearFree flip */
-    PixmapPtr  pixmap[2];  /* pixmap wrappers for blitting */
-    RegionRec  stale[2];
-} drmmode_tearfree_rec, *drmmode_tearfree_ptr;
+    uint32_t   flip_seq;   /* DRM queue seq for in-flight compositor flip */
+    PixmapPtr  pixmap[MS_COMPOSITOR_BUFFER_COUNT];  /* pixmap wrappers for blitting */
+    RegionRec  stale[MS_COMPOSITOR_BUFFER_COUNT]; /* screen coordinates */
+} drmmode_compositor_rec, *drmmode_compositor_ptr;
+
+typedef drmmode_compositor_rec drmmode_tearfree_rec;
+typedef drmmode_compositor_ptr drmmode_tearfree_ptr;
 
 typedef struct {
     drmmode_ptr drmmode;
@@ -231,6 +245,7 @@ typedef struct {
     drmmode_bo rotate_bo;
 
     drmmode_tearfree_rec tearfree;
+    drmmode_compositor_rec compositor;
 
     PixmapPtr prime_pixmap;
     PixmapPtr prime_pixmap_back;
@@ -312,9 +327,17 @@ typedef struct _msPixmapPriv {
 
 #define msGetPixmapPriv(drmmode, p) ((msPixmapPrivPtr)dixGetPrivateAddr(&(p)->devPrivates, &(drmmode)->pixmapPrivateKeyRec))
 
+typedef struct {
+    struct xorg_list entry;
+    Bool listed;
+    PicturePtr picture;
+    BoxRec box;
+} ms_sw_cursor_rec, *ms_sw_cursor_ptr;
+
 typedef struct _msSpritePriv {
     CursorPtr cursor;
     Bool sprite_visible;
+    ms_sw_cursor_rec sw_cursor;
 } msSpritePrivRec, *msSpritePrivPtr;
 
 extern miPointerSpriteFuncRec drmmode_sprite_funcs;
@@ -370,7 +393,9 @@ Bool drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y);
 void drmmode_set_dpms(ScrnInfoPtr scrn, int PowerManagementMode, int flags);
 void drmmode_crtc_set_vrr(xf86CrtcPtr crtc, Bool enabled);
 
-Bool drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc);
-void drmmode_tearfree_free_crtc(xf86CrtcPtr crtc);
+Bool drmmode_compositor_alloc_crtc(xf86CrtcPtr crtc);
+void drmmode_compositor_free_crtc(xf86CrtcPtr crtc);
 
 #endif
+Bool drmmode_tearfree_alloc_crtc(xf86CrtcPtr crtc);
+void drmmode_tearfree_free_crtc(xf86CrtcPtr crtc);
