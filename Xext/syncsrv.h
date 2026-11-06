@@ -148,6 +148,9 @@ SyncDeleteTriggerFromSyncObject(SyncTrigger * pTrigger);
 int
 SyncAddTriggerToSyncObject(SyncTrigger * pTrigger);
 
+int
+SyncLookupCounter(SyncCounter **ppCounter, XID id, ClientPtr client);
+
 #if defined(__GNUC__) || defined(__clang__)
 #  define INT64_MUL_OVERFLOW(a, b, res) __builtin_mul_overflow((a), (b), (res))
 #else
