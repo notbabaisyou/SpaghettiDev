@@ -59,6 +59,9 @@ extern _X_EXPORT Bool CompositeIsServerRedirected(WindowPtr pWin);
 extern _X_EXPORT void CompositeServerFlush(ScreenPtr pScreen,
                                            RegionPtr pDamage);
 
+extern _X_EXPORT PixmapPtr CompositeServerComposeImage(ScreenPtr pScreen,
+                                                       int x, int y, int w, int h);
+
 extern _X_EXPORT void CompositeServerPaint(ScreenPtr pScreen, PicturePtr pDst,
                                            int x, int y, RegionPtr pRegion,
                                            void *closure);

@@ -16,6 +16,7 @@ if build_xorg and build_mitshm and cc.has_multi_arguments('-ffunction-sections',
     )
     test('compositor root GetImage', compositor_readback_test)
     test('compositor root SHM GetImage', compositor_readback_test, args: ['shm'])
+    test('compositor root CopyArea', compositor_readback_test, args: ['copy'])
 endif
 
 if build_xorg and build_fission

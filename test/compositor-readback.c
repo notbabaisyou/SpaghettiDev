@@ -15,6 +15,8 @@ enum {
     TEST_BYTES_PER_PIXEL = TEST_BITS_PER_PIXEL / 8,
     TEST_DRAWABLE = 1,
     TEST_SHMSEG,
+    TEST_GC,
+    TEST_DESTINATION,
     TEST_PIXEL = 0x5a,
     TEST_IMAGE_BYTES = TEST_WIDTH * TEST_HEIGHT * TEST_BYTES_PER_PIXEL,
 };
@@ -27,6 +29,11 @@ static ShmDescRec segment;
 static void *volatile segment_resource;
 static DrawablePtr source;
 static PixmapRec backing;
+static PixmapRec destination, snapshot;
+static GC test_gc;
+static unsigned char snapshot_pixels[TEST_IMAGE_BYTES], copied_pixels[TEST_IMAGE_BYTES];
+static unsigned composed, destroyed;
+static Bool compose_success = TRUE;
 static RegionPtr expected_visible;
 static unsigned captures, lookups;
 #ifdef XACE
@@ -44,9 +51,68 @@ int
 dixLookupDrawable(DrawablePtr *result, XID id, ClientPtr client,
                    Mask type_mask, Mask access_mode)
 {
-    assert(id == TEST_DRAWABLE);
-    *result = source;
+    assert(id == TEST_DRAWABLE || id == TEST_DESTINATION);
+    *result = id == TEST_DESTINATION ? &destination.drawable : source;
     return Success;
+}
+
+int
+dixLookupGC(GCPtr *result, XID id, ClientPtr client, Mask access_mode)
+{
+    assert(id == TEST_GC);
+    *result = &test_gc;
+    return Success;
+}
+
+void
+ValidateGC(DrawablePtr drawable, GCPtr gc)
+{
+    gc->serialNumber = drawable->serialNumber;
+}
+
+void
+WriteEventsToClient(ClientPtr client, int count, xEventPtr events)
+{
+    assert(!count);
+}
+
+int
+TryClientEvents(ClientPtr client, DeviceIntPtr device, xEventPtr events,
+                 int count, Mask mask, Mask filter, GrabPtr grab)
+{
+    assert(!count);
+    return 0;
+}
+
+PixmapPtr
+CompositeServerComposeImage(ScreenPtr screen, int x, int y, int width, int height)
+{
+    assert(!x && !y && width == TEST_WIDTH && height == TEST_HEIGHT);
+    composed++;
+    if (!compose_success)
+        return NULL;
+    snapshot.drawable = *source;
+    snapshot.drawable.type = DRAWABLE_PIXMAP;
+    snapshot.devPrivate.ptr = snapshot_pixels;
+    memset(snapshot_pixels, TEST_PIXEL, sizeof(snapshot_pixels));
+    return &snapshot;
+}
+
+static Bool
+readback_destroy(PixmapPtr pixmap)
+{
+    assert(pixmap == &snapshot);
+    destroyed++;
+    return TRUE;
+}
+
+void
+RegionDestroy(RegionPtr region)
+{
+    if (region) {
+        RegionUninit(region);
+        free(region);
+    }
 }
 
 int
@@ -117,6 +183,69 @@ readback_image(DrawablePtr drawable, int x, int y, int width, int height,
     captures++;
 }
 
+static RegionPtr
+readback_copy(DrawablePtr src, DrawablePtr dst, GCPtr gc, int sx, int sy,
+               int width, int height, int dx, int dy)
+{
+    PixmapPtr pixmap = src->type == DRAWABLE_PIXMAP ? (PixmapPtr) src : &backing;
+    unsigned char *pixels = pixmap->devPrivate.ptr;
+    int row;
+
+    assert(dst == &destination.drawable);
+    if (sx < 0 || sy < 0 || sx + width > pixmap->drawable.width ||
+        sy + height > pixmap->drawable.height)
+        return NULL;
+    for (row = 0; row < height; row++)
+        memcpy(copied_pixels + ((dy + row) * TEST_WIDTH + dx) * TEST_BYTES_PER_PIXEL,
+               pixels + ((sy + row) * TEST_WIDTH + sx) * TEST_BYTES_PER_PIXEL,
+               width * TEST_BYTES_PER_PIXEL);
+    return NULL;
+}
+
+static void
+capture_copy(ClientPtr client)
+{
+    xCopyAreaReq request = {
+        .srcDrawable = TEST_DRAWABLE, .dstDrawable = TEST_DESTINATION,
+        .gc = TEST_GC, .width = TEST_WIDTH, .height = TEST_HEIGHT,
+    };
+    const GCOps ops = { .CopyArea = readback_copy };
+    int i;
+
+    destination.drawable = *source;
+    destination.drawable.type = DRAWABLE_PIXMAP;
+    test_gc = (GC) { .pScreen = source->pScreen, .depth = source->depth,
+                    .subWindowMode = IncludeInferiors, .ops = &ops };
+    client->requestBuffer = &request;
+    client->req_len = sizeof(request) / 4;
+    assert(ProcCopyArea(client) == Success);
+    for (i = 0; i < sizeof(copied_pixels); i++)
+        assert(copied_pixels[i] == TEST_PIXEL);
+    assert(composed == 1 && destroyed == 1);
+
+    /* Region captures retain source offsets within the composed root. */
+    memset(copied_pixels, 0, sizeof(copied_pixels));
+    request.srcX = request.srcY = 1;
+    request.width = TEST_WIDTH / 2;
+    request.height = TEST_HEIGHT / 2;
+    assert(ProcCopyArea(client) == Success);
+    assert(copied_pixels[0] == TEST_PIXEL);
+    assert(composed == 2 && destroyed == 2);
+
+    compose_success = FALSE;
+    assert(ProcCopyArea(client) == BadAlloc);
+    assert(composed == 3 && destroyed == 2);
+    compose_success = TRUE;
+
+    /* ClipByChildren and zero-area copies retain their existing path. */
+    test_gc.subWindowMode = ClipByChildren;
+    assert(ProcCopyArea(client) == Success);
+    test_gc.subWindowMode = IncludeInferiors;
+    request.width = 0;
+    assert(ProcCopyArea(client) == Success);
+    assert(composed == 3 && destroyed == 2);
+}
+
 static void
 capture(ClientPtr client, Bool shared, int format, int x, int y, int width,
          int height)
@@ -159,7 +288,8 @@ main(int argc, char **argv)
 {
     ScreenRec screen = { .width = TEST_WIDTH, .height = TEST_HEIGHT,
                          .GetWindowPixmap = readback_pixmap,
-                         .SourceValidate = readback_validate, .GetImage = readback_image };
+                         .SourceValidate = readback_validate, .GetImage = readback_image,
+                         .DestroyPixmap = readback_destroy };
     WindowOptRec optional = { 0 };
     WindowRec root = {
         .drawable = { .type = DRAWABLE_WINDOW, .depth = TEST_DEPTH,
@@ -191,6 +321,13 @@ main(int argc, char **argv)
     RegionNull(&root.borderClip);
     expected_visible = &root.winSize;
     compositor = TRUE;
+
+    if (argc > 1 && !strcmp(argv[1], "copy")) {
+        capture_copy(&client);
+        RegionUninit(&root.winSize);
+        RegionUninit(&root.borderClip);
+        return 0;
+    }
 
     /* Composited root images use logical bounds and the composed visibility. */
     for (format = XYPixmap; format <= ZPixmap; format++) {

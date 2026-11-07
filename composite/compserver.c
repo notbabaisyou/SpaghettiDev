@@ -989,8 +989,8 @@ CompositeServerCanScanoutWindow(WindowPtr pWin, BoxPtr pBox, RegionPtr pCover)
                                 compServerToplevel(pWin), pCover) == pWin;
 }
 
-static PixmapPtr
-compServerComposeImage(ScreenPtr pScreen, int x, int y, int w, int h)
+PixmapPtr
+CompositeServerComposeImage(ScreenPtr pScreen, int x, int y, int w, int h)
 {
     WindowPtr pRoot = pScreen->root;
     BoxRec box = { .x1 = x, .y1 = y, .x2 = x + w, .y2 = y + h };
@@ -1029,8 +1029,8 @@ compServerGetImage(DrawablePtr pDrawable, int sx, int sy, int w, int h,
 
     if (pDrawable->type == DRAWABLE_WINDOW &&
         !((WindowPtr) pDrawable)->parent)
-        pPixmap = compServerComposeImage(pScreen, pDrawable->x + sx,
-                                         pDrawable->y + sy, w, h);
+        pPixmap = CompositeServerComposeImage(pScreen, pDrawable->x + sx,
+                                              pDrawable->y + sy, w, h);
 
     pScreen->GetImage = server->GetImage;
     if (pPixmap)
