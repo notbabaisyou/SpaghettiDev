@@ -1780,6 +1780,9 @@ ProcCopyArea(ClientPtr client)
 
     REQUEST(xCopyAreaReq);
     RegionPtr pRgn;
+#ifdef COMPOSITE
+    PixmapPtr snapshot = NULL;
+#endif
     int rc;
     Bool result;
 
@@ -1799,9 +1802,29 @@ ProcCopyArea(ClientPtr client)
     else
         pSrc = pDst;
 
+#ifdef COMPOSITE
+    if (pSrc->type == DRAWABLE_WINDOW &&
+        pGC->subWindowMode == IncludeInferiors &&
+        stuff->width && stuff->height &&
+        CompositeIsServerRoot((WindowPtr) pSrc)) {
+        pSrc->pScreen->SourceValidate(pSrc, stuff->srcX, stuff->srcY,
+                                      stuff->width, stuff->height, IncludeInferiors);
+        snapshot = CompositeServerComposeImage(pSrc->pScreen, 0, 0,
+                                               pSrc->width, pSrc->height);
+        if (!snapshot)
+            return BadAlloc;
+        pSrc = &snapshot->drawable;
+    }
+#endif
+
     pRgn = (*pGC->ops->CopyArea) (pSrc, pDst, pGC, stuff->srcX, stuff->srcY,
                                   stuff->width, stuff->height,
                                   stuff->dstX, stuff->dstY);
+#ifdef COMPOSITE
+    if (snapshot)
+        dixDestroyPixmap(snapshot, 0);
+#endif
+
     if (pGC->graphicsExposures) {
         result = SendGraphicsExpose(client, pRgn,
                                     stuff->dstDrawable, X_CopyArea, 0);
