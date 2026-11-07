@@ -1,3 +1,16 @@
+if cc.has_multi_arguments('-ffunction-sections', '-fdata-sections') and cc.has_link_argument('-Wl,--gc-sections')
+    fb_composite_repeat_test = executable(
+        'fb-composite-repeat',
+        ['fb-composite-repeat.c', '../fb/fbtile.c', '../fb/fbblt.c',
+         '../fb/fbgc.c', '../fb/fbutil.c', '../render/mipict.c'],
+        include_directories: inc,
+        c_args: ['-ffunction-sections', '-fdata-sections'],
+        link_args: ['-Wl,--gc-sections'],
+        dependencies: common_dep,
+    )
+    test('fb repeated A1 composite', fb_composite_repeat_test)
+endif
+
 simple_xinit = executable(
     'simple-xinit',
     'simple-xinit.c',
