@@ -27,6 +27,7 @@
 #include <dix-config.h>
 #endif
 
+#include <stdint.h>
 #include <string.h>
 
 #include "fb.h"
@@ -34,6 +35,104 @@
 #include "picturestr.h"
 #include "mipict.h"
 #include "fbpict.h"
+
+static Bool
+fbCompositeRepeatedA1(CARD8 op, PicturePtr pSrc, PicturePtr pMask,
+                      PicturePtr pDst, int xSrc, int ySrc,
+                      int xDst, int yDst, int width, int height)
+{
+    DrawablePtr src = pSrc->pDrawable, dst = pDst->pDrawable;
+    FbBits *srcBits, *dstBits;
+    FbStride srcStride, dstStride;
+    int bpp, alu;
+    PixmapPtr srcPixmap, dstPixmap;
+    RegionRec region;
+    BoxPtr box;
+    int n;
+
+    if (_X_UNLIKELY(pMask))
+        return FALSE;
+
+    if (pSrc->format != PICT_a1 || pDst->format != PICT_a1)
+        return FALSE;
+
+    switch (op) {
+    case PictOpSrc:
+        alu = GXcopy;
+        break;
+    case PictOpOver:
+    case PictOpAdd:
+        alu = GXor;
+        break;
+    default:
+        return FALSE;
+    }
+
+    if (!src ||
+         src->type != DRAWABLE_PIXMAP ||
+         dst->type != DRAWABLE_PIXMAP)
+        return FALSE;
+
+    if (pSrc->repeatType != RepeatNormal ||
+        pSrc->filter == PictFilterConvolution)
+        return FALSE;
+
+    if (pSrc->transform || pSrc->clientClip)
+        return FALSE;
+
+    if (pSrc->alphaMap || pDst->alphaMap)
+        return FALSE;
+
+    srcPixmap = (PixmapPtr) src;
+    dstPixmap = (PixmapPtr) dst;
+    if ((uintptr_t) srcPixmap->devPrivate.ptr <
+            (uintptr_t) dstPixmap->devPrivate.ptr + (size_t) dstPixmap->devKind * dst->height &&
+        (uintptr_t) dstPixmap->devPrivate.ptr <
+            (uintptr_t) srcPixmap->devPrivate.ptr + (size_t) srcPixmap->devKind * src->height)
+        return FALSE;
+
+    if (!miComputeCompositeRegion(&region, pSrc, NULL, pDst, xSrc, ySrc,
+                                   0, 0, xDst, yDst, width, height))
+        return TRUE;
+
+#define FB_COMPOSITE_SAMPLE_MARGIN 2
+    /* Keep requests near Pixman's 16.16 sampling limits on its fallback path. */
+    box = RegionExtents(&region);
+    if (box->x1 + xSrc - xDst < INT16_MIN + FB_COMPOSITE_SAMPLE_MARGIN ||
+        box->y1 + ySrc - yDst < INT16_MIN + FB_COMPOSITE_SAMPLE_MARGIN ||
+        box->x2 + xSrc - xDst > INT16_MAX - FB_COMPOSITE_SAMPLE_MARGIN ||
+        box->y2 + ySrc - yDst > INT16_MAX - FB_COMPOSITE_SAMPLE_MARGIN) {
+        RegionUninit(&region);
+        return FALSE;
+    }
+#undef FB_COMPOSITE_SAMPLE_MARGIN
+
+    if (FbEvenTile(src->width))
+        fbPadPixmap(srcPixmap);
+
+    fbPrepareAccess(src);
+    fbPrepareAccess(dst);
+
+    fbGetPixmapBitsData(srcPixmap, srcBits, srcStride, bpp);
+    fbGetPixmapBitsData(dstPixmap, dstBits, dstStride, bpp);
+
+    box = RegionRects(&region);
+    n = RegionNumRects(&region);
+
+    while (n--) {
+        fbTile(dstBits + box->y1 * dstStride, dstStride, box->x1,
+               box->x2 - box->x1, box->y2 - box->y1,
+               srcBits, srcStride, src->width, src->height,
+               alu, FB_ALLONES, 1, xDst - xSrc, yDst - ySrc - box->y1);
+        box++;
+    }
+
+    fbFinishAccess(dst);
+    fbFinishAccess(src);
+
+    RegionUninit(&region);
+    return TRUE;
+}
 
 void
 fbComposite(CARD8 op,
@@ -50,24 +149,29 @@ fbComposite(CARD8 op,
     int msk_xoff, msk_yoff;
     int dst_xoff, dst_yoff;
 
-    miCompositeSourceValidate(pSrc);
-    if (pMask)
-        miCompositeSourceValidate(pMask);
+    if (fbCompositeRepeatedA1(op, pSrc, pMask, pDst, xSrc, ySrc,
+                              xDst, yDst, width, height)) {
+        return;
+    } else {
+        miCompositeSourceValidate(pSrc);
+        if (pMask)
+            miCompositeSourceValidate(pMask);
 
-    src = image_from_pict(pSrc, FALSE, &src_xoff, &src_yoff);
-    mask = image_from_pict(pMask, FALSE, &msk_xoff, &msk_yoff);
-    dest = image_from_pict(pDst, TRUE, &dst_xoff, &dst_yoff);
+        src = image_from_pict(pSrc, FALSE, &src_xoff, &src_yoff);
+        mask = image_from_pict(pMask, FALSE, &msk_xoff, &msk_yoff);
+        dest = image_from_pict(pDst, TRUE, &dst_xoff, &dst_yoff);
 
-    if (src && dest && !(pMask && !mask)) {
-        pixman_image_composite(op, src, mask, dest,
-                               xSrc + src_xoff, ySrc + src_yoff,
-                               xMask + msk_xoff, yMask + msk_yoff,
-                               xDst + dst_xoff, yDst + dst_yoff, width, height);
+        if (src && dest && !(pMask && !mask)) {
+            pixman_image_composite(op, src, mask, dest,
+                                xSrc + src_xoff, ySrc + src_yoff,
+                                xMask + msk_xoff, yMask + msk_yoff,
+                                xDst + dst_xoff, yDst + dst_yoff, width, height);
+        }
+
+        free_pixman_pict(pSrc, src);
+        free_pixman_pict(pMask, mask);
+        free_pixman_pict(pDst, dest);
     }
-
-    free_pixman_pict(pSrc, src);
-    free_pixman_pict(pMask, mask);
-    free_pixman_pict(pDst, dest);
 }
 
 static pixman_glyph_cache_t *glyphCache;
