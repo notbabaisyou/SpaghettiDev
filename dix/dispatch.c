@@ -127,6 +127,9 @@ Equipment Corporation.
 #include "xkbsrv.h"
 #include "client.h"
 #include "xfixesint.h"
+#ifdef COMPOSITE
+#include "compositeext.h"
+#endif
 
 // temporary workaround for win32/mingw32 name clash
 #undef CreateWindow
@@ -2199,7 +2202,11 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
         relx += pDraw->x;
         rely += pDraw->y;
 
-        if (pDraw->pScreen->GetWindowPixmap) {
+        if (pDraw->pScreen->GetWindowPixmap
+#ifdef COMPOSITE
+            && !CompositeIsServerRoot(pWin)
+#endif
+            ) {
             PixmapPtr pPix = (*pDraw->pScreen->GetWindowPixmap) (pWin);
 
             pBoundingDraw = &pPix->drawable;
@@ -2260,7 +2267,7 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
     pBuf += sizeof (xGetImageReply);
 
     if (pDraw->type == DRAWABLE_WINDOW) {
-        pVisibleRegion = &((WindowPtr) pDraw)->borderClip;
+        pVisibleRegion = WindowVisibleRegion((WindowPtr) pDraw);
         pDraw->pScreen->SourceValidate(pDraw, x, y, width, height,
                                        IncludeInferiors);
     }

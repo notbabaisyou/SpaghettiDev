@@ -106,6 +106,9 @@ Equipment Corporation.
 #include "regionstr.h"
 #include "validate.h"
 #include "windowstr.h"
+#ifdef COMPOSITE
+#include "compositeext.h"
+#endif
 #include "propertyst.h"
 #include "input.h"
 #include "inputstr.h"
@@ -3075,6 +3078,17 @@ NotClippedByChildren(WindowPtr pWin)
         RegionIntersect(pReg, &pWin->borderClip, &pWin->winSize);
     }
     return pReg;
+}
+
+RegionPtr
+WindowVisibleRegion(WindowPtr pWin)
+{
+#ifdef COMPOSITE
+    if (CompositeIsServerRoot(pWin))
+        return &pWin->winSize;
+    else
+#endif
+        return &pWin->borderClip;
 }
 
 void

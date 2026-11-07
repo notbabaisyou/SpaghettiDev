@@ -5,6 +5,19 @@ simple_xinit = executable(
     dependencies: [ xproto_dep ],
 )
 
+if build_xorg and build_mitshm and cc.has_multi_arguments('-ffunction-sections', '-fdata-sections') and cc.has_link_argument('-Wl,--gc-sections')
+    compositor_readback_test = executable(
+        'compositor-readback',
+        ['compositor-readback.c', '../dix/dispatch.c', '../dix/window.c'],
+        include_directories: [inc, xorg_inc],
+        c_args: xorg_c_args + ['-ffunction-sections', '-fdata-sections'],
+        link_args: ['-Wl,--gc-sections'],
+        dependencies: common_dep,
+    )
+    test('compositor root GetImage', compositor_readback_test)
+    test('compositor root SHM GetImage', compositor_readback_test, args: ['shm'])
+endif
+
 if build_xorg and build_fission
     if cc.has_multi_arguments('-ffunction-sections', '-fdata-sections') and cc.has_link_argument('-Wl,--gc-sections')
         fission_present_test = executable(
