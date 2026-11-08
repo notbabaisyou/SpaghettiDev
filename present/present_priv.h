@@ -86,14 +86,13 @@ struct present_vblank {
     present_notify_ptr  notifies;
     int                 num_notifies;
     Bool                flip_ready;     /* wants to flip, but waiting for previous flip or unflip */
-    present_flip_type   flip_type;      /* type of flip to perform */
+    present_flip_type   flip_type;      /* presentation type */
     Bool                abort_flip;     /* aborting this flip */
     struct present_flip_slot_rec *flip_slot; /* slot this flip is pending on */
     PresentFlipReason   reason;         /* reason for which flip is not possible */
     Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
     Bool                executed;
     int                 rendering_fd;   /* readable once the pixmap is rendered */
-    uint64_t            hidden_since;   /* held back while the window is hidden */
 #ifdef DRI3
     struct dri3_syncobj *acquire_syncobj;
     struct dri3_syncobj *release_syncobj;
@@ -101,7 +100,13 @@ struct present_vblank {
     uint64_t            release_point;
     int                 efd;
 #endif /* DRI3 */
+    Bool                throttled;      /* held back while the window is hidden */
 };
+
+typedef struct {
+    uint64_t visible_usec;
+    uint64_t released_usec;
+} present_client_priv_rec, *present_client_priv_ptr;
 
 typedef struct present_screen_priv present_screen_priv_rec, *present_screen_priv_ptr;
 typedef struct present_window_priv present_window_priv_rec, *present_window_priv_ptr;
