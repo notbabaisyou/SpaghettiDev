@@ -172,7 +172,7 @@ present_screen_register_priv_keys(void)
         return FALSE;
 
     if (!dixRegisterPrivateKey(&present_client_private_key, PRIVATE_CLIENT,
-                               sizeof(uint64_t)))
+                               sizeof(present_client_priv_rec)))
         return FALSE;
 
     return TRUE;

@@ -127,6 +127,10 @@ present_vblank_init(present_vblank_ptr vblank,
     vblank->notifies = notifies;
     vblank->num_notifies = num_notifies;
     vblank->has_suboptimal = (options & PresentOptionSuboptimal);
+    vblank->flip_type = PRESENT_TYPE_SYNCHRONOUS;
+    if (options & PresentAllAsyncOptions)
+        vblank->flip_type = (options & PresentOptionAsyncMayTear) ?
+            PRESENT_TYPE_ASYNC_TEARING : PRESENT_TYPE_ASYNCHRONOUS;
 
     if (pixmap != NULL &&
         !(options & PresentOptionCopy) &&

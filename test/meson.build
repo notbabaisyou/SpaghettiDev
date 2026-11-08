@@ -19,6 +19,16 @@ if cc.has_multi_arguments('-ffunction-sections', '-fdata-sections') and cc.has_l
         dependencies: common_dep,
     )
     test('Present completed copies', present_wait_test)
+
+    present_mailbox_test = executable(
+        'present-mailbox',
+        ['present-mailbox.c', '../dix/region.c'],
+        include_directories: inc,
+        c_args: ['-ffunction-sections', '-fdata-sections'],
+        link_args: ['-Wl,--gc-sections'],
+        dependencies: common_dep,
+    )
+    test('Present hidden mailbox', present_mailbox_test)
 endif
 
 simple_xinit = executable(
