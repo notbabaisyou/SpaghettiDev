@@ -824,7 +824,7 @@ ms_dirty_get_ent(ScreenPtr screen, PixmapPtr secondary_dst)
 }
 
 static void
-ms_compositor_update(ScrnInfoPtr scrn, modesettingPtr ms, Bool flip)
+ms_compositor_update(ScrnInfoPtr scrn, modesettingPtr ms, Bool flip, void *timeout)
 {
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
     int c;
@@ -836,7 +836,7 @@ ms_compositor_update(ScrnInfoPtr scrn, modesettingPtr ms, Bool flip)
         if (flip)
             ms_compositor_flip_crtc(scrn, xf86_config->crtc[c]);
         else
-            ms_compositor_prepare_crtc(xf86_config->crtc[c]);
+            ms_compositor_prepare_crtc(xf86_config->crtc[c], timeout);
 }
 
 static void
@@ -857,7 +857,7 @@ msBlockHandler(ScreenPtr pScreen, void *timeout)
      * them; flips go out after, ordered behind the blit fence.
      */
     if (ms->drmmode.compositing)
-        ms_compositor_update(scrn, ms, FALSE);
+        ms_compositor_update(scrn, ms, FALSE, timeout);
 
     pScreen->BlockHandler = ms->BlockHandler;
     pScreen->BlockHandler(pScreen, timeout);
@@ -867,7 +867,7 @@ msBlockHandler(ScreenPtr pScreen, void *timeout)
     ms_dirty_update(pScreen, ms, timeout);
 
     if (ms->drmmode.compositing)
-        ms_compositor_update(scrn, ms, TRUE);
+        ms_compositor_update(scrn, ms, TRUE, timeout);
 }
 
 static void

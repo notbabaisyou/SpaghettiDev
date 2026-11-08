@@ -36,6 +36,13 @@ enum {
     TEST_TARGET_UST = 200,
     TEST_SECONDARY_MSC = 50,
     TEST_SECONDARY_UST = 300,
+    TEST_CLOCK_START = 1000000,
+    TEST_REFRESH_HZ = 100,
+    TEST_PERIOD_USEC = 1000000 / TEST_REFRESH_HZ,
+    TEST_MARGIN_USEC = 2000,
+    TEST_TIMER_EARLY_USEC = 500,
+    TEST_MARGIN_STEP_USEC = 1000,
+
 };
 
 enum test_event {
@@ -45,6 +52,10 @@ enum test_event {
     TEST_FIFO_SECOND,
     TEST_RETRY,
     TEST_TEARDOWN,
+    TEST_BATCH_FIRST,
+    TEST_BATCH_SECOND,
+    TEST_AFTER_PREPARE,
+    TEST_AFTER_EMPTY_PREPARE,
 };
 
 int xf86CrtcConfigPrivateIndex;
@@ -59,6 +70,78 @@ static Bool queue_success = TRUE;
 static BoxRec painted;
 static xf86CrtcPtr queued_crtc;
 static ms_drm_abort_proc queued_abort;
+
+struct _OsTimerRec {
+    OsTimerCallback callback;
+    void *arg;
+    CARD32 delay;
+    Bool active;
+};
+
+static uint64_t test_now, test_ust;
+static Bool clock_success = TRUE, timer_success = TRUE;
+static unsigned timers_created, timers_freed;
+
+CARD64
+GetTimeInMicros(void)
+{
+    return test_now;
+}
+
+double
+xf86ModeVRefresh(const DisplayModeRec *mode)
+{
+    return mode->VRefresh;
+}
+
+int
+ms_get_crtc_ust_msc(xf86CrtcPtr crtc, CARD64 *ust, CARD64 *msc)
+{
+    *ust = test_ust;
+    *msc = TEST_TARGET_MSC;
+    return clock_success ? Success : BadMatch;
+}
+
+OsTimerPtr
+TimerSet(OsTimerPtr timer, int flags, CARD32 millis,
+         OsTimerCallback callback, void *arg)
+{
+    assert(!flags && millis);
+    if (!timer_success)
+        return NULL;
+    if (!timer) {
+        timer = calloc(1, sizeof(*timer));
+        assert(timer);
+        timers_created++;
+    }
+    timer->callback = callback;
+    timer->arg = arg;
+    timer->delay = millis;
+    timer->active = TRUE;
+    return timer;
+}
+
+void
+TimerCancel(OsTimerPtr timer)
+{
+    timer->active = FALSE;
+}
+
+void
+TimerFree(OsTimerPtr timer)
+{
+    timers_freed++;
+    free(timer);
+}
+
+void
+AdjustWaitForDelay(void *timeout, int delay)
+{
+    int *value = timeout;
+
+    if (*value < 0 || delay < *value)
+        *value = delay;
+}
 
 Bool
 xf86_crtc_on(xf86CrtcPtr crtc)
@@ -132,6 +215,193 @@ drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
     assert(fb_id && !x && !y);
     assert(flags == (DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK));
     return commit_success ? 0 : -1;
+}
+
+static void
+test_deadline_pacing(void)
+{
+    ScrnInfoRec scrn = { .vtSema = TRUE };
+    xf86CrtcRec crtcs[TEST_CRTC_COUNT] = { 0 };
+    xf86CrtcPtr pointers[] = { &crtcs[0], &crtcs[1] };
+    xf86CrtcConfigRec config = { .num_crtc = TEST_CRTC_COUNT, .crtc = pointers };
+    DevUnion privates[] = { { .ptr = &config } };
+    drmmode_rec drmmode = { 0 };
+    drmmode_crtc_private_rec dc[TEST_CRTC_COUNT] = { 0 };
+    PixmapRec buffers[TEST_CRTC_COUNT][MS_COMPOSITOR_BUFFER_COUNT] = { 0 };
+    drmmode_compositor_ptr comp = &dc[0].compositor;
+    WindowRec window = { 0 };
+    uint64_t deadline, margin;
+    unsigned before, before_paint, before_timers;
+    int timeout, i, j;
+
+    scrn.privates = privates;
+    for (i = 0; i < TEST_CRTC_COUNT; i++) {
+        crtcs[i].scrn = &scrn;
+        crtcs[i].driver_private = &dc[i];
+        crtcs[i].enabled = i == 0;
+        crtcs[i].mode.VRefresh = TEST_REFRESH_HZ * (i + 1);
+        crtcs[i].bounds = (BoxRec) {
+            i * TEST_MODE_WIDTH, 0, (i + 1) * TEST_MODE_WIDTH, TEST_MODE_HEIGHT
+        };
+        dc[i].drmmode = &drmmode;
+        for (j = 0; j < MS_COMPOSITOR_BUFFER_COUNT; j++) {
+            dc[i].compositor.fb_id[j] = i * MS_COMPOSITOR_BUFFER_COUNT + j + 1;
+            dc[i].compositor.pixmap[j] = &buffers[i][j];
+            RegionNull(&dc[i].compositor.stale[j]);
+        }
+    }
+    RegionInit(&window.borderSize, &crtcs[0].bounds, 1);
+    test_now = test_ust = TEST_CLOCK_START;
+    before = notifications;
+    before_paint = paint_calls;
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_BATCH_FIRST));
+    timeout = -1;
+    ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+    deadline = TEST_CLOCK_START + TEST_PERIOD_USEC - TEST_MARGIN_USEC;
+    assert(comp->compose_deadline == deadline);
+    assert(comp->compose_timer && comp->compose_timer->active);
+    assert(timeout == (TEST_PERIOD_USEC - TEST_MARGIN_USEC) / 1000);
+    assert(paint_calls == before_paint && notifications == before);
+
+    /* A second client joins the same deadline instead of chasing it forward. */
+    test_now += TEST_TIMER_EARLY_USEC;
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_BATCH_SECOND));
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(comp->compose_deadline == deadline && paint_calls == before_paint);
+    test_now = deadline - TEST_TIMER_EARLY_USEC;
+    assert(comp->compose_timer->callback(comp->compose_timer, 0,
+                                        comp->compose_timer->arg) == 1);
+    assert(paint_calls == before_paint);
+    test_now = deadline;
+    assert(!comp->compose_timer->callback(comp->compose_timer, 0,
+                                         comp->compose_timer->arg));
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(paint_calls == before_paint + 1 && comp->prepared);
+    assert(!comp->compose_timer->active);
+
+    /* A Present after painting belongs to the following output frame. */
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_AFTER_PREPARE));
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    assert(comp->events && comp->submitted_events);
+    assert(notifications == before);
+    test_now = test_ust = TEST_CLOCK_START + TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC, test_ust, &crtcs[0]);
+    assert(notifications == before + 2);
+    assert(notification_ids[before] == TEST_BATCH_FIRST);
+    assert(notification_ids[before + 1] == TEST_BATCH_SECOND);
+    assert(comp->events && comp->repaint && !comp->compose_deadline);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    test_now = comp->compose_deadline;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    test_now = test_ust += TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 1, test_ust, &crtcs[0]);
+    assert(notifications == before + 3);
+    assert(notification_ids[before + 2] == TEST_AFTER_PREPARE);
+
+    /* An empty prepared batch must not consume a later Present either. */
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    test_now = comp->compose_deadline;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_AFTER_EMPTY_PREPARE));
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    assert(comp->events && !comp->submitted_events);
+    test_now = test_ust += TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 2, test_ust, &crtcs[0]);
+    assert(notifications == before + 3);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    test_now = comp->compose_deadline;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    test_now = test_ust += TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 3, test_ust, &crtcs[0]);
+    assert(notifications == before + 4);
+    assert(notification_ids[before + 3] == TEST_AFTER_EMPTY_PREPARE);
+
+    /* A missed refresh increases the lead; successful frames recover slowly. */
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    test_now = comp->compose_deadline;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    test_now = test_ust += 2 * TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 5, test_ust, &crtcs[0]);
+    assert(comp->compose_margin == TEST_MARGIN_USEC + TEST_MARGIN_STEP_USEC);
+    margin = comp->compose_margin;
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    test_now = comp->compose_deadline;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    test_now = test_ust += TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 6, test_ust, &crtcs[0]);
+    assert(comp->compose_margin < margin && comp->compose_margin >= TEST_MARGIN_USEC);
+
+    /* Different refresh rates keep independent timers and prepare deadlines. */
+    crtcs[1].enabled = TRUE;
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_damage_crtc(&crtcs[1]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    ms_compositor_prepare_crtc(&crtcs[1], NULL);
+    assert(dc[1].compositor.compose_deadline < comp->compose_deadline);
+    assert(dc[1].compositor.compose_timer != comp->compose_timer);
+    before_paint = paint_calls;
+    test_now = dc[1].compositor.compose_deadline;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(paint_calls == before_paint);
+    ms_compositor_prepare_crtc(&crtcs[1], NULL);
+    assert(paint_calls == before_paint + 1);
+
+    /* DPMS or VT loss cancels a timer without rendering from its callback. */
+    crtcs[0].enabled = FALSE;
+    assert(!comp->compose_timer->callback(comp->compose_timer, 0,
+                                         comp->compose_timer->arg));
+    assert(!comp->compose_deadline && paint_calls == before_paint + 1);
+    crtcs[0].enabled = TRUE;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    scrn.vtSema = FALSE;
+    assert(!comp->compose_timer->callback(comp->compose_timer, 0,
+                                         comp->compose_timer->arg));
+    assert(!comp->compose_deadline);
+    scrn.vtSema = TRUE;
+
+    /* An active VRR scanout does not wait for a fixed-refresh deadline. */
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(comp->compose_deadline > test_now);
+    dc[0].vrr_enabled = TRUE;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(comp->prepared && !comp->compose_deadline && !comp->compose_timer->active);
+    dc[0].vrr_enabled = FALSE;
+    comp->prepared = FALSE;
+
+    /* Clock or timer failure falls back to preparing immediately. */
+    ms_compositor_damage_crtc(&crtcs[0]);
+    clock_success = FALSE;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(comp->prepared && !comp->compose_deadline);
+    clock_success = TRUE;
+    comp->prepared = FALSE;
+    TimerFree(comp->compose_timer);
+    comp->compose_timer = NULL;
+    timer_success = FALSE;
+    ms_compositor_damage_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(comp->prepared && !comp->compose_timer && !comp->compose_deadline);
+    timer_success = TRUE;
+
+    /* Modeset teardown frees all per-output timers and pending state. */
+    before_timers = timers_freed;
+    for (i = 0; i < TEST_CRTC_COUNT; i++) {
+        ms_compositor_free_crtc(&crtcs[i]);
+        assert(!dc[i].compositor.compose_timer && !dc[i].compositor.compose_deadline);
+        assert(!dc[i].compositor.prepared && !dc[i].compositor.prepared_tail);
+        for (j = 0; j < MS_COMPOSITOR_BUFFER_COUNT; j++)
+            RegionUninit(&dc[i].compositor.stale[j]);
+    }
+    assert(timers_freed == before_timers + 1);
+    assert(timers_created == timers_freed);
+    RegionUninit(&window.borderSize);
 }
 
 int
@@ -221,10 +491,10 @@ main(void)
     before_paint = paint_calls;
     before_direct = direct_calls;
     direct_scanout = TRUE;
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(direct_calls == before_direct + 1 && paint_calls == before_paint);
     assert(!dc[0].compositor.prepared);
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(direct_calls == before_direct + 1 && paint_calls == before_paint);
     direct_scanout = FALSE;
 
@@ -232,7 +502,7 @@ main(void)
     before_commit = commit_calls;
     ms_compositor_damage_crtc(&crtcs[0]);
     paint_success = FALSE;
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     assert(!dc[0].compositor.prepared && commit_calls == before_commit);
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
@@ -241,7 +511,7 @@ main(void)
     /* Returning from direct scanout repaints the complete logical viewport. */
     dc[0].compositor.scanout_fb = TEST_ACTIVE_FB;
     dc[0].compositor.scanout_pixmap = &old;
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(dc[0].compositor.prepared);
     assert(!memcmp(&painted, &crtcs[0].bounds, sizeof(BoxRec)));
 
@@ -254,7 +524,7 @@ main(void)
     assert(!dc[0].compositor.flip_seq);
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     commit_success = TRUE;
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     assert(dc[0].compositor.flip_seq == TEST_SEQUENCE);
     assert(RegionNil(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
@@ -269,13 +539,13 @@ main(void)
     before_paint = paint_calls;
     before_commit = commit_calls;
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     assert(paint_calls == before_paint && commit_calls == before_commit);
 
     /* Fresh damage repairs the accumulated stale region on the next frame. */
     ms_compositor_damage_crtc(&crtcs[0]);
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(paint_calls == before_paint + 1);
     assert(!memcmp(&painted, &crtcs[0].bounds, sizeof(BoxRec)));
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
@@ -283,26 +553,26 @@ main(void)
 
     /* Queue allocation failure leaves the new frame available for retry. */
     ms_compositor_damage_crtc(&crtcs[0]);
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     before_commit = commit_calls;
     queue_success = FALSE;
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     assert(commit_calls == before_commit && !dc[0].compositor.flip_seq);
     queue_success = TRUE;
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     assert(commit_calls == before_commit + 1);
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
 
     /* Damage arriving after preparation remains pending after submission. */
     ms_compositor_damage_crtc(&crtcs[0]);
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     ms_compositor_damage_crtc(&crtcs[0]);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
     before_paint = paint_calls;
-    ms_compositor_prepare_crtc(&crtcs[0]);
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(paint_calls == before_paint + 1);
     ms_compositor_flip_crtc(&scrn, &crtcs[0]);
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
@@ -337,5 +607,6 @@ main(void)
         for (j = 0; j < MS_COMPOSITOR_BUFFER_COUNT; j++)
             RegionUninit(&dc[i].compositor.stale[j]);
     RegionUninit(&window.borderSize);
+    test_deadline_pacing();
     return 0;
 }

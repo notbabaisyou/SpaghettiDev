@@ -29,6 +29,81 @@
 #include <inttypes.h>
 #include "os/ftrace.h"
 
+enum {
+    MS_COMPOSITOR_USEC_PER_SEC      = 1000000,
+    MS_COMPOSITOR_USEC_PER_MSEC     = 1000,
+    MS_COMPOSITOR_MIN_MARGIN_USEC   = 2000,
+    MS_COMPOSITOR_MARGIN_STEP_USEC  = 1000,
+    MS_COMPOSITOR_MARGIN_DECAY_USEC = 50,
+};
+
+static CARD32
+ms_compositor_deadline_fired(OsTimerPtr timer, CARD32 time, void *data)
+{
+    xf86CrtcPtr crtc = data;
+    drmmode_crtc_private_ptr dc = crtc->driver_private;
+    drmmode_compositor_ptr comp = &dc->compositor;
+    uint64_t now = GetTimeInMicros();
+
+    if (!crtc->scrn->vtSema || !xf86_crtc_on(crtc)) {
+        comp->compose_deadline = 0;
+        return 0;
+    }
+    /* A millisecond timer can fire before the microsecond deadline. */
+    if (now < comp->compose_deadline)
+        return (comp->compose_deadline - now + MS_COMPOSITOR_USEC_PER_MSEC - 1) /
+            MS_COMPOSITOR_USEC_PER_MSEC;
+    return 0;
+}
+
+static Bool
+ms_compositor_compose_due(xf86CrtcPtr crtc, void *timeout)
+{
+    drmmode_crtc_private_ptr dc = crtc->driver_private;
+    drmmode_compositor_ptr comp = &dc->compositor;
+    uint64_t now = GetTimeInMicros(), ust, msc, period, next;
+    double refresh = xf86ModeVRefresh(&crtc->mode);
+    CARD32 delay;
+
+    if (dc->vrr_enabled) {
+        comp->compose_deadline = 0;
+        if (comp->compose_timer)
+            TimerCancel(comp->compose_timer);
+        return TRUE;
+    }
+
+    if (!comp->compose_deadline) {
+        if (refresh <= 0.0 || ms_get_crtc_ust_msc(crtc, &ust, &msc) != Success || !ust)
+            return TRUE;
+        period = MS_COMPOSITOR_USEC_PER_SEC / refresh;
+        if (!period || (ust > now && ust - now > period))
+            return TRUE;
+        comp->compose_margin = min(max(comp->compose_margin,
+                                      MS_COMPOSITOR_MIN_MARGIN_USEC), period / 2);
+        next = ust + ((now > ust ? (now - ust) / period : 0) + 1) * period;
+        comp->compose_deadline = next - comp->compose_margin;
+    }
+
+    if (now >= comp->compose_deadline) {
+        if (comp->compose_timer)
+            TimerCancel(comp->compose_timer);
+        return TRUE;
+    }
+    delay = (comp->compose_deadline - now + MS_COMPOSITOR_USEC_PER_MSEC - 1) /
+        MS_COMPOSITOR_USEC_PER_MSEC;
+    comp->compose_timer = TimerSet(comp->compose_timer, 0, delay,
+                                   ms_compositor_deadline_fired, crtc);
+    if (!comp->compose_timer) {
+        comp->compose_deadline = 0;
+        return TRUE;
+    }
+    if (timeout)
+        AdjustWaitForDelay(timeout, delay);
+    ftrace_print("fission-deadline crtc %p at %" PRIu64 " margin %" PRIu64,
+                 crtc, comp->compose_deadline, comp->compose_margin);
+    return FALSE;
+}
+
 /* Present completions belong to the CRTC whose commit displays the frame. */
 struct ms_compositor_completion {
     uint64_t id, frame, usec;
@@ -121,9 +196,23 @@ void
 ms_compositor_flip_submitted(xf86CrtcPtr crtc)
 {
     drmmode_crtc_private_ptr dc = crtc->driver_private;
-    dc->compositor.submitted_events = dc->compositor.events;
-    dc->compositor.events = NULL;
-    dc->compositor.events_tail = NULL;
+    drmmode_compositor_ptr comp = &dc->compositor;
+
+    if (comp->prepared) {
+        /* Only retire Presents included in the prepared buffer. */
+        if (comp->prepared_tail) {
+            comp->submitted_events = comp->events;
+            comp->events = comp->prepared_tail->next;
+            comp->prepared_tail->next = NULL;
+        } else
+            comp->submitted_events = NULL;
+    } else {
+        comp->submitted_events = comp->events;
+        comp->events = NULL;
+    }
+    if (!comp->events)
+        comp->events_tail = NULL;
+    comp->prepared_tail = NULL;
 
     ftrace_print("fission-submit crtc %p seq %u direct %d",
                  crtc, dc->compositor.flip_seq, dc->compositor.pending_pixmap != NULL);
@@ -163,6 +252,21 @@ ms_compositor_flip_complete(xf86CrtcPtr crtc, uint64_t frame,
     struct ms_compositor_event *events = comp->submitted_events;
     Bool direct = comp->pending_pixmap != NULL;
 
+    if (!abort && comp->compose_deadline && usec) {
+        double refresh = xf86ModeVRefresh(&crtc->mode);
+        uint64_t period = refresh > 0.0 ? MS_COMPOSITOR_USEC_PER_SEC / refresh : 0;
+        uint64_t target = comp->compose_deadline + comp->compose_margin;
+
+        if (period && usec > target && usec - target > period / 2)
+            comp->compose_margin = min(comp->compose_margin + MS_COMPOSITOR_MARGIN_STEP_USEC,
+                                       period / 2);
+        else if (comp->compose_margin > MS_COMPOSITOR_MIN_MARGIN_USEC)
+            comp->compose_margin -= min(comp->compose_margin - MS_COMPOSITOR_MIN_MARGIN_USEC,
+                                        MS_COMPOSITOR_MARGIN_DECAY_USEC);
+    }
+    comp->compose_deadline = 0;
+    if (comp->compose_timer)
+        TimerCancel(comp->compose_timer);
     comp->submitted_events = NULL;
     if (abort) {
         if (comp->pending_fb && comp->pending_fb != comp->scanout_fb)
@@ -190,6 +294,14 @@ ms_compositor_free_crtc(xf86CrtcPtr crtc)
     drmmode_compositor_ptr comp = &dc->compositor;
     struct ms_compositor_event *events = comp->events;
 
+    if (comp->compose_timer) {
+        TimerFree(comp->compose_timer);
+        comp->compose_timer = NULL;
+    }
+    comp->compose_deadline = 0;
+    comp->compose_margin = 0;
+    comp->prepared = FALSE;
+    comp->prepared_tail = NULL;
     comp->events = NULL;
     comp->events_tail = NULL;
     ms_compositor_flip_complete(crtc, 0, 0, TRUE);
@@ -203,14 +315,18 @@ ms_compositor_free_crtc(xf86CrtcPtr crtc)
 }
 
 void
-ms_compositor_prepare_crtc(xf86CrtcPtr crtc)
+ms_compositor_prepare_crtc(xf86CrtcPtr crtc, void *timeout)
 {
     drmmode_crtc_private_ptr dc = crtc->driver_private;
     drmmode_compositor_ptr comp = &dc->compositor;
     int back = comp->back_idx;
 
-    if (!crtc->enabled || comp->flip_seq || !comp->pixmap[back] || !comp->repaint ||
+    if (!xf86_crtc_on(crtc) || comp->flip_seq || comp->prepared ||
+        !comp->pixmap[back] || !comp->repaint ||
         RegionNil(&comp->stale[back]))
+        return;
+
+    if (!ms_compositor_compose_due(crtc, timeout))
         return;
 
     comp->repaint = FALSE;
@@ -221,10 +337,13 @@ ms_compositor_prepare_crtc(xf86CrtcPtr crtc)
         ms_compositor_damage_crtc(crtc);
     comp->repaint = FALSE;
     ftrace_print_begin((uintptr_t) crtc, "fission-compose");
+    comp->prepared_tail = comp->events_tail;
     comp->prepared = ms_compositor_paint(crtc, comp->pixmap[back],
                                           &comp->stale[back]);
-    if (!comp->prepared)
+    if (!comp->prepared) {
+        comp->prepared_tail = NULL;
         comp->repaint = TRUE;
+    }
     ftrace_print_end((uintptr_t) crtc, "fission-compose");
 }
 
@@ -248,12 +367,12 @@ ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
     if (RegionNil(&comp->stale[back]))
         return;
 
-    comp->prepared = FALSE;
-
     seq = ms_drm_queue_alloc(crtc, crtc,
                              ms_compositor_flip_handler,
                              ms_compositor_flip_abort);
     if (!seq) {
+        comp->prepared = FALSE;
+        comp->prepared_tail = NULL;
         comp->repaint = TRUE;
         return;
     }
@@ -277,6 +396,7 @@ ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
 
     comp->flip_seq = seq;
     ms_compositor_flip_submitted(crtc);
+    comp->prepared = FALSE;
 }
 
 void
@@ -302,6 +422,8 @@ ms_compositor_flip_abort(void *data)
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 
     drmmode_crtc->compositor.flip_seq = 0;
+    drmmode_crtc->compositor.prepared = FALSE;
+    drmmode_crtc->compositor.prepared_tail = NULL;
     ms_compositor_damage_crtc(crtc);
     ms_compositor_flip_complete(crtc, 0, 0, TRUE);
 }

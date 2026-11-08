@@ -207,8 +207,10 @@ enum { MS_COMPOSITOR_BUFFER_COUNT = 2 };
 struct ms_compositor_event;
 
 typedef struct {
-    struct ms_compositor_event *events, *events_tail, *submitted_events;
+    struct ms_compositor_event *events, *events_tail, *prepared_tail, *submitted_events;
     PixmapPtr scanout_pixmap, pending_pixmap;
+    OsTimerPtr compose_timer;
+    uint64_t compose_deadline, compose_margin;
     uint32_t scanout_fb, pending_fb;
     Bool repaint; /* new damage awaiting preparation */
     Bool prepared;
