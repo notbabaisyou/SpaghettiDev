@@ -26,6 +26,7 @@
 #include "dix-config.h"
 #include "driver.h"
 #include <present.h>
+#include <errno.h>
 #include <inttypes.h>
 #include "os/ftrace.h"
 
@@ -35,6 +36,7 @@ enum {
     MS_COMPOSITOR_MIN_MARGIN_USEC   = 2000,
     MS_COMPOSITOR_MARGIN_STEP_USEC  = 1000,
     MS_COMPOSITOR_MARGIN_DECAY_USEC = 50,
+    MS_COMPOSITOR_RETRY_MSEC        = 3,
 };
 
 static CARD32
@@ -343,6 +345,8 @@ ms_compositor_prepare_crtc(xf86CrtcPtr crtc, void *timeout)
     if (!comp->prepared) {
         comp->prepared_tail = NULL;
         comp->repaint = TRUE;
+        if (timeout)
+            AdjustWaitForDelay(timeout, MS_COMPOSITOR_RETRY_MSEC);
     }
     ftrace_print_end((uintptr_t) crtc, "fission-compose");
 }
@@ -351,11 +355,11 @@ ms_compositor_prepare_crtc(xf86CrtcPtr crtc, void *timeout)
  * Submit the flip after the flush, against the fenced back buffer.
  */
 void
-ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
+ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc, void *timeout)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_compositor_ptr comp = &drmmode_crtc->compositor;
-    int back = comp->back_idx;
+    int back = comp->back_idx, ret;
     uint32_t seq;
 
     if (!crtc->enabled)
@@ -370,20 +374,17 @@ ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
     seq = ms_drm_queue_alloc(crtc, crtc,
                              ms_compositor_flip_handler,
                              ms_compositor_flip_abort);
-    if (!seq) {
-        comp->prepared = FALSE;
-        comp->prepared_tail = NULL;
-        comp->repaint = TRUE;
-        return;
-    }
+    if (!seq)
+        goto retry;
 
-    if (drmmode_crtc_flip(crtc,
-                          comp->fb_id[back],
-                          0, 0,
-                          DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK,
-                          (void *)(intptr_t) seq) != 0) {
+    ret = drmmode_crtc_flip(crtc, comp->fb_id[back], 0, 0,
+                             DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK,
+                             (void *)(intptr_t) seq);
+    if (ret != 0) {
+        ftrace_print("fission-flip-failed crtc %p ret %d errno %d",
+                     crtc, ret, errno);
         ms_drm_abort_seq(scrn, seq);
-        return;
+        goto retry;
     }
 
     /*
@@ -397,6 +398,12 @@ ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
     comp->flip_seq = seq;
     ms_compositor_flip_submitted(crtc);
     comp->prepared = FALSE;
+    return;
+
+retry:
+    /* Failed submissions have no DRM event to wake the next block handler. */
+    if (timeout)
+        AdjustWaitForDelay(timeout, MS_COMPOSITOR_RETRY_MSEC);
 }
 
 void
@@ -420,6 +427,10 @@ ms_compositor_flip_abort(void *data)
 {
     xf86CrtcPtr crtc = data;
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+    /* A rejected submission still owns a prepared frame for retry. */
+    if (!drmmode_crtc->compositor.flip_seq)
+        return;
 
     drmmode_crtc->compositor.flip_seq = 0;
     drmmode_crtc->compositor.prepared = FALSE;
