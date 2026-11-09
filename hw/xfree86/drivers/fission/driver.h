@@ -291,4 +291,4 @@ Bool ms_compositor_queue_present(xf86CrtcPtr crtc, WindowPtr window,
                                   uint64_t event_id);
 void ms_compositor_damage_crtc(xf86CrtcPtr crtc);
 void ms_compositor_prepare_crtc(xf86CrtcPtr crtc, void *timeout);
-void ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc);
+void ms_compositor_flip_crtc(ScrnInfoPtr scrn, xf86CrtcPtr crtc, void *timeout);

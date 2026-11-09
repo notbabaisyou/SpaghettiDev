@@ -42,6 +42,8 @@ enum {
     TEST_MARGIN_USEC = 2000,
     TEST_TIMER_EARLY_USEC = 500,
     TEST_MARGIN_STEP_USEC = 1000,
+    TEST_RETRY_MSEC = 3,
+    TEST_USEC_PER_MSEC = 1000,
 
 };
 
@@ -56,6 +58,14 @@ enum test_event {
     TEST_BATCH_SECOND,
     TEST_AFTER_PREPARE,
     TEST_AFTER_EMPTY_PREPARE,
+    TEST_IDLE_RETRY,
+};
+
+enum test_failure {
+    TEST_PAINT_FAILURE,
+    TEST_QUEUE_FAILURE,
+    TEST_COMMIT_FAILURE,
+    TEST_FAILURE_COUNT,
 };
 
 int xf86CrtcConfigPrivateIndex;
@@ -232,7 +242,7 @@ test_deadline_pacing(void)
     WindowRec window = { 0 };
     uint64_t deadline, margin;
     unsigned before, before_paint, before_timers;
-    int timeout, i, j;
+    int timeout, i, j, failure;
 
     scrn.privates = privates;
     for (i = 0; i < TEST_CRTC_COUNT; i++) {
@@ -261,6 +271,8 @@ test_deadline_pacing(void)
     assert(comp->compose_deadline == deadline);
     assert(comp->compose_timer && comp->compose_timer->active);
     assert(timeout == (TEST_PERIOD_USEC - TEST_MARGIN_USEC) / 1000);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], &timeout);
+    assert(timeout == (TEST_PERIOD_USEC - TEST_MARGIN_USEC) / 1000);
     assert(paint_calls == before_paint && notifications == before);
 
     /* A second client joins the same deadline instead of chasing it forward. */
@@ -281,7 +293,13 @@ test_deadline_pacing(void)
 
     /* A Present after painting belongs to the following output frame. */
     assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_AFTER_PREPARE));
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    commit_success = FALSE;
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
+    assert(comp->prepared && comp->repaint && comp->compose_deadline == deadline);
+    commit_success = TRUE;
+    ms_compositor_prepare_crtc(&crtcs[0], NULL);
+    assert(paint_calls == before_paint + 1);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(comp->events && comp->submitted_events);
     assert(notifications == before);
     test_now = test_ust = TEST_CLOCK_START + TEST_PERIOD_USEC;
@@ -293,7 +311,7 @@ test_deadline_pacing(void)
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     test_now = comp->compose_deadline;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     test_now = test_ust += TEST_PERIOD_USEC;
     ms_compositor_flip_handler(TEST_TARGET_MSC + 1, test_ust, &crtcs[0]);
     assert(notifications == before + 3);
@@ -305,7 +323,7 @@ test_deadline_pacing(void)
     test_now = comp->compose_deadline;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_AFTER_EMPTY_PREPARE));
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(comp->events && !comp->submitted_events);
     test_now = test_ust += TEST_PERIOD_USEC;
     ms_compositor_flip_handler(TEST_TARGET_MSC + 2, test_ust, &crtcs[0]);
@@ -313,7 +331,7 @@ test_deadline_pacing(void)
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     test_now = comp->compose_deadline;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     test_now = test_ust += TEST_PERIOD_USEC;
     ms_compositor_flip_handler(TEST_TARGET_MSC + 3, test_ust, &crtcs[0]);
     assert(notifications == before + 4);
@@ -324,7 +342,7 @@ test_deadline_pacing(void)
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     test_now = comp->compose_deadline;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     test_now = test_ust += 2 * TEST_PERIOD_USEC;
     ms_compositor_flip_handler(TEST_TARGET_MSC + 5, test_ust, &crtcs[0]);
     assert(comp->compose_margin == TEST_MARGIN_USEC + TEST_MARGIN_STEP_USEC);
@@ -333,10 +351,78 @@ test_deadline_pacing(void)
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     test_now = comp->compose_deadline;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     test_now = test_ust += TEST_PERIOD_USEC;
     ms_compositor_flip_handler(TEST_TARGET_MSC + 6, test_ust, &crtcs[0]);
     assert(comp->compose_margin < margin && comp->compose_margin >= TEST_MARGIN_USEC);
+
+    /* Failed frames wake an idle server and complete after recovery. */
+    before = notifications;
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_IDLE_RETRY));
+    for (failure = 0; failure < TEST_FAILURE_COUNT; failure++) {
+        paint_success = failure != TEST_PAINT_FAILURE;
+        queue_success = failure != TEST_QUEUE_FAILURE;
+        commit_success = failure != TEST_COMMIT_FAILURE;
+        before_paint = paint_calls;
+        timeout = -1;
+        ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+        if (comp->compose_deadline > test_now) {
+            test_now = comp->compose_deadline;
+            timeout = -1;
+            ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+        }
+        deadline = comp->compose_deadline;
+        ms_compositor_flip_crtc(&scrn, &crtcs[0], &timeout);
+        assert(timeout == TEST_RETRY_MSEC);
+        assert(comp->events && comp->compose_deadline == deadline);
+        if (failure == TEST_PAINT_FAILURE)
+            assert(comp->repaint && !comp->prepared);
+        else
+            assert(comp->prepared && comp->prepared_tail && !comp->repaint);
+        if (failure == TEST_COMMIT_FAILURE)
+            assert(paint_calls == before_paint);
+        assert(!comp->flip_seq && !comp->submitted_events);
+        assert(RegionNotEmpty(&comp->stale[comp->back_idx]));
+        assert(notifications == before);
+        test_now += timeout * TEST_USEC_PER_MSEC;
+    }
+    paint_success = queue_success = commit_success = TRUE;
+    before_paint = paint_calls;
+    timeout = -1;
+    ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+    if (comp->compose_deadline > test_now) {
+        test_now = comp->compose_deadline;
+        ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+    }
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], &timeout);
+    assert(paint_calls == before_paint);
+    assert(comp->flip_seq == TEST_SEQUENCE && !comp->events);
+    test_now = test_ust = max(test_now, test_ust) + TEST_PERIOD_USEC;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 7, test_ust, &crtcs[0]);
+    assert(notifications == before + 1);
+    assert(notification_ids[before] == TEST_IDLE_RETRY);
+
+    /* VRR retries also wake without a fixed-refresh compose timer. */
+    before = notifications;
+    dc[0].vrr_enabled = TRUE;
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_IDLE_RETRY));
+    timeout = -1;
+    ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+    commit_success = FALSE;
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], &timeout);
+    assert(timeout == TEST_RETRY_MSEC && !comp->compose_deadline);
+    assert(comp->prepared && !comp->repaint);
+    assert(comp->events && notifications == before);
+    test_now += timeout * TEST_USEC_PER_MSEC;
+    commit_success = TRUE;
+    timeout = -1;
+    ms_compositor_prepare_crtc(&crtcs[0], &timeout);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], &timeout);
+    assert(comp->flip_seq == TEST_SEQUENCE && timeout == -1);
+    test_ust = test_now;
+    ms_compositor_flip_handler(TEST_TARGET_MSC + 8, test_ust, &crtcs[0]);
+    assert(notifications == before + 1);
+    dc[0].vrr_enabled = FALSE;
 
     /* Different refresh rates keep independent timers and prepare deadlines. */
     crtcs[1].enabled = TRUE;
@@ -503,7 +589,7 @@ main(void)
     ms_compositor_damage_crtc(&crtcs[0]);
     paint_success = FALSE;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(!dc[0].compositor.prepared && commit_calls == before_commit);
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     paint_success = TRUE;
@@ -511,6 +597,7 @@ main(void)
     /* Returning from direct scanout repaints the complete logical viewport. */
     dc[0].compositor.scanout_fb = TEST_ACTIVE_FB;
     dc[0].compositor.scanout_pixmap = &old;
+    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_RETRY));
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(dc[0].compositor.prepared);
     assert(!memcmp(&painted, &crtcs[0].bounds, sizeof(BoxRec)));
@@ -518,14 +605,13 @@ main(void)
     /* A rejected commit retains its Present and damage until the retry. */
     before = notifications;
     commit_success = FALSE;
-    assert(ms_compositor_queue_present(&crtcs[0], &window, TEST_RETRY));
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(notifications == before && dc[0].compositor.events);
     assert(!dc[0].compositor.flip_seq);
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     commit_success = TRUE;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(dc[0].compositor.flip_seq == TEST_SEQUENCE);
     assert(RegionNil(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
@@ -540,7 +626,7 @@ main(void)
     before_commit = commit_calls;
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(paint_calls == before_paint && commit_calls == before_commit);
 
     /* Fresh damage repairs the accumulated stale region on the next frame. */
@@ -548,7 +634,7 @@ main(void)
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(paint_calls == before_paint + 1);
     assert(!memcmp(&painted, &crtcs[0].bounds, sizeof(BoxRec)));
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
 
     /* Queue allocation failure leaves the new frame available for retry. */
@@ -556,11 +642,11 @@ main(void)
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     before_commit = commit_calls;
     queue_success = FALSE;
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(commit_calls == before_commit && !dc[0].compositor.flip_seq);
     queue_success = TRUE;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(commit_calls == before_commit + 1);
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
 
@@ -568,13 +654,13 @@ main(void)
     ms_compositor_damage_crtc(&crtcs[0]);
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     ms_compositor_damage_crtc(&crtcs[0]);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     assert(RegionNotEmpty(&dc[0].compositor.stale[dc[0].compositor.back_idx]));
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
     before_paint = paint_calls;
     ms_compositor_prepare_crtc(&crtcs[0], NULL);
     assert(paint_calls == before_paint + 1);
-    ms_compositor_flip_crtc(&scrn, &crtcs[0]);
+    ms_compositor_flip_crtc(&scrn, &crtcs[0], NULL);
     ms_compositor_flip_handler(TEST_TARGET_MSC, TEST_TARGET_UST, &crtcs[0]);
 
     /* Aborting a direct commit preserves the current scanout. */
@@ -583,7 +669,9 @@ main(void)
     dc[0].compositor.scanout_pixmap = &old;
     dc[0].compositor.pending_fb = TEST_PENDING_FB;
     dc[0].compositor.pending_pixmap = &next;
-    assert(!ms_compositor_flip_complete(&crtcs[0], 0, 0, TRUE));
+    dc[0].compositor.flip_seq = TEST_SEQUENCE;
+    ms_compositor_flip_abort(&crtcs[0]);
+    assert(!dc[0].compositor.flip_seq && dc[0].compositor.repaint);
     assert(dc[0].compositor.scanout_fb == TEST_ACTIVE_FB && old.refcnt == 1);
     assert(next.refcnt == 0 && removed_fbs == 2 && destroyed_pixmaps == 2);
 

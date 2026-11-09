@@ -834,7 +834,7 @@ ms_compositor_update(ScrnInfoPtr scrn, modesettingPtr ms, Bool flip, void *timeo
 
     for (c = 0; c < xf86_config->num_crtc; c++)
         if (flip)
-            ms_compositor_flip_crtc(scrn, xf86_config->crtc[c]);
+            ms_compositor_flip_crtc(scrn, xf86_config->crtc[c], timeout);
         else
             ms_compositor_prepare_crtc(xf86_config->crtc[c], timeout);
 }
