@@ -175,6 +175,15 @@ vfbInitializeScreenInfo(vfbScreenInfoPtr screen)
 {
     *screen = defaultScreenInfo;
 
+    if (screen != &defaultScreenInfo && screen->numCrtcs) {
+        screen->crtcs = reallocarray(NULL, screen->numCrtcs,
+                                     sizeof(*screen->crtcs));
+        if (!screen->crtcs)
+            FatalError("Not enough memory for %d CRTCs", screen->numCrtcs);
+        memcpy(screen->crtcs, defaultScreenInfo.crtcs,
+               screen->numCrtcs * sizeof(*screen->crtcs));
+    }
+
     if (screen->numCrtcs == 0) {
         vfbSetCrtcInfo(screen, VFB_DEFAULT_NUM_CRTCS, screen->width,
                        screen->height);

@@ -6,6 +6,7 @@ simple_xinit = executable(
 )
 
 xcb_dep = dependency('xcb', required: false)
+xcb_randr_dep = dependency('xcb-randr', required: false)
 xcb_present_dep = dependency('xcb-present', required: false)
 xcb_dri3_dep = dependency('xcb-dri3', required: false)
 xcb_sync_dep = dependency('xcb-sync', required: false)
@@ -98,6 +99,17 @@ rendercheck_tests_gles3 = rendercheck_blend_gles2 + rendercheck_tests_noblend
 rendercheck = find_program('rendercheck', required:false)
 
 if get_option('xvfb')
+    if xcb_dep.found() and xcb_randr_dep.found()
+        vfb_crtcs = executable('vfb-crtcs', 'vfb-crtcs.c',
+                                dependencies: [xcb_dep, xcb_randr_dep])
+        test('vfb-crtcs', simple_xinit,
+             args: [vfb_crtcs, '--', xvfb_server,
+                    '-screen', '0', '128x128x24', '-crtcs', '1@128x128',
+                    '-screen', '1', '96x64x24', '-crtcs', '1@96x64',
+                    '-extension', 'XINERAMA'],
+             timeout: 30,
+             suite: 'xvfb')
+    endif
     xvfb_args = [
         xvfb_server.full_path(),
         '-screen',
