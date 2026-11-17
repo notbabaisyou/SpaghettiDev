@@ -40,4 +40,7 @@ vrr_screen_init(ScreenPtr screen, const vrr_screen_info_rec *info);
 extern _X_EXPORT void
 vrr_set_flip_window(ScreenPtr screen, WindowPtr window);
 
+extern _X_EXPORT Bool
+vrr_window_has_variable_refresh(WindowPtr window);
+
 #endif /* _VRR_H_ */

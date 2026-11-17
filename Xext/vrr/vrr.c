@@ -93,7 +93,7 @@ vrr_property_callback(CallbackListPtr *cbl, void *unused, void *call_data)
             win_priv->variable_refresh);
 }
 
-static inline Bool
+Bool
 vrr_window_has_variable_refresh(WindowPtr window)
 {
     vrr_window_priv_ptr win_priv = vrr_window_priv(window);

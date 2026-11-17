@@ -35,6 +35,7 @@
 #include <servermd.h>
 
 #include "driver.h"
+#include "vrr.h"
 
 typedef struct {
     const struct pixman_f_transform *to_screen;
@@ -517,14 +518,14 @@ ms_compositor_move_cursor(ScrnInfoPtr scrn, ms_sw_cursor_ptr sw_cursor,
 
 #ifdef HAVE_GBM
 static Bool
-ms_compositor_window_vrr(modesettingPtr ms, WindowPtr window)
+ms_compositor_window_vrr(WindowPtr window)
 {
     WindowPtr child;
 
-    if (ms_window_has_variable_refresh(ms, window))
+    if (vrr_window_has_variable_refresh(window))
         return TRUE;
     for (child = window->firstChild; child; child = child->nextSib)
-        if (child->viewable && ms_compositor_window_vrr(ms, child))
+        if (child->viewable && ms_compositor_window_vrr(child))
             return TRUE;
     return FALSE;
 }
@@ -581,7 +582,7 @@ ms_compositor_direct_flip(xf86CrtcPtr crtc)
 
     ms->glamor.block_handler(scrn->pScreen);
     if (ms->vrr_support)
-        drmmode_crtc_set_vrr(crtc, ms_compositor_window_vrr(ms, window));
+        drmmode_crtc_set_vrr(crtc, ms_compositor_window_vrr(window));
     seq = ms_drm_queue_alloc(crtc, crtc, ms_compositor_flip_handler,
                              ms_compositor_flip_abort);
     if (!seq)
