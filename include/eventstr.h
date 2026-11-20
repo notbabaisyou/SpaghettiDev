@@ -241,6 +241,7 @@ struct _RawDeviceEvent {
     } detail;
 
     uint32_t flags;       /**< Flags to be copied into the generated event */
+    Bool relative_motion; /**< Relative pointer motion before clipping */
 
     struct {
         uint8_t mask[(MAX_VALUATORS + 7) / 8];/**< Valuator mask */
