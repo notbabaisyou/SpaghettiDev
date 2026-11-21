@@ -18,16 +18,20 @@
 #include <dix-config.h>
 #include <drm_fourcc.h>
 #include <errno.h>
+#include <limits.h>
 #include <linux/dma-buf.h>
 #include <poll.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 #include "dmabuf-fb.h"
-#include "fb.h"
 #include "os/busfault.h"
 #include "picturestr.h"
+#include "pixmapstr.h"
+#include "servermd.h"
 
 #define DMABUF_FB_FENCE_TIMEOUT_MS 1500
 
@@ -127,8 +131,9 @@ dmabuf_fb_import(ScreenPtr screen, const struct dmabuf_buffer *buffer,
                                      (BitsPerPixel(format->depth) / CHAR_BIT)))
         return BadMatch;
 
-    imported = fbCreatePixmap(screen, buffer->width, buffer->height,
-                             format->depth, 0);
+    /* Soft2D's screen hook allocates CPU-backed pixmaps. */
+    imported = screen->CreatePixmap(screen, buffer->width, buffer->height,
+                                    format->depth, 0);
     if (!imported)
         return BadAlloc;
 
