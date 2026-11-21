@@ -108,7 +108,10 @@ check_dmabuf_backend(void)
     assert(dmabuf_get_modifiers(&screen, TEST_FOURCC,
                                   &count, &modifiers) == BadMatch);
     assert(!count && !modifiers);
+    assert(!dmabuf_has_backend(&screen));
     assert(dmabuf_register(&screen, &backend));
+    assert(dmabuf_has_backend(&screen));
+    assert(!dmabuf_has_backend(&other));
     assert(dmabuf_register(&screen, &backend));
     assert(!dmabuf_register(&screen, &alternate));
     dmabuf_unregister(&screen, &alternate);
@@ -136,6 +139,7 @@ check_dmabuf_backend(void)
     assert(destroyed && !pixmap && !format);
 
     dmabuf_unregister(&screen, &backend);
+    assert(!dmabuf_has_backend(&screen));
     assert(dmabuf_import(&screen, &buffer, &pixmap, &format) == BadMatch);
     assert(fcntl(fd, F_GETFD) >= 0);
     close(fd);

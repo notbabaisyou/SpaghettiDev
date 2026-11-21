@@ -56,6 +56,10 @@ extern _X_EXPORT void
 dmabuf_unregister(ScreenPtr screen,
                   const struct dmabuf_backend *backend);
 
+/* Whether this screen has a native DMA-BUF backend. */
+extern _X_EXPORT Bool
+dmabuf_has_backend(ScreenPtr screen);
+
 /* Returns modifiers usable for import and RENDER sampling. The caller frees
  * the array with free(). A screen without a backend returns BadMatch.
  */

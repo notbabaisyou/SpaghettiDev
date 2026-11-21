@@ -59,6 +59,12 @@ dmabuf_unregister(ScreenPtr screen,
         dixSetPrivate(&screen->devPrivates, &dmabuf_screen_key, NULL);
 }
 
+Bool
+dmabuf_has_backend(ScreenPtr screen)
+{
+    return screen_backend(screen) != NULL;
+}
+
 int
 dmabuf_get_modifiers(ScreenPtr screen, uint32_t fourcc,
                      uint32_t *count, uint64_t **modifiers)
