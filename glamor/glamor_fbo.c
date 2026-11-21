@@ -97,8 +97,13 @@ glamor_create_fbo_from_tex(glamor_screen_private *glamor_priv,
     glamor_pixmap_fbo *fbo;
 
     fbo = calloc(1, sizeof(*fbo));
-    if (fbo == NULL)
+    if (fbo == NULL) {
+        glamor_make_current(glamor_priv);
+        GLuint texture = tex;
+
+        glDeleteTextures(1, &texture);
         return NULL;
+    }
 
     fbo->tex = tex;
     fbo->width = w;

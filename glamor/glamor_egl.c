@@ -376,9 +376,19 @@ glamor_egl_create_textured_pixmap_from_gbm_bo(PixmapPtr pixmap,
         goto done;
     }
 
-    glamor_create_texture_from_image(screen, image, &texture);
+    if (!glamor_create_texture_from_image(screen, image, &texture)) {
+        eglDestroyImageKHR(glamor_egl->display, image);
+        goto done;
+    }
+
     glamor_set_pixmap_type(pixmap, GLAMOR_TEXTURE_DRM);
-    glamor_set_pixmap_texture(pixmap, texture);
+
+    if (!glamor_set_pixmap_texture(pixmap, texture)) {
+        glamor_set_pixmap_type(pixmap, GLAMOR_DRM_ONLY);
+        eglDestroyImageKHR(glamor_egl->display, image);
+        goto done;
+    }
+
     glamor_egl_set_pixmap_image(pixmap, image, used_modifiers);
     ret = TRUE;
 
