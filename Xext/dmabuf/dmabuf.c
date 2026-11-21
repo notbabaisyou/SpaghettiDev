@@ -22,10 +22,15 @@
 #include "extnsionst.h"
 #include "dmabuf.h"
 
+struct dmabuf_screen {
+    const struct dmabuf_backend *backend;
+    dmabuf_prepare_proc prepare;
+};
+
 static DevPrivateKeyRec dmabuf_screen_key;
 
-static const struct dmabuf_backend *
-screen_backend(ScreenPtr screen)
+static struct dmabuf_screen *
+dmabuf_screen(ScreenPtr screen)
 {
     if (!screen || !dixPrivateKeyRegistered(&dmabuf_screen_key))
         return NULL;
@@ -33,30 +38,46 @@ screen_backend(ScreenPtr screen)
     return dixLookupPrivate(&screen->devPrivates, &dmabuf_screen_key);
 }
 
-Bool
-dmabuf_register(ScreenPtr screen,
-                const struct dmabuf_backend *backend)
+static const struct dmabuf_backend *
+screen_backend(ScreenPtr screen)
 {
-    const struct dmabuf_backend *registered;
+    struct dmabuf_screen *state = dmabuf_screen(screen);
+
+    return state ? state->backend : NULL;
+}
+
+Bool
+dmabuf_register_prepared(ScreenPtr screen, const struct dmabuf_backend *backend,
+                         dmabuf_prepare_proc prepare)
+{
+    struct dmabuf_screen *state;
 
     if (!screen || !backend || !backend->get_modifiers || !backend->import_buffer ||
-        !dixRegisterPrivateKey(&dmabuf_screen_key, PRIVATE_SCREEN, 0))
+        !dixRegisterPrivateKey(&dmabuf_screen_key, PRIVATE_SCREEN, sizeof(*state)))
         return FALSE;
 
-    registered = screen_backend(screen);
-    if (registered && registered != backend)
+    state = dmabuf_screen(screen);
+    if (state->backend && state->backend != backend)
         return FALSE;
 
-    dixSetPrivate(&screen->devPrivates, &dmabuf_screen_key, (void *) backend);
+    state->backend = backend;
+    state->prepare = prepare;
     return TRUE;
 }
 
-void
-dmabuf_unregister(ScreenPtr screen,
-                  const struct dmabuf_backend *backend)
+Bool
+dmabuf_register(ScreenPtr screen, const struct dmabuf_backend *backend)
 {
-    if (backend && screen_backend(screen) == backend)
-        dixSetPrivate(&screen->devPrivates, &dmabuf_screen_key, NULL);
+    return dmabuf_register_prepared(screen, backend, NULL);
+}
+
+void
+dmabuf_unregister(ScreenPtr screen, const struct dmabuf_backend *backend)
+{
+    struct dmabuf_screen *state = dmabuf_screen(screen);
+
+    if (state && backend && state->backend == backend)
+        *state = (struct dmabuf_screen){ 0 };
 }
 
 Bool
@@ -141,6 +162,24 @@ dmabuf_import(ScreenPtr screen, const struct dmabuf_buffer *buffer,
     *pixmap = imported;
     *source_format = picture_format;
     return Success;
+}
+
+int
+dmabuf_prepare(ScreenPtr screen, const struct dmabuf_buffer *buffer,
+               PixmapPtr pixmap)
+{
+    struct dmabuf_screen *state = dmabuf_screen(screen);
+
+    if (!state || !state->backend)
+        return BadMatch;
+    if (!state->prepare)
+        return Success;
+    if (!buffer || !pixmap || pixmap->drawable.pScreen != screen ||
+        pixmap->drawable.width != buffer->width ||
+        pixmap->drawable.height != buffer->height)
+        return BadMatch;
+
+    return state->prepare(screen, buffer, pixmap);
 }
 
 static int

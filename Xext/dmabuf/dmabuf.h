@@ -52,6 +52,15 @@ extern _X_EXPORT Bool
 dmabuf_register(ScreenPtr screen,
                 const struct dmabuf_backend *backend);
 
+/* Register a backend whose pixmap contents must be refreshed on first use. */
+typedef int (*dmabuf_prepare_proc)(ScreenPtr screen,
+                                   const struct dmabuf_buffer *buffer,
+                                   PixmapPtr pixmap);
+
+extern _X_EXPORT Bool
+dmabuf_register_prepared(ScreenPtr screen, const struct dmabuf_backend *backend,
+                                  dmabuf_prepare_proc prepare);
+
 extern _X_EXPORT void
 dmabuf_unregister(ScreenPtr screen,
                   const struct dmabuf_backend *backend);
@@ -73,6 +82,14 @@ dmabuf_get_modifiers(ScreenPtr screen, uint32_t fourcc,
 extern _X_EXPORT int
 dmabuf_import(ScreenPtr screen, const struct dmabuf_buffer *buffer,
               PixmapPtr *pixmap, PictFormatPtr *source_format);
+
+/* Prepare a previously imported pixmap before a new use. The caller must
+ * finish reads of the preceding contents before starting a new use. Backends
+ * that import live storage can omit the preparation callback.
+ */
+extern _X_EXPORT int
+dmabuf_prepare(ScreenPtr screen, const struct dmabuf_buffer *buffer,
+               PixmapPtr pixmap);
 #endif
 
 #endif
