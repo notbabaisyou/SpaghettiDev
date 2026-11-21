@@ -22,6 +22,10 @@
 #include "extnsionst.h"
 #include "dmabuf.h"
 
+#if defined(FISSION_SOFT2D) && defined(__linux__) && defined(BUSFAULT)
+#include "dmabuf-fb.h"
+#endif
+
 struct dmabuf_screen {
     const struct dmabuf_backend *backend;
     dmabuf_prepare_proc prepare;
@@ -32,7 +36,10 @@ static DevPrivateKeyRec dmabuf_screen_key;
 static struct dmabuf_screen *
 dmabuf_screen(ScreenPtr screen)
 {
-    if (!screen || !dixPrivateKeyRegistered(&dmabuf_screen_key))
+    if (!screen)
+        return NULL;
+
+    if (!dixPrivateKeyRegistered(&dmabuf_screen_key))
         return NULL;
 
     return dixLookupPrivate(&screen->devPrivates, &dmabuf_screen_key);
@@ -42,13 +49,12 @@ static const struct dmabuf_backend *
 screen_backend(ScreenPtr screen)
 {
     struct dmabuf_screen *state = dmabuf_screen(screen);
-
     return state ? state->backend : NULL;
 }
 
 Bool
 dmabuf_register_prepared(ScreenPtr screen, const struct dmabuf_backend *backend,
-                         dmabuf_prepare_proc prepare)
+                 dmabuf_prepare_proc prepare)
 {
     struct dmabuf_screen *state;
 
@@ -79,6 +85,20 @@ dmabuf_unregister(ScreenPtr screen, const struct dmabuf_backend *backend)
     if (state && backend && state->backend == backend)
         *state = (struct dmabuf_screen){ 0 };
 }
+
+#if defined(FISSION_SOFT2D) && defined(__linux__) && defined(BUSFAULT)
+Bool
+dmabuf_register_fb(ScreenPtr screen)
+{
+    return dmabuf_register_prepared(screen, &dmabuf_fb_backend, dmabuf_fb_prepare);
+}
+
+void
+dmabuf_unregister_fb(ScreenPtr screen)
+{
+    dmabuf_unregister(screen, &dmabuf_fb_backend);
+}
+#endif
 
 Bool
 dmabuf_has_backend(ScreenPtr screen)
@@ -165,16 +185,19 @@ dmabuf_import(ScreenPtr screen, const struct dmabuf_buffer *buffer,
 }
 
 int
-dmabuf_prepare(ScreenPtr screen, const struct dmabuf_buffer *buffer,
+dmabuf_prepare(ScreenPtr screen,
+               const struct dmabuf_buffer *buffer,
                PixmapPtr pixmap)
 {
     struct dmabuf_screen *state = dmabuf_screen(screen);
 
     if (!state || !state->backend)
         return BadMatch;
+
     if (!state->prepare)
         return Success;
-    if (!buffer || !pixmap || pixmap->drawable.pScreen != screen ||
+
+    if (pixmap->drawable.pScreen != screen ||
         pixmap->drawable.width != buffer->width ||
         pixmap->drawable.height != buffer->height)
         return BadMatch;

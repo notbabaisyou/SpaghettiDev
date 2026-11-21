@@ -59,7 +59,7 @@ typedef int (*dmabuf_prepare_proc)(ScreenPtr screen,
 
 extern _X_EXPORT Bool
 dmabuf_register_prepared(ScreenPtr screen, const struct dmabuf_backend *backend,
-                                  dmabuf_prepare_proc prepare);
+                          dmabuf_prepare_proc prepare);
 
 extern _X_EXPORT void
 dmabuf_unregister(ScreenPtr screen,
@@ -90,6 +90,12 @@ dmabuf_import(ScreenPtr screen, const struct dmabuf_buffer *buffer,
 extern _X_EXPORT int
 dmabuf_prepare(ScreenPtr screen, const struct dmabuf_buffer *buffer,
                PixmapPtr pixmap);
+
+#if defined(__linux__)
+/* Single-plane LINEAR buffers copied into framebuffer pixmaps. */
+extern _X_EXPORT Bool dmabuf_register_fb(ScreenPtr screen);
+extern _X_EXPORT void dmabuf_unregister_fb(ScreenPtr screen);
+#endif
 #endif
 
 #endif

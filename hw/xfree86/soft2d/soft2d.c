@@ -35,6 +35,7 @@
 
 #include "xf86.h"
 #include "dri3.h"
+#include "dmabuf.h"
 #include <drm_fourcc.h>
 #include <drm_mode.h>
 #include <unistd.h>
@@ -645,6 +646,10 @@ soft2d_close_screen(ScreenPtr screen)
 {
     struct soft2d_screen_priv *spriv = soft2dGetScreenPriv(screen);
 
+#if defined(SPAGHETTI) && defined(__linux__) && defined(BUSFAULT)
+    dmabuf_unregister_fb(screen);
+#endif
+
     screen->DestroyPixmap = spriv->saved_DestroyPixmap;
     screen->CloseScreen = spriv->saved_CloseScreen;
 
@@ -705,6 +710,13 @@ soft2d_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
         xf86DrvMsg(scrn->scrnIndex, X_ERROR, "soft2d: DRI3 initialization failed\n");
         return FALSE;
     }
+
+#if defined(SPAGHETTI) && defined(__linux__) && defined(BUSFAULT)
+    if (!dmabuf_register_fb(screen)) {
+        xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+                   "soft2d: Spaghetti DMA-BUF registration failed\n");
+    }
+#endif
 
     return TRUE;
 }
