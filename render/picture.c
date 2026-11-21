@@ -205,6 +205,11 @@ PictureCreateDefaultFormats(ScreenPtr pScreen, int *nformatp)
     formats[nformats].depth = 32;
     nformats++;
 
+#if SPAGHETTI
+    addFormat(formats, &nformats, PICT_a8b8g8r8, 32);
+    addFormat(formats, &nformats, PICT_r8g8b8a8, 32);
+#endif
+
     /* now look through the depths and visuals adding other formats */
     for (v = 0; v < pScreen->numVisuals; v++) {
         pVisual = &pScreen->visuals[v];
@@ -287,6 +292,9 @@ PictureCreateDefaultFormats(ScreenPtr pScreen, int *nformatp)
             if (pDepth->depth >= 24) {
                 addFormat(formats, &nformats, PICT_x8r8g8b8, pDepth->depth);
                 addFormat(formats, &nformats, PICT_x8b8g8r8, pDepth->depth);
+#if SPAGHETTI
+                addFormat(formats, &nformats, PICT_b8g8r8x8, pDepth->depth);
+#endif
             }
             if (pDepth->depth >= 30) {
                 addFormat(formats, &nformats, PICT_a2r10g10b10, pDepth->depth);
@@ -353,6 +361,18 @@ PictureCreateDefaultFormats(ScreenPtr pScreen, int *nformatp)
             pFormats[f].direct.redMask = Mask (PICT_FORMAT_R(format));
 
             pFormats[f].direct.red = 0;
+            break;
+
+        case PICT_TYPE_RGBA:
+            pFormats[f].type = PictTypeDirect;
+            pFormats[f].direct.redMask = Mask(PICT_FORMAT_R(format));
+            pFormats[f].direct.greenMask = Mask(PICT_FORMAT_G(format));
+            pFormats[f].direct.blueMask = Mask(PICT_FORMAT_B(format));
+            pFormats[f].direct.alphaMask = Mask(PICT_FORMAT_A(format));
+            pFormats[f].direct.red = PICT_FORMAT_BPP(format) - PICT_FORMAT_R(format);
+            pFormats[f].direct.green = pFormats[f].direct.red - PICT_FORMAT_G(format);
+            pFormats[f].direct.blue = pFormats[f].direct.green - PICT_FORMAT_B(format);
+            pFormats[f].direct.alpha = 0;
             break;
 
         case PICT_TYPE_BGRA:
@@ -663,8 +683,14 @@ PictureInit(ScreenPtr pScreen, PictFormatPtr formats, int nformats)
             if ((formats[n].direct.redMask |
                  formats[n].direct.blueMask | formats[n].direct.greenMask) == 0)
                 type = PICT_TYPE_A;
-            else if (formats[n].direct.red > formats[n].direct.blue)
-                type = PICT_TYPE_ARGB;
+            else if (formats[n].direct.red > formats[n].direct.blue) {
+                if (formats[n].direct.blue &&
+                    formats[n].direct.alphaMask &&
+                    formats[n].direct.alpha == 0)
+                    type = PICT_TYPE_RGBA;
+                else
+                    type = PICT_TYPE_ARGB;
+            }
             else if (formats[n].direct.red == 0)
                 type = PICT_TYPE_ABGR;
             else
