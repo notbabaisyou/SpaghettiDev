@@ -29,6 +29,9 @@
 /* Build DPMS extension */
 #mesondefine DPMSExtension
 
+/* Spaghetti SDK extensions */
+#mesondefine SPAGHETTI
+
 /* Build DRI3 extension */
 #mesondefine DRI3
 

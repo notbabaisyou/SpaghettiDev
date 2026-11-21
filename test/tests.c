@@ -19,6 +19,7 @@ main(int argc, char **argv)
 #ifdef DRI3
     run_test(dri3_test);
 #endif
+    run_test(dmabuf_test);
     run_test(input_test);
     run_test(misc_test);
     run_test(region_test);

@@ -213,6 +213,7 @@ if build_xorg
      'sha1.c',
      'signal-logging.c',
      'string.c',
+     'dmabuf.c',
      'test_xkb.c',
      'tests-common.c',
      'tests.c',
