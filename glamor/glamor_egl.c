@@ -34,6 +34,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <limits.h>
 #include <xf86.h>
 #include <xf86Priv.h>
 #include <xf86drm.h>
@@ -50,6 +51,12 @@
 #include "glamor_priv.h"
 #include "glxglamor.h"
 #include "dri3.h"
+
+#if defined(SPAGHETTI) && defined(HAVE_EGL_QUERY_DMABUF) && \
+    defined(GBM_BO_WITH_MODIFIERS) && defined(GBM_BO_FD_FOR_PLANE)
+#define GLAMOR_NATIVE_DMABUF
+#include "dmabuf.h"
+#endif
 
 /*
  * These drivers are mature enough to properly
@@ -721,6 +728,29 @@ glamor_back_pixmap_from_fd(PixmapPtr pixmap,
     return ret;
 }
 
+#ifdef GBM_BO_WITH_MODIFIERS
+static Bool
+glamor_back_pixmap_from_dmabuf(PixmapPtr pixmap,
+                              struct gbm_import_fd_modifier_data *data)
+{
+    ScreenPtr screen = pixmap->drawable.pScreen;
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
+    struct gbm_bo *bo;
+    Bool ret;
+
+    bo = gbm_bo_import(glamor_egl->gbm, GBM_BO_IMPORT_FD_MODIFIER, data, 0);
+    if (!bo)
+        return FALSE;
+
+    ret = screen->ModifyPixmapHeader(pixmap, data->width, data->height,
+                                     0, 0, data->strides[0], NULL) &&
+          glamor_egl_create_textured_pixmap_from_gbm_bo(pixmap, bo, TRUE);
+    gbm_bo_destroy(bo);
+    return ret;
+}
+#endif
+
 PixmapPtr
 glamor_pixmap_from_fds(ScreenPtr screen,
                        CARD8 num_fds, const int *fds,
@@ -737,11 +767,12 @@ glamor_pixmap_from_fds(ScreenPtr screen,
     glamor_egl = glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
 
     pixmap = screen->CreatePixmap(screen, 0, 0, depth, 0);
+    if (!pixmap)
+        return NULL;
 
 #ifdef GBM_BO_WITH_MODIFIERS
     if (glamor_egl->dmabuf_capable && modifier != DRM_FORMAT_MOD_INVALID) {
         struct gbm_import_fd_modifier_data import_data = { 0 };
-        struct gbm_bo *bo;
 
         if (!gbm_format_for_pixmap(depth, bpp, &import_data.format) ||
             width == 0 || height == 0)
@@ -756,12 +787,7 @@ glamor_pixmap_from_fds(ScreenPtr screen,
             import_data.strides[i] = strides[i];
             import_data.offsets[i] = offsets[i];
         }
-        bo = gbm_bo_import(glamor_egl->gbm, GBM_BO_IMPORT_FD_MODIFIER, &import_data, 0);
-        if (bo) {
-            screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
-            ret = glamor_egl_create_textured_pixmap_from_gbm_bo(pixmap, bo, TRUE);
-            gbm_bo_destroy(bo);
-        }
+        ret = glamor_back_pixmap_from_dmabuf(pixmap, &import_data);
     } else
 #endif
     {
@@ -841,46 +867,74 @@ glamor_get_formats(ScreenPtr screen,
 #endif
 }
 
+static int
+glamor_query_dmabuf_modifiers(ScreenPtr screen, uint32_t format,
+                             Bool texture_2d, uint32_t *num_modifiers,
+                             uint64_t **modifiers)
+{
+    *num_modifiers = 0;
+    *modifiers = NULL;
+
+#ifdef HAVE_EGL_QUERY_DMABUF
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
+    EGLBoolean *external_only = NULL;
+    EGLuint64KHR *values;
+    EGLint num;
+
+    if (!glamor_egl->dmabuf_capable ||
+        !eglQueryDmaBufModifiersEXT(glamor_egl->display, format, 0, NULL,
+                                    NULL, &num))
+        return BadMatch;
+
+    if (num <= 0)
+        return Success;
+
+    values = calloc(num, sizeof(*values));
+    if (texture_2d)
+        external_only = calloc(num, sizeof(*external_only));
+    if (!values || (texture_2d && !external_only)) {
+        free(values);
+        free(external_only);
+        return BadAlloc;
+    }
+
+    if (!eglQueryDmaBufModifiersEXT(glamor_egl->display, format, num, values,
+                                    external_only, &num)) {
+        free(values);
+        free(external_only);
+        return BadMatch;
+    }
+
+    if (texture_2d) {
+        EGLint count = 0;
+
+        for (EGLint i = 0; i < num; i++) {
+            if (!external_only[i] && values[i] != DRM_FORMAT_MOD_INVALID)
+                values[count++] = values[i];
+        }
+        free(external_only);
+        num = count;
+    }
+
+    if (!num) {
+        free(values);
+        return Success;
+    }
+
+    *num_modifiers = num;
+    *modifiers = (uint64_t *) values;
+#endif
+
+    return Success;
+}
+
 Bool
 glamor_get_modifiers(ScreenPtr screen, uint32_t format,
                      uint32_t *num_modifiers, uint64_t **modifiers)
 {
-#ifdef HAVE_EGL_QUERY_DMABUF
-    struct glamor_egl_screen_private *glamor_egl;
-    EGLint num;
-
-    /* Explicitly zero the count as the caller may ignore the return value */
-    *num_modifiers = 0;
-
-    glamor_egl = glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
-
-    if (!glamor_egl->dmabuf_capable)
-        return FALSE;
-
-    if (!eglQueryDmaBufModifiersEXT(glamor_egl->display, format, 0, NULL,
-                                    NULL, &num))
-        return FALSE;
-
-    if (num == 0)
-        return TRUE;
-
-    *modifiers = calloc(num, sizeof(uint64_t));
-    if (*modifiers == NULL)
-        return FALSE;
-
-    if (!eglQueryDmaBufModifiersEXT(glamor_egl->display, format, num,
-                                    (EGLuint64KHR *) *modifiers, NULL, &num)) {
-        free(*modifiers);
-        *modifiers = NULL;
-        return FALSE;
-    }
-
-    *num_modifiers = num;
-    return TRUE;
-#else
-    *num_modifiers = 0;
-    return TRUE;
-#endif
+    return glamor_query_dmabuf_modifiers(screen, format, FALSE,
+                                         num_modifiers, modifiers) == Success;
 }
 
 const char *
@@ -943,6 +997,105 @@ glamor_egl_exchange_buffers(PixmapPtr front, PixmapPtr back)
     glamor_set_pixmap_type(back, GLAMOR_TEXTURE_DRM);
 }
 
+#ifdef GLAMOR_NATIVE_DMABUF
+static PictFormatPtr
+glamor_dmabuf_picture_format(ScreenPtr screen, uint32_t fourcc)
+{
+    struct glamor_screen_private *glamor_priv =
+        glamor_get_screen_private(screen);
+    CARD32 format;
+    int depth;
+
+    /* EGL interprets the FourCC when binding the image as a texture. Render
+     * then sees GLAMOR's canonical channel order for the pixmap's depth.
+     */
+    switch (fourcc) {
+    case DRM_FORMAT_ARGB8888:
+    case DRM_FORMAT_ABGR8888:
+    case DRM_FORMAT_BGRA8888:
+        format = PICT_a8r8g8b8;
+        break;
+    case DRM_FORMAT_XRGB8888:
+    case DRM_FORMAT_XBGR8888:
+    case DRM_FORMAT_BGRX8888:
+        format = PICT_x8r8g8b8;
+        break;
+    case DRM_FORMAT_RGB565:
+        format = PICT_r5g6b5;
+        break;
+    default:
+        return NULL;
+    }
+
+    depth = PIXMAN_FORMAT_DEPTH(format);
+    if (!glamor_priv->formats[depth].rendering_supported)
+        return NULL;
+
+    return PictureMatchFormat(screen, depth, format);
+}
+
+static int
+glamor_get_import_modifiers(ScreenPtr screen, uint32_t fourcc,
+                            uint32_t *num_modifiers, uint64_t **modifiers)
+{
+    if (!glamor_dmabuf_picture_format(screen, fourcc))
+        return BadMatch;
+    else
+        return glamor_query_dmabuf_modifiers(screen, fourcc, TRUE,
+                                             num_modifiers, modifiers);
+}
+
+static int
+glamor_import_dmabuf(ScreenPtr screen, const struct dmabuf_buffer *buffer,
+                     PixmapPtr *pixmap, PictFormatPtr *source_format)
+{
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(xf86ScreenToScrn(screen));
+    struct gbm_import_fd_modifier_data data = {
+        .width = buffer->width,
+        .height = buffer->height,
+        .format = buffer->fourcc,
+        .num_fds = buffer->num_planes,
+        .modifier = buffer->modifier,
+    };
+    PictFormatPtr format = glamor_dmabuf_picture_format(screen, buffer->fourcc);
+    PixmapPtr imported;
+
+    if (!glamor_egl->dmabuf_capable || !format)
+        return BadMatch;
+
+    if (buffer->modifier == DRM_FORMAT_MOD_INVALID ||
+        buffer->num_planes > ARRAY_SIZE(data.fds))
+        return BadMatch;
+
+    for (unsigned int i = 0; i < buffer->num_planes; i++) {
+        if (buffer->strides[i] > INT_MAX || buffer->offsets[i] > INT_MAX)
+            return BadValue;
+        data.fds[i] = buffer->fds[i];
+        data.strides[i] = buffer->strides[i];
+        data.offsets[i] = buffer->offsets[i];
+    }
+
+    imported = screen->CreatePixmap(screen, 0, 0, format->depth, 0);
+    if (!imported)
+        return BadAlloc;
+
+    if (!glamor_back_pixmap_from_dmabuf(imported, &data)) {
+        screen->DestroyPixmap(imported);
+        return BadMatch;
+    }
+
+    *pixmap = imported;
+    *source_format = format;
+    return Success;
+}
+
+static const struct dmabuf_backend glamor_dmabuf_backend = {
+    .get_modifiers = glamor_get_import_modifiers,
+    .import_buffer = glamor_import_dmabuf,
+};
+#endif
+
 static Bool
 glamor_egl_close_screen(ScreenPtr screen)
 {
@@ -950,6 +1103,10 @@ glamor_egl_close_screen(ScreenPtr screen)
     struct glamor_egl_screen_private *glamor_egl;
     struct glamor_pixmap_private *pixmap_priv;
     PixmapPtr screen_pixmap;
+
+#ifdef GLAMOR_NATIVE_DMABUF
+    dmabuf_unregister(screen, &glamor_dmabuf_backend);
+#endif
 
     scrn = xf86ScreenToScrn(screen);
     glamor_egl = glamor_egl_get_screen_private(scrn);
@@ -1053,6 +1210,14 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
     glamor_ctx->display = glamor_egl->display;
 
     glamor_ctx->make_current = glamor_egl_make_current;
+
+#ifdef GLAMOR_NATIVE_DMABUF
+    if (glamor_egl->dmabuf_capable &&
+        !dmabuf_register(screen, &glamor_dmabuf_backend)) {
+        xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+                   "Failed to register the Spaghetti DMA-BUF backend.\n");
+    }
+#endif
 
 #ifdef GLXEXT
     /* Use dynamic logic only if vendor is not forced via xorg.conf */
