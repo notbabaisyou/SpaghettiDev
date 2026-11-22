@@ -244,6 +244,9 @@ present_select_input(ClientPtr client,
                      WindowPtr window,
                      CARD32 event_mask);
 
+/* Enabled by the Xorg present-timing Debug token. */
+extern _X_EXPORT Bool present_trace_frames;
+
 extern _X_EXPORT uint32_t FakeScreenFps;
 
 #endif /* _PRESENT_H_ */

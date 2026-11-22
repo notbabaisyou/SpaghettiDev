@@ -69,6 +69,7 @@
 #include "misc.h"
 #include "xkbsrv.h"
 #include "picture.h"
+#include "present.h"
 #ifdef DPMSExtension
 #include "dpmsproc.h"
 #endif
@@ -743,6 +744,8 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     const char *s;
     XkbRMLVOSet set;
     const char *rules;
+    static const char debug_delimiters[] = ", \t";
+    static const char present_timing[] = "present-timing";
 
     /*
      * Allow force terminate by default when running on hardware.
@@ -912,6 +915,19 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     }
 
     xf86Info.debug = xf86GetOptValString(FlagOptions, FLAG_DEBUG);
+    present_trace_frames = FALSE;
+    for (s = xf86Info.debug; s && *s;) {
+        size_t length;
+
+        s += strspn(s, debug_delimiters);
+        length = strcspn(s, debug_delimiters);
+        if (length == sizeof(present_timing) - 1 &&
+            strncmp(s, present_timing, length) == 0) {
+            present_trace_frames = TRUE;
+            break;
+        }
+        s += length;
+    }
 
     /* if we're not hotplugging, force some input devices to exist */
     xf86Info.forceInputDevices = !(xf86Info.autoAddDevices &&

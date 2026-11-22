@@ -35,7 +35,10 @@
  *
  */
 
+#define PRESENT_FRAME_TIMING_VERBOSITY 0
+
 static uint64_t present_scmd_event_id;
+Bool present_trace_frames;
 
 static struct xorg_list present_exec_queue;
 static struct xorg_list present_flip_queue;
@@ -833,6 +836,17 @@ present_scmd_pixmap(WindowPtr window,
     vblank->event_id = ++present_scmd_event_id;
 
     present_adjust_exec_msc(vblank, crtc_msc);
+
+    if (present_trace_frames) {
+        LogMessageVerb(X_INFO, PRESENT_FRAME_TIMING_VERBOSITY,
+                       "present: frame-timing schedule t_us=%" PRIu64
+                       " window=%#x serial=%u kind=%u current_msc=%" PRIu64
+                       " target_msc=%" PRIu64 " exec_msc=%" PRIu64 "\n",
+                       (uint64_t) GetTimeInMicros(), window->drawable.id, serial,
+                       vblank->kind, crtc_msc - vblank->msc_offset,
+                       vblank->target_msc - vblank->msc_offset,
+                       vblank->exec_msc - vblank->msc_offset);
+    }
 
     ftrace_print("present %08" PRIx32 " [%lu] %dx%d+%d+%d valid %s update %s mode %d reason %d flip_type %d target %" PRIu64 " exec %" PRIu64 " crtc %" PRIu64,
                  window->drawable.id, vblank->event_id,
