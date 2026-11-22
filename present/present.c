@@ -270,6 +270,26 @@ present_pixmap(WindowPtr window,
                                        num_notifies);
 }
 
+Bool
+present_get_pixmap_target_msc(WindowPtr window, PixmapPtr pixmap,
+                              CARD32 serial, uint64_t *target_msc)
+{
+    present_window_priv_ptr window_priv = present_window_priv(window);
+    present_vblank_ptr vblank;
+
+    if (!window_priv)
+        return FALSE;
+
+    xorg_list_for_each_entry(vblank, &window_priv->vblank, window_list) {
+        if (vblank->pixmap == pixmap && vblank->serial == serial) {
+            *target_msc = vblank->target_msc - vblank->msc_offset;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 int
 present_notify_msc(WindowPtr window,
                    CARD32 serial,

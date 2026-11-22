@@ -231,6 +231,11 @@ present_pixmap(WindowPtr window,
                present_notify_ptr notifies,
                int num_notifies);
 
+/* Return the window-relative target MSC for a pixmap still in flight. */
+extern _X_EXPORT Bool
+present_get_pixmap_target_msc(WindowPtr window, PixmapPtr pixmap,
+                              CARD32 serial, uint64_t *target_msc);
+
 extern _X_EXPORT int
 present_notify_msc(WindowPtr window,
                    CARD32 serial,
