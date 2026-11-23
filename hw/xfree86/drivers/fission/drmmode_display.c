@@ -995,50 +995,82 @@ drmmode_crtc_disable(xf86CrtcPtr crtc)
     return ret;
 }
 
+static int
+crtc_add_ctm_prop(drmModeAtomicReq *req, drmmode_crtc_private_ptr drmmode_crtc,
+                  const struct drm_color_ctm *ctm, uint32_t *blob_id)
+{
+    drmmode_ptr drmmode = drmmode_crtc->drmmode;
+    int ret;
+
+    if (ctm && drmmode_crtc->use_gamma_lut && !ctm_is_identity(ctm)) {
+        ret = drmModeCreatePropertyBlob(drmmode->fd, ctm, sizeof(*ctm), blob_id);
+        if (ret)
+            return ret;
+    }
+
+    return crtc_add_prop(req, drmmode_crtc, DRMMODE_CRTC_CTM, *blob_id);
+}
+
+static int
+crtc_add_gamma_lut_prop(drmModeAtomicReq *req,
+                        drmmode_crtc_private_ptr drmmode_crtc,
+                        const uint16_t *red, const uint16_t *green,
+                        const uint16_t *blue, int size, uint32_t *blob_id)
+{
+    drmmode_ptr drmmode = drmmode_crtc->drmmode;
+    struct drm_color_lut *lut;
+    size_t lut_size;
+    int ret;
+
+    if (size <= 0 || !red || !green || !blue ||
+        size != drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT_SIZE].value)
+        return -EINVAL;
+
+    lut_size = sizeof(*lut) * size;
+    lut = calloc(size, sizeof(*lut));
+    if (!lut)
+        return -ENOMEM;
+
+    for (int i = 0; i < size; i++) {
+        lut[i].red = red[i];
+        lut[i].green = green[i];
+        lut[i].blue = blue[i];
+    }
+
+    ret = drmModeCreatePropertyBlob(drmmode->fd, lut, lut_size, blob_id);
+    free(lut);
+    if (ret)
+        return ret;
+
+    return crtc_add_prop(req, drmmode_crtc, DRMMODE_CRTC_GAMMA_LUT, *blob_id);
+}
+
 static void
 drmmode_set_ctm(xf86CrtcPtr crtc, const struct drm_color_ctm *ctm)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
-    drmmode_prop_info_ptr ctm_info =
-        &drmmode_crtc->props[DRMMODE_CRTC_CTM];
-    int ret;
     uint32_t blob_id = 0;
     drmModeAtomicReq *req;
+    int ret;
 
-    if (ctm_info->prop_id == 0)
+    if (!drmmode_crtc->props[DRMMODE_CRTC_CTM].prop_id)
         return;
-
-    if (ctm && drmmode_crtc->use_gamma_lut && !ctm_is_identity(ctm)) {
-        ret = drmModeCreatePropertyBlob(drmmode->fd, ctm, sizeof(*ctm), &blob_id);
-        if (ret != 0) {
-            xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-                       "Failed to create CTM property blob: %d\n", ret);
-            blob_id = 0;
-        }
-    }
 
     req = drmModeAtomicAlloc();
-    if (!req) {
-        drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
+    if (!req)
         return;
-    }
 
-    ret = drmModeAtomicAddProperty(req,
-                                   drmmode_crtc->mode_crtc->crtc_id,
-                                   ctm_info->prop_id, blob_id);
-    if (ret < 0)
-        xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-                    "Failed to queue CTM property: %d\n", ret);
-    else {
+    ret = crtc_add_ctm_prop(req, drmmode_crtc, ctm, &blob_id);
+    if (!ret)
         ret = drmModeAtomicCommit(drmmode->fd, req, DRM_MODE_ATOMIC_NONBLOCK, NULL);
-        if (ret != 0)
-            xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-                       "Failed to commit CTM property: %d\n", ret);
-    }
+    if (ret)
+        xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
+                   "Failed to apply CTM property: %d\n", ret);
 
+    if (blob_id)
+        drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
     drmModeAtomicFree(req);
-    drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
 }
 
 static xf86OutputPtr
@@ -2142,41 +2174,24 @@ drmmode_set_gamma_lut(drmmode_crtc_private_ptr drmmode_crtc,
                       int size)
 {
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
-    drmmode_prop_info_ptr gamma_lut_info =
-        &drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT];
-    const uint32_t crtc_id = drmmode_crtc->mode_crtc->crtc_id;
-    size_t lut_sz = sizeof(struct drm_color_lut) * size;
-    struct drm_color_lut *lut = calloc(1, lut_sz);
-    if (!lut)
-        return;
-
-    assert(gamma_lut_info->prop_id != 0);
-
-    for (int i = 0; i < size; i++) {
-        lut[i].red = red[i];
-        lut[i].green = green[i];
-        lut[i].blue = blue[i];
-        lut[i].reserved = 0;
-    }
-
-    uint32_t blob_id;
-    if (drmModeCreatePropertyBlob(drmmode->fd, lut, lut_sz, &blob_id)) {
-        free(lut);
-        return;
-    }
-
+    uint32_t blob_id = 0;
     drmModeAtomicReq *req = drmModeAtomicAlloc();
-    if (req) {
-        int r = drmModeAtomicAddProperty(req, crtc_id,
-                                         gamma_lut_info->prop_id,
-                                         blob_id);
-        if (r >= 0)
-            drmModeAtomicCommit(drmmode->fd, req, DRM_MODE_ATOMIC_NONBLOCK, NULL);
-        drmModeAtomicFree(req);
-    }
+    int ret;
 
-    drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
-    free(lut);
+    if (!req)
+        return;
+
+    ret = crtc_add_gamma_lut_prop(req, drmmode_crtc, red, green, blue,
+                                  size, &blob_id);
+    if (!ret)
+        ret = drmModeAtomicCommit(drmmode->fd, req, DRM_MODE_ATOMIC_NONBLOCK, NULL);
+    if (ret)
+        xf86DrvMsg(drmmode->scrn->scrnIndex, X_ERROR,
+                   "Failed to apply gamma LUT: %d\n", ret);
+
+    if (blob_id)
+        drmModeDestroyPropertyBlob(drmmode->fd, blob_id);
+    drmModeAtomicFree(req);
 }
 
 static void
@@ -2880,7 +2895,8 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, drmModeResPtr mode_res
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, MS_LOGLEVEL_DEBUG,
                    "Allocated crtc nr. %d to this screen.\n", num);
 
-    if (drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT_SIZE].prop_id &&
+    if (drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT].prop_id &&
+        drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT_SIZE].prop_id &&
         drmmode_crtc->props[DRMMODE_CRTC_GAMMA_LUT_SIZE].value) {
         /*
          * GAMMA_LUT property supported, and so far tested to be safe to use by
