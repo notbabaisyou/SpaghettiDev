@@ -949,6 +949,7 @@ drmmode_output_dpms_atomic(xf86OutputPtr output, int mode)
     drmmode_output_private_ptr drmmode_output = output->driver_private;
     xf86CrtcPtr crtc = drmmode_output->current_crtc;
     drmModeAtomicReq *req;
+    Bool active = FALSE;
     int ret = 0;
 
     if (mode == DPMSModeOn && !crtc)
@@ -959,7 +960,7 @@ drmmode_output_dpms_atomic(xf86OutputPtr output, int mode)
         return 1;
 
     if (crtc)
-        ret |= crtc_add_dpms_props(req, crtc, mode, NULL);
+        ret |= crtc_add_dpms_props(req, crtc, mode, &active);
 
     if (mode == DPMSModeOn) {
         drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
@@ -967,6 +968,8 @@ drmmode_output_dpms_atomic(xf86OutputPtr output, int mode)
         ret |= connector_add_prop(req, drmmode_output,
                                   DRMMODE_CONNECTOR_CRTC_ID,
                                   drmmode_crtc->mode_crtc->crtc_id);
+        if (!ret && !active)
+            ret = crtc_add_mode_props(req, crtc, TRUE);
     } else {
         ret |= connector_add_prop(req, drmmode_output,
                                   DRMMODE_CONNECTOR_CRTC_ID, 0);
@@ -1150,6 +1153,9 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, xf86CrtcPtr target, Bool test_only)
     const uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     int ret = -ENOMEM;
 
+    if (drmmode_crtc_is_leased(target))
+        return -EACCES;
+
     crtcs = calloc(config->num_crtc, sizeof(*crtcs));
     outputs = calloc(config->num_output, sizeof(*outputs));
     req = drmModeAtomicAlloc();
@@ -1232,9 +1238,11 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, xf86CrtcPtr target, Bool test_only)
         if (ret)
             goto done;
 
-        ret = plane_add_props(req, crtc, fb_id, x, y);
-        if (ret)
-            goto done;
+        if (drmmode_crtc->plane_id || fb_id) {
+            ret = plane_add_props(req, crtc, fb_id, x, y);
+            if (ret)
+                goto done;
+        }
 
         if (state->output && drmmode_crtc->use_gamma_lut) {
             ret = crtc_add_gamma_lut_prop(req, drmmode_crtc, crtc->gamma_red,
