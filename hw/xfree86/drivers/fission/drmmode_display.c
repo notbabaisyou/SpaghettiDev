@@ -4034,80 +4034,117 @@ drmmode_glamor_handle_new_screen_pixmap(drmmode_ptr drmmode)
 static Bool
 drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 {
-    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
+    xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
     modesettingPtr ms = modesettingPTR(scrn);
     drmmode_ptr drmmode = &ms->drmmode;
-    drmmode_bo old_front = { 0 };
     ScreenPtr screen = xf86ScrnToScreen(scrn);
-    uint32_t old_fb_id = 0;
-    int i, pitch, old_width, old_height, old_pitch;
+    PixmapPtr pixmap = screen->GetScreenPixmap(screen);
+    drmmode_bo new_front = { 0 }, old_front = { 0 };
+    uint32_t new_fb_id = 0, old_fb_id = 0;
     int cpp = (scrn->bitsPerPixel + 7) / 8;
     int kcpp = (drmmode->kbpp + 7) / 8;
-    PixmapPtr ppix = screen->GetScreenPixmap(screen);
+    int old_width = scrn->virtualX, old_height = scrn->virtualY;
+    int old_display_width = scrn->displayWidth;
+    int old_pixmap_width = pixmap->drawable.width;
+    int old_pixmap_height = pixmap->drawable.height;
+    int old_stride = pixmap->devKind;
+    void *old_pixels = pixmap->devPrivate.ptr;
     void *new_pixels = NULL;
+    const char *error;
+    int pitch, ret, prepared = 0;
 
-    if (scrn->virtualX == width && scrn->virtualY == height)
+    if (old_width == width && old_height == height)
         return TRUE;
 
-    xf86DrvMsg(scrn->scrnIndex, X_INFO,
-               "Allocate new frame buffer %dx%d stride\n", width, height);
+    drmmode_prepare_modeset(scrn);
 
-    old_width = scrn->virtualX;
-    old_height = scrn->virtualY;
-    old_pitch = drmmode_bo_get_pitch(&drmmode->front_bo);
+    if (!drmmode_create_bo(drmmode, &new_front, width, height, drmmode->kbpp,
+                           !drmmode->glamor)) {
+        error = "failed to allocate the new framebuffer";
+        goto fail;
+    }
 
+    if (drmmode_bo_import(drmmode, &new_front, &new_fb_id)) {
+        error = "failed to register the new framebuffer";
+        goto fail;
+    }
+
+    if (new_front.dumb) {
+        new_pixels = drmmode_bo_map(drmmode, &new_front);
+        if (!new_pixels) {
+            error = "failed to map the new framebuffer";
+            goto fail;
+        }
+    }
+
+    pitch = drmmode_bo_get_pitch(&new_front);
     XORG_EXCHANGE(old_front, drmmode->front_bo);
     XORG_EXCHANGE(old_fb_id, drmmode->fb_id);
-
-    if (!drmmode_create_bo(drmmode, &drmmode->front_bo,
-                           width, height, drmmode->kbpp,
-                           !drmmode->glamor))
-        goto fail;
-
-    pitch = drmmode_bo_get_pitch(&drmmode->front_bo);
-
+    drmmode->front_bo = new_front;
+    drmmode->fb_id = new_fb_id;
     scrn->virtualX = width;
     scrn->virtualY = height;
     scrn->displayWidth = pitch / kcpp;
 
-    if (!drmmode->gbm) {
-        new_pixels = drmmode_map_front_bo(drmmode);
-        if (!new_pixels)
-            goto fail;
+    if (!screen->ModifyPixmapHeader(pixmap, width, height, -1, -1,
+                                    scrn->displayWidth * cpp, new_pixels) ||
+        !drmmode_glamor_handle_new_screen_pixmap(drmmode)) {
+        error = "failed to bind the new screen pixmap";
+        goto restore;
     }
 
-    screen->ModifyPixmapHeader(ppix, width, height, -1, -1,
-                               scrn->displayWidth * cpp, new_pixels);
+    drmmode_clear_pixmap(pixmap);
 
-    if (!drmmode_glamor_handle_new_screen_pixmap(drmmode))
-        goto fail;
+    while (prepared < config->num_crtc) {
+        xf86CrtcPtr crtc = config->crtc[prepared++];
 
-    drmmode_clear_pixmap(ppix);
-
-    for (i = 0; i < xf86_config->num_crtc; i++) {
-        xf86CrtcPtr crtc = xf86_config->crtc[i];
-
-        if (!crtc->enabled)
-            continue;
-
-        drmmode_set_mode_major(crtc, &crtc->mode,
-                               crtc->rotation, crtc->x, crtc->y);
+        if (crtc->enabled && !drmmode_crtc_is_leased(crtc) &&
+            drmmode_target_output(scrn, crtc) && !xf86CrtcRotate(crtc)) {
+            error = "failed to prepare CRTC rotation";
+            goto restore;
+        }
     }
 
+    ret = drmmode_set_mode_atomic(scrn, NULL, FALSE);
+    if (ret) {
+        error = strerror(-ret);
+        goto restore;
+    }
+
+    xf86DrvMsg(scrn->scrnIndex, X_INFO,
+               "Resized framebuffer to %dx%d with pitch %d\n", width, height, pitch);
     if (old_fb_id)
         drmModeRmFB(drmmode->fd, old_fb_id);
-
     drmmode_bo_destroy(drmmode, &old_front);
 
     return TRUE;
 
- fail:
-    drmmode_bo_destroy(drmmode, &drmmode->front_bo);
+ restore:
     drmmode->front_bo = old_front;
+    drmmode->fb_id = old_fb_id;
     scrn->virtualX = old_width;
     scrn->virtualY = old_height;
-    scrn->displayWidth = old_pitch / kcpp;
-    drmmode->fb_id = old_fb_id;
+    scrn->displayWidth = old_display_width;
+
+    if (!screen->ModifyPixmapHeader(pixmap, old_pixmap_width, old_pixmap_height,
+                                    -1, -1, old_stride, old_pixels) ||
+        !drmmode_glamor_handle_new_screen_pixmap(drmmode))
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR, "Failed to restore the screen pixmap\n");
+
+    for (int i = 0; i < prepared; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
+
+        if (crtc->enabled && !drmmode_crtc_is_leased(crtc) &&
+            drmmode_target_output(scrn, crtc) && !xf86CrtcRotate(crtc))
+            xf86DrvMsg(scrn->scrnIndex, X_WARNING, "Failed to restore CRTC rotation\n");
+    }
+
+ fail:
+    xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+               "Failed to resize framebuffer to %dx%d (%s)\n", width, height, error);
+    if (new_fb_id)
+        drmModeRmFB(drmmode->fd, new_fb_id);
+    drmmode_bo_destroy(drmmode, &new_front);
 
     return FALSE;
 }
