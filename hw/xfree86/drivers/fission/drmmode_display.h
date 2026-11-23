@@ -224,6 +224,7 @@ typedef struct {
     drmmode_mode_ptr current_mode;
     uint32_t num_formats;
     uint32_t rotate_fb_id;
+    struct drmmode_saved_rotation *saved_rotation;
     drmmode_format_rec *formats;
     drmmode_format_rec *formats_async;
 

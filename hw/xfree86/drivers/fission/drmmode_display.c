@@ -2065,6 +2065,79 @@ static void drmmode_prepare_modeset(ScrnInfoPtr scrn)
     ms_drain_drm_events(pScreen);
 }
 
+struct drmmode_saved_rotation {
+    Bool prepared;
+    uint32_t fb_id;
+    drmmode_bo bo;
+    PixmapPtr pixmap;
+    void *data;
+};
+
+static void
+drmmode_free_rotation(drmmode_ptr drmmode, PixmapPtr pixmap,
+                      drmmode_bo *bo, uint32_t fb_id)
+{
+    if (pixmap)
+        pixmap->drawable.pScreen->DestroyPixmap(pixmap);
+    if (bo) {
+        drmModeRmFB(drmmode->fd, fb_id);
+        drmmode_bo_destroy(drmmode, bo);
+    }
+}
+
+static Bool
+drmmode_prepare_rotation(xf86CrtcPtr crtc, struct drmmode_saved_rotation *saved)
+{
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+    Bool ret;
+
+    saved->prepared = TRUE;
+    saved->fb_id = drmmode_crtc->rotate_fb_id;
+    drmmode_crtc->saved_rotation = saved;
+    ret = xf86CrtcRotate(crtc);
+    drmmode_crtc->saved_rotation = NULL;
+
+    return ret;
+}
+
+static void
+drmmode_finish_rotation(xf86CrtcPtr crtc, struct drmmode_saved_rotation *saved,
+                        Bool success)
+{
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+    if (!saved->prepared)
+        return;
+
+    if (success) {
+        if (saved->data)
+            drmmode_free_rotation(drmmode_crtc->drmmode, saved->pixmap,
+                                   &saved->bo, saved->fb_id);
+        return;
+    }
+
+    if (saved->data) {
+        xf86RotateDestroy(crtc);
+        drmmode_crtc->rotate_bo = saved->bo;
+        drmmode_crtc->rotate_fb_id = saved->fb_id;
+        crtc->rotatedData = saved->data;
+        crtc->rotatedPixmap = saved->pixmap;
+        if (!crtc->rotatedPixmap && crtc->mode.HDisplay) {
+            crtc->rotatedPixmap = crtc->funcs->shadow_create(crtc, crtc->rotatedData,
+                                                            crtc->mode.HDisplay,
+                                                            crtc->mode.VDisplay);
+            if (!crtc->rotatedPixmap)
+                return;
+        }
+    }
+
+    if (!crtc->mode.HDisplay)
+        xf86RotateDestroy(crtc);
+    else if (!xf86CrtcRotate(crtc))
+        xf86DrvMsg(crtc->scrn->scrnIndex, X_WARNING,
+                   "Failed to restore CRTC rotation\n");
+}
+
 static Bool
 drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
                        Rotation rotation, int x, int y)
@@ -2074,6 +2147,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
     DisplayModeRec saved_mode = crtc->mode;
     int saved_x = crtc->x, saved_y = crtc->y;
     Rotation saved_rotation = crtc->rotation;
+    struct drmmode_saved_rotation saved_shadow = { 0 };
     int ret;
 
     if (!mode)
@@ -2096,10 +2170,12 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
     crtc->y = y;
     crtc->rotation = rotation;
 
-    if (xf86CrtcRotate(crtc)) {
+    if (drmmode_prepare_rotation(crtc, &saved_shadow)) {
         ret = drmmode_set_mode_atomic(crtc->scrn, crtc, FALSE);
-        if (!ret)
+        if (!ret) {
+            drmmode_finish_rotation(crtc, &saved_shadow, TRUE);
             return TRUE;
+        }
         xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
                    "Failed to set CRTC mode: %s\n", strerror(-ret));
     }
@@ -2108,11 +2184,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
     crtc->x = saved_x;
     crtc->y = saved_y;
     crtc->rotation = saved_rotation;
-    if (!crtc->mode.HDisplay)
-        xf86RotateDestroy(crtc);
-    else if (!xf86CrtcRotate(crtc))
-        xf86DrvMsg(crtc->scrn->scrnIndex, X_WARNING,
-                   "Failed to restore CRTC rotation\n");
+    drmmode_finish_rotation(crtc, &saved_shadow, FALSE);
 
     return FALSE;
 }
@@ -2586,16 +2658,20 @@ drmmode_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *data)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
     drmmode_ptr drmmode = drmmode_crtc->drmmode;
+    struct drmmode_saved_rotation *saved = drmmode_crtc->saved_rotation;
 
-    if (rotate_pixmap) {
-        rotate_pixmap->drawable.pScreen->DestroyPixmap(rotate_pixmap);
-    }
+    /* The old framebuffer may still be scanning out until commit. */
+    if (data && saved && saved->fb_id == drmmode_crtc->rotate_fb_id) {
+        saved->bo = drmmode_crtc->rotate_bo;
+        saved->pixmap = rotate_pixmap;
+        saved->data = data;
+    } else
+        drmmode_free_rotation(drmmode, rotate_pixmap,
+                               data ? &drmmode_crtc->rotate_bo : NULL,
+                               drmmode_crtc->rotate_fb_id);
 
     if (data) {
-        drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
         drmmode_crtc->rotate_fb_id = 0;
-
-        drmmode_bo_destroy(drmmode, &drmmode_crtc->rotate_bo);
         memset(&drmmode_crtc->rotate_bo, 0, sizeof drmmode_crtc->rotate_bo);
     }
 }
@@ -4051,12 +4127,19 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
     void *old_pixels = pixmap->devPrivate.ptr;
     void *new_pixels = NULL;
     const char *error;
-    int pitch, ret, prepared = 0;
+    int pitch, ret;
+    struct drmmode_saved_rotation *saved;
 
     if (old_width == width && old_height == height)
         return TRUE;
 
     drmmode_prepare_modeset(scrn);
+
+    saved = calloc(config->num_crtc, sizeof(*saved));
+    if (config->num_crtc && !saved) {
+        error = "failed to save CRTC rotation";
+        goto fail;
+    }
 
     if (!drmmode_create_bo(drmmode, &new_front, width, height, drmmode->kbpp,
                            !drmmode->glamor)) {
@@ -4095,11 +4178,12 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 
     drmmode_clear_pixmap(pixmap);
 
-    while (prepared < config->num_crtc) {
-        xf86CrtcPtr crtc = config->crtc[prepared++];
+    for (int i = 0; i < config->num_crtc; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
 
         if (crtc->enabled && !drmmode_crtc_is_leased(crtc) &&
-            drmmode_target_output(scrn, crtc) && !xf86CrtcRotate(crtc)) {
+            drmmode_target_output(scrn, crtc) &&
+            !drmmode_prepare_rotation(crtc, &saved[i])) {
             error = "failed to prepare CRTC rotation";
             goto restore;
         }
@@ -4111,12 +4195,15 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
         goto restore;
     }
 
+    for (int i = 0; i < config->num_crtc; i++)
+        drmmode_finish_rotation(config->crtc[i], &saved[i], TRUE);
+
     xf86DrvMsg(scrn->scrnIndex, X_INFO,
                "Resized framebuffer to %dx%d with pitch %d\n", width, height, pitch);
     if (old_fb_id)
         drmModeRmFB(drmmode->fd, old_fb_id);
     drmmode_bo_destroy(drmmode, &old_front);
-
+    free(saved);
     return TRUE;
 
  restore:
@@ -4131,15 +4218,11 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
         !drmmode_glamor_handle_new_screen_pixmap(drmmode))
         xf86DrvMsg(scrn->scrnIndex, X_ERROR, "Failed to restore the screen pixmap\n");
 
-    for (int i = 0; i < prepared; i++) {
-        xf86CrtcPtr crtc = config->crtc[i];
-
-        if (crtc->enabled && !drmmode_crtc_is_leased(crtc) &&
-            drmmode_target_output(scrn, crtc) && !xf86CrtcRotate(crtc))
-            xf86DrvMsg(scrn->scrnIndex, X_WARNING, "Failed to restore CRTC rotation\n");
-    }
+    for (int i = 0; i < config->num_crtc; i++)
+        drmmode_finish_rotation(config->crtc[i], &saved[i], FALSE);
 
  fail:
+    free(saved);
     xf86DrvMsg(scrn->scrnIndex, X_ERROR,
                "Failed to resize framebuffer to %dx%d (%s)\n", width, height, error);
     if (new_fb_id)
@@ -4407,10 +4490,10 @@ drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y)
 }
 
 struct drmmode_saved_crtc {
-    Bool prepared;
     Rotation rotation;
     int x, y;
     DisplayModeRec mode;
+    struct drmmode_saved_rotation shadow;
 };
 
 Bool
@@ -4453,7 +4536,6 @@ drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode, Bool set_hw,
             crtc->desiredY = 0;
         }
 
-        saved[i].prepared = TRUE;
         saved[i].mode = crtc->mode;
         saved[i].rotation = crtc->rotation;
         saved[i].x = crtc->x;
@@ -4463,7 +4545,7 @@ drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode, Bool set_hw,
         crtc->rotation = crtc->desiredRotation;
         crtc->x = crtc->desiredX;
         crtc->y = crtc->desiredY;
-        if (!xf86CrtcRotate(crtc)) {
+        if (!drmmode_prepare_rotation(crtc, &saved[i].shadow)) {
             ret = -ENOMEM;
             break;
         }
@@ -4473,23 +4555,16 @@ drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode, Bool set_hw,
         ret = drmmode_set_mode_atomic(pScrn, NULL, !set_hw);
 
     /* CreateScreenResources needs the desired layout after a successful test. */
-    if (ret) {
-        for (int i = 0; i < config->num_crtc; i++) {
-            xf86CrtcPtr crtc = config->crtc[i];
+    for (int i = 0; i < config->num_crtc; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
 
-            if (!saved[i].prepared)
-                continue;
-
+        if (ret && saved[i].shadow.prepared) {
             crtc->mode = saved[i].mode;
             crtc->rotation = saved[i].rotation;
             crtc->x = saved[i].x;
             crtc->y = saved[i].y;
-            if (!crtc->mode.HDisplay)
-                xf86RotateDestroy(crtc);
-            else if (!xf86CrtcRotate(crtc))
-                xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-                           "Failed to restore CRTC rotation\n");
         }
+        drmmode_finish_rotation(crtc, &saved[i].shadow, ret == 0);
     }
     free(saved);
 
