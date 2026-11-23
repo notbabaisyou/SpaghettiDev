@@ -841,12 +841,6 @@ drm_mode_destroy(xf86CrtcPtr crtc, drmmode_mode_ptr mode)
     free(mode);
 }
 
-static int
-drmmode_crtc_can_test_mode(xf86CrtcPtr crtc)
-{
-    return TRUE;
-}
-
 Bool
 drmmode_crtc_get_fb_id(xf86CrtcPtr crtc, uint32_t *fb_id, int *x, int *y)
 {
@@ -1064,7 +1058,7 @@ drmmode_target_output(ScrnInfoPtr scrn, xf86CrtcPtr crtc)
 }
 
 static int
-drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
+drmmode_crtc_set_mode(xf86CrtcPtr crtc)
 {
     modesettingPtr ms = modesettingPTR(crtc->scrn);
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
@@ -1124,13 +1118,14 @@ drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
         }
     }
 
-    if (test_only)
-        flags |= DRM_MODE_ATOMIC_TEST_ONLY;
+    if (ret == 0)
+        ret = drmModeAtomicCommit(ms->fd, req,
+                                  flags | DRM_MODE_ATOMIC_TEST_ONLY, NULL);
 
     if (ret == 0)
-         ret = drmModeAtomicCommit(ms->fd, req, flags, NULL);
+        ret = drmModeAtomicCommit(ms->fd, req, flags, NULL);
 
-    if (ret == 0 && !test_only) {
+    if (ret == 0) {
         for (i = 0; i < xf86_config->num_output; i++) {
             xf86OutputPtr output = xf86_config->output[i];
             drmmode_output_private_ptr drmmode_output = output->driver_private;
@@ -1916,7 +1911,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
     Rotation saved_rotation;
     DisplayModeRec saved_mode;
     Bool ret = TRUE;
-    Bool can_test;
     int i;
 
     if (mode)
@@ -1934,20 +1928,19 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
         crtc->rotation = rotation;
 
         if (!xf86CrtcRotate(crtc)) {
+            ret = FALSE;
             goto done;
         }
 
         crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
                                crtc->gamma_blue, crtc->gamma_size);
 
-        can_test = drmmode_crtc_can_test_mode(crtc);
-        if (drmmode_crtc_set_mode(crtc, can_test)) {
+        if (drmmode_crtc_set_mode(crtc)) {
             xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
                        "failed to set mode: %s\n", strerror(errno));
             ret = FALSE;
             goto done;
-        } else
-            ret = TRUE;
+        }
 
         if (drmmode->tearfree)
             drmmode_tearfree_realloc_crtc(crtc);
@@ -1976,9 +1969,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
             output->funcs->dpms(output, DPMSModeOn);
         }
 
-        /* if we only tested the mode previously, really set it now */
-        if (can_test)
-            drmmode_crtc_set_mode(crtc, FALSE);
         ms->pending_modeset = FALSE;
     }
 
