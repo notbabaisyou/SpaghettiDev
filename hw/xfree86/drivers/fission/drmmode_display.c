@@ -1004,6 +1004,17 @@ drmmode_crtc_disable(xf86CrtcPtr crtc)
 }
 
 static int
+drmmode_commit_color(drmmode_ptr drmmode, drmModeAtomicReq *req)
+{
+    int ret = drmModeAtomicCommit(drmmode->fd, req, DRM_MODE_ATOMIC_NONBLOCK, NULL);
+
+    /* A pending page flip can reject a nonblocking color update. */
+    if (ret == -EBUSY)
+        ret = drmModeAtomicCommit(drmmode->fd, req, 0, NULL);
+    return ret;
+}
+
+static int
 crtc_add_ctm_prop(drmModeAtomicReq *req, drmmode_crtc_private_ptr drmmode_crtc,
                   const struct drm_color_ctm *ctm, uint32_t *blob_id)
 {
@@ -1071,7 +1082,7 @@ drmmode_set_ctm(xf86CrtcPtr crtc, const struct drm_color_ctm *ctm)
 
     ret = crtc_add_ctm_prop(req, drmmode_crtc, ctm, &blob_id);
     if (!ret)
-        ret = drmModeAtomicCommit(drmmode->fd, req, DRM_MODE_ATOMIC_NONBLOCK, NULL);
+        ret = drmmode_commit_color(drmmode, req);
     if (ret)
         xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
                    "Failed to apply CTM property: %d\n", ret);
@@ -1133,7 +1144,6 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, xf86CrtcPtr target, Bool test_only)
 {
     modesettingPtr ms = modesettingPTR(scrn);
     xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
-    xf86OutputPtr compat = xf86CompatOutput(scrn);
     struct drmmode_atomic_crtc *crtcs;
     struct drmmode_atomic_output *outputs;
     drmModeAtomicReq *req;
@@ -1182,6 +1192,7 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, xf86CrtcPtr target, Bool test_only)
         struct drmmode_atomic_crtc *state = &crtcs[i];
         Bool lost_output = FALSE;
         Bool kept_output = FALSE;
+        Bool cloned = FALSE;
         uint32_t fb_id = 0;
         int x = 0, y = 0;
 
@@ -1192,8 +1203,12 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, xf86CrtcPtr target, Bool test_only)
             xf86OutputPtr output = config->output[j];
             drmmode_output_private_ptr drmmode_output = output->driver_private;
 
-            if (outputs[j].crtc == crtc && (!state->output || output == compat))
-                state->output = output;
+            if (outputs[j].crtc == crtc) {
+                if (state->output)
+                    cloned = TRUE;
+                else
+                    state->output = output;
+            }
             if (drmmode_output->current_crtc == crtc) {
                 if (outputs[j].update && outputs[j].crtc != crtc)
                     lost_output = TRUE;
@@ -1229,7 +1244,9 @@ drmmode_set_mode_atomic(ScrnInfoPtr scrn, xf86CrtcPtr target, Bool test_only)
                 goto done;
         }
 
-        if (state->output && drmmode_crtc->props[DRMMODE_CRTC_CTM].prop_id) {
+        /* Cloned outputs share the existing hardware color transform. */
+        if (state->output && !cloned &&
+            drmmode_crtc->props[DRMMODE_CRTC_CTM].prop_id) {
             drmmode_output_private_ptr drmmode_output = state->output->driver_private;
 
             ret = crtc_add_ctm_prop(req, drmmode_crtc,
@@ -2354,7 +2371,7 @@ drmmode_set_gamma_lut(drmmode_crtc_private_ptr drmmode_crtc,
     ret = crtc_add_gamma_lut_prop(req, drmmode_crtc, red, green, blue,
                                   size, &blob_id);
     if (!ret)
-        ret = drmModeAtomicCommit(drmmode->fd, req, DRM_MODE_ATOMIC_NONBLOCK, NULL);
+        ret = drmmode_commit_color(drmmode, req);
     if (ret)
         xf86DrvMsg(drmmode->scrn->scrnIndex, X_ERROR,
                    "Failed to apply gamma LUT: %d\n", ret);
