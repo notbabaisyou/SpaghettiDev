@@ -4369,76 +4369,127 @@ drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y)
     }
 }
 
+struct drmmode_saved_crtc {
+    Bool prepared;
+    Rotation rotation;
+    int x, y;
+    DisplayModeRec mode;
+};
+
 Bool
 drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode, Bool set_hw,
                           Bool ign_err)
 {
     xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(pScrn);
+    struct drmmode_saved_crtc *saved;
     Bool success = TRUE;
-    int c;
+    int ret = 0;
 
+    drmmode_validate_leases(pScrn);
     drmmode_prepare_modeset(pScrn);
 
-    for (c = 0; c < config->num_crtc; c++) {
-        xf86CrtcPtr crtc = config->crtc[c];
-        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-        xf86OutputPtr output = NULL;
+    saved = calloc(config->num_crtc, sizeof(*saved));
+    if (config->num_crtc && !saved)
+        return FALSE;
 
-        /* Skip disabled CRTCs */
-        if (!crtc->enabled) {
-            if (set_hw) {
-                drmModeSetCrtc(drmmode->fd,
-                               drmmode_crtc->mode_crtc->crtc_id,
-                               0, 0, 0, NULL, 0, NULL);
-            }
+    for (int i = 0; i < config->num_crtc; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
+        xf86OutputPtr output;
+
+        if (!crtc->enabled || drmmode_crtc_is_leased(crtc))
             continue;
-        }
 
         output = drmmode_target_output(pScrn, crtc);
-        /* paranoia */
         if (!output)
             continue;
 
-        /* Mark that we'll need to re-set the mode for sure */
-        memset(&crtc->mode, 0, sizeof(crtc->mode));
         if (!crtc->desiredMode.CrtcHDisplay) {
-            DisplayModePtr mode =
-                xf86OutputFindClosestMode(output, pScrn->currentMode);
+            DisplayModePtr mode = xf86OutputFindClosestMode(output, pScrn->currentMode);
 
-            if (!mode)
-                return FALSE;
+            if (!mode) {
+                ret = -EINVAL;
+                break;
+            }
             crtc->desiredMode = *mode;
             crtc->desiredRotation = RR_Rotate_0;
             crtc->desiredX = 0;
             crtc->desiredY = 0;
         }
 
-        if (set_hw) {
-            if (!crtc->funcs->
-                set_mode_major(crtc, &crtc->desiredMode, crtc->desiredRotation,
-                               crtc->desiredX, crtc->desiredY)) {
-                if (!ign_err)
-                    return FALSE;
-                else {
-                    success = FALSE;
-                    crtc->enabled = FALSE;
-                    xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-                               "Failed to set the desired mode on connector %s\n",
-                               output->name);
-                }
-            }
-        } else {
-            crtc->mode = crtc->desiredMode;
-            crtc->rotation = crtc->desiredRotation;
-            crtc->x = crtc->desiredX;
-            crtc->y = crtc->desiredY;
-            if (!xf86CrtcRotate(crtc))
-                return FALSE;
+        saved[i].prepared = TRUE;
+        saved[i].mode = crtc->mode;
+        saved[i].rotation = crtc->rotation;
+        saved[i].x = crtc->x;
+        saved[i].y = crtc->y;
+
+        crtc->mode = crtc->desiredMode;
+        crtc->rotation = crtc->desiredRotation;
+        crtc->x = crtc->desiredX;
+        crtc->y = crtc->desiredY;
+        if (!xf86CrtcRotate(crtc)) {
+            ret = -ENOMEM;
+            break;
         }
     }
 
-    /* Validate leases on VT re-entry */
-    drmmode_validate_leases(pScrn);
+    if (!ret)
+        ret = drmmode_set_mode_atomic(pScrn, NULL, !set_hw);
+
+    /* CreateScreenResources needs the desired layout after a successful test. */
+    if (ret) {
+        for (int i = 0; i < config->num_crtc; i++) {
+            xf86CrtcPtr crtc = config->crtc[i];
+
+            if (!saved[i].prepared)
+                continue;
+
+            crtc->mode = saved[i].mode;
+            crtc->rotation = saved[i].rotation;
+            crtc->x = saved[i].x;
+            crtc->y = saved[i].y;
+            if (!crtc->mode.HDisplay)
+                xf86RotateDestroy(crtc);
+            else if (!xf86CrtcRotate(crtc))
+                xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+                           "Failed to restore CRTC rotation\n");
+        }
+    }
+    free(saved);
+
+    if (!ret)
+        return TRUE;
+
+    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+               "Failed to set desired modes: %s\n", strerror(-ret));
+    if (!set_hw || !ign_err)
+        return FALSE;
+
+    /* A connector may have disappeared while the VT was switched away. */
+    for (int i = 0; i < config->num_crtc; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
+        xf86OutputPtr output;
+
+        if (drmmode_crtc_is_leased(crtc))
+            continue;
+
+        if (!crtc->enabled) {
+            if (drmmode_set_mode_atomic(pScrn, crtc, FALSE))
+                success = FALSE;
+            continue;
+        }
+
+        output = drmmode_target_output(pScrn, crtc);
+        if (output && crtc->desiredMode.CrtcHDisplay &&
+            drmmode_set_mode_major(crtc, &crtc->desiredMode, crtc->desiredRotation,
+                                   crtc->desiredX, crtc->desiredY))
+            continue;
+
+        success = FALSE;
+        crtc->enabled = FALSE;
+        if (output)
+            xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+                       "Failed to set the desired mode on connector %s\n", output->name);
+    }
 
     return success;
 }
