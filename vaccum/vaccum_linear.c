@@ -157,3 +157,61 @@ out:
     vkFreeCommandBuffers(screen->device, screen->command_pool, 1, &cmd);
     return copied;
 }
+
+struct vaccum_copy_context {
+    vaccum_screen_private *screen;
+    struct vaccum_linear_pixmap *src;
+    struct vaccum_linear_pixmap *dst;
+};
+
+static Bool
+vaccum_can_copy_pixmap(DrawablePtr drawable,
+                       struct vaccum_linear_pixmap *pixels)
+{
+    PixmapPtr pixmap = (PixmapPtr)drawable;
+    Bool origin = drawable->x == 0 && drawable->y == 0;
+    Bool layout =
+        drawable->bitsPerPixel == 32 && pixmap->devKind == pixels->stride;
+    Bool fits = drawable->width <= pixels->stride / sizeof(uint32_t) &&
+                drawable->height <= pixels->height;
+    Bool mapped = pixels->map && pixmap->devPrivate.ptr == pixels->map;
+    Bool supported = origin && layout;
+
+    return supported && fits && mapped;
+}
+
+static void
+vaccum_copy_boxes(DrawablePtr src, DrawablePtr dst, GCPtr gc, BoxPtr boxes,
+                  int count, int dx, int dy, Bool reverse, Bool upsidedown,
+                  Pixel bitplane, void *closure)
+{
+    struct vaccum_copy_context *copy = closure;
+
+    if (vaccum_can_copy_pixmap(src, copy->src) &&
+        vaccum_can_copy_pixmap(dst, copy->dst) &&
+        vaccum_linear_copy(copy->screen, copy->src, copy->dst, boxes, count,
+                           dx, dy))
+        return;
+    fbCopyNtoN(src, dst, gc, boxes, count, dx, dy, reverse, upsidedown,
+               bitplane, NULL);
+}
+
+RegionPtr
+vaccum_linear_copy_area(struct vaccum_screen_private *screen,
+                        struct vaccum_linear_pixmap *src,
+                        struct vaccum_linear_pixmap *dst, DrawablePtr source,
+                        DrawablePtr dest, GCPtr gc, int srcx, int srcy,
+                        int width, int height, int dstx, int dsty)
+{
+    unsigned long mask = FbFullMask(dest->depth);
+    Bool plain_copy = gc->alu == GXcopy && (gc->planemask & mask) == mask;
+
+    if (!plain_copy || source == dest)
+        return fbCopyArea(source, dest, gc, srcx, srcy, width, height, dstx,
+                          dsty);
+
+    struct vaccum_copy_context context = { screen, src, dst };
+
+    return miDoCopy(source, dest, gc, srcx, srcy, width, height, dstx, dsty,
+                    vaccum_copy_boxes, 0, &context);
+}

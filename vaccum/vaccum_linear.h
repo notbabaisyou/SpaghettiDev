@@ -26,4 +26,11 @@ Bool vaccum_linear_copy(struct vaccum_screen_private *screen,
                         struct vaccum_linear_pixmap *dst,
                         BoxPtr boxes, int count, int dx, int dy);
 
+RegionPtr vaccum_linear_copy_area(struct vaccum_screen_private *screen,
+                                  struct vaccum_linear_pixmap *src,
+                                  struct vaccum_linear_pixmap *dst,
+                                  DrawablePtr source, DrawablePtr dest,
+                                  GCPtr gc, int srcx, int srcy, int width,
+                                  int height, int dstx, int dsty);
+
 #endif
