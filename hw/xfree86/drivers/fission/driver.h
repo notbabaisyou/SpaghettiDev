@@ -55,7 +55,6 @@
 
 struct ms_async_flip_priv {
     Bool async_flip;
-    Bool async_flip_modifiers;
 };
 
 typedef enum {
@@ -256,8 +255,6 @@ void ms_drain_drm_events(ScreenPtr screen);
 void ms_present_set_screen_vrr(ScrnInfoPtr scrn, Bool vrr_enabled);
 Bool ms_window_has_async_flip(WindowPtr win);
 void ms_window_update_async_flip(WindowPtr win, Bool async_flip);
-Bool ms_window_has_async_flip_modifiers(WindowPtr win);
-void ms_window_update_async_flip_modifiers(WindowPtr win, Bool async_flip);
 
 void ms_tearfree_flip_handler(uint64_t frame, uint64_t usec, void *data);
 void ms_tearfree_flip_abort(void *data);

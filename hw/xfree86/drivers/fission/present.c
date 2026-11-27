@@ -342,11 +342,6 @@ ms_present_check_flip(RRCrtcPtr crtc,
 
     ms_window_update_async_flip(window, async_flip);
 
-    if (reason && async_flip != ms_window_has_async_flip_modifiers(window)) {
-        *reason = PRESENT_FLIP_REASON_BUFFER_FORMAT;
-        goto no_flip;
-    }
-
     ms->flip_window = window;
     return TRUE;
 
