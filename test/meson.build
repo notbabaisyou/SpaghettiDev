@@ -10,6 +10,19 @@ xcb_present_dep = dependency('xcb-present', required: false)
 xcb_dri3_dep = dependency('xcb-dri3', required: false)
 xcb_sync_dep = dependency('xcb-sync', required: false)
 xcb_shm_dep = dependency('xcb-shm', required: false)
+xcb_render_dep = dependency('xcb-render', required: false)
+xcb_composite_dep = dependency('xcb-composite', required: false)
+
+if xcb_dep.found() and xcb_render_dep.found() and xcb_composite_dep.found()
+    accel_pixels = executable('accel-pixels', 'accel-pixels.c',
+                              dependencies: [xcb_dep, xcb_render_dep,
+                                             xcb_composite_dep])
+    if build_xvfb
+        test('accel-pixels', simple_xinit,
+             args: [accel_pixels, '--', xvfb_server, '-screen', '0',
+                    '128x128x24', '-nolisten', 'tcp'])
+    endif
+endif
 
 if xcb_dep.found()
     pattern_putimage = executable('pattern-putimage', 'pattern-putimage.c',

@@ -23,3 +23,18 @@ executed directly. For example, run "xkb" to perform some xkb-related tests.
 == Adding a new test ==
 When adding a new test, ensure that you add a short description of what the
 test does and what the expected outcome is.
+
+== Acceleration pixel baseline ==
+
+Run `meson test -C build accel-pixels` for the Xvfb framebuffer reference.
+The test compares every pixel after a clipped CopyArea, a software write
+followed by another copy, and an ARGB icon composited with an A8 mask onto
+a pixmap and a manually redirected window. Failures report the operation,
+pixel coordinates and expected and actual values.
+
+On a running depth-24 Fission session, run `build/test/accel-pixels` with
+DISPLAY and XAUTHORITY set for that session. Keep the same GPU, driver,
+depth, compositor and scale when comparing AccelMethod "vaccum" and
+"glamor". The client redirects its own window and reads back its backing
+pixmap. For scanout checks, run pattern-present separately and record
+Present completion modes, including whether each frame copied or flipped.
