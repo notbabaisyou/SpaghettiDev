@@ -951,28 +951,6 @@ ms_window_update_async_flip(WindowPtr win, Bool async_flip)
     priv->async_flip = async_flip;
 }
 
-Bool
-ms_window_has_async_flip_modifiers(WindowPtr win)
-{
-    ScrnInfoPtr scrn = xf86ScreenToScrn(win->drawable.pScreen);
-    modesettingPtr ms = modesettingPTR(scrn);
-    struct ms_async_flip_priv *priv = dixLookupPrivate(&win->devPrivates,
-                                                       &ms->drmmode.asyncFlipPrivateKeyRec);
-
-    return priv->async_flip_modifiers;
-}
-
-void
-ms_window_update_async_flip_modifiers(WindowPtr win, Bool async_flip)
-{
-    ScrnInfoPtr scrn = xf86ScreenToScrn(win->drawable.pScreen);
-    modesettingPtr ms = modesettingPTR(scrn);
-    struct ms_async_flip_priv *priv = dixLookupPrivate(&win->devPrivates,
-                                                       &ms->drmmode.asyncFlipPrivateKeyRec);
-
-    priv->async_flip_modifiers = async_flip;
-}
-
 static Bool
 ms_vrr_check_capable(ScreenPtr screen)
 {

@@ -47,7 +47,6 @@
 
 struct ms_async_flip_priv {
     Bool async_flip;
-    Bool async_flip_modifiers;
 };
 
 typedef enum {
@@ -264,5 +263,3 @@ void ms_present_set_screen_vrr(ScrnInfoPtr scrn, Bool vrr_enabled);
 Bool ms_tearfree_is_active_on_crtc(xf86CrtcPtr crtc);
 Bool ms_window_has_async_flip(WindowPtr win);
 void ms_window_update_async_flip(WindowPtr win, Bool async_flip);
-Bool ms_window_has_async_flip_modifiers(WindowPtr win);
-void ms_window_update_async_flip_modifiers(WindowPtr win, Bool async_flip);
