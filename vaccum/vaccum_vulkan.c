@@ -13,7 +13,8 @@ vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv)
 {
     free(vaccum_priv->drm_device_path);
     if (vaccum_priv->command_pool)
-        vkDestroyCommandPool(vaccum_priv->device, vaccum_priv->command_pool, NULL);
+        vkDestroyCommandPool(vaccum_priv->device, vaccum_priv->command_pool,
+                             NULL);
     vkDestroyDevice(vaccum_priv->device, NULL);
     vkDestroyInstance(vaccum_priv->instance, NULL);
     free(vaccum_priv->phys_devices);
@@ -65,35 +66,40 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     if (drm_fd >= 0) {
         struct stat st;
-        if (fstat(drm_fd, &st) == 0) {
-            dev_t render_dev = st.st_rdev;
-            int matched = 0;
 
-            for (uint32_t i = 0; i < gpu_count; i++) {
-                VkPhysicalDeviceDrmPropertiesEXT drm_props = {};
-                drm_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT;
+        if (fstat(drm_fd, &st) < 0)
+            return FALSE;
 
-                VkPhysicalDeviceProperties2 props2 = {};
-                props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-                props2.pNext = &drm_props;
+        vaccum_priv->phys_device = VK_NULL_HANDLE;
 
-                vkGetPhysicalDeviceProperties2(vaccum_priv->phys_devices[i], &props2);
+        for (uint32_t i = 0; i < gpu_count; i++) {
+            VkPhysicalDeviceDrmPropertiesEXT drm = {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
+            };
 
-                if (drm_props.hasRender) {
-                    /* DRM render node: major = 226 + minor */
-                    dev_t this_dev = makedev((unsigned int)226, (unsigned int)drm_props.renderMinor);
-                    if (this_dev == render_dev) {
-                        vaccum_priv->phys_device = vaccum_priv->phys_devices[i];
-                        matched = 1;
-                        break;
-                    }
-                }
+            VkPhysicalDeviceProperties2 props = {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+                .pNext = &drm,
+            };
+
+            vkGetPhysicalDeviceProperties2(vaccum_priv->phys_devices[i],
+                                           &props);
+            Bool primary_matches = drm.hasPrimary &&
+                makedev(drm.primaryMajor, drm.primaryMinor) == st.st_rdev;
+            Bool render_matches = drm.hasRender &&
+                makedev(drm.renderMajor, drm.renderMinor) == st.st_rdev;
+
+            if (primary_matches || render_matches) {
+                vaccum_priv->phys_device = vaccum_priv->phys_devices[i];
+                break;
             }
+        }
 
-            if (!matched)
-                LogMessage(X_WARNING,
-                           "vaccum: no vulkan device matching drm fd %d, using device 0\n",
-                           drm_fd);
+        if (!vaccum_priv->phys_device) {
+            LogMessage(X_WARNING,
+                       "vaccum: No Vulkan device matches DRM fd %d\n",
+                       drm_fd);
+            return FALSE;
         }
     }
 
@@ -172,11 +178,21 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     vkGetPhysicalDeviceQueueFamilyProperties(vaccum_priv->phys_device, &queue_family_count, vaccum_priv->queue_families);
 
-    /* for vaccum we just want queue family 0 */
+    uint32_t family = 0;
+
+    for (; family < queue_family_count; family++) {
+        if (vaccum_priv->queue_families[family].queueFlags &
+            VK_QUEUE_GRAPHICS_BIT)
+            break;
+    }
+
+    if (family == queue_family_count)
+        return FALSE;
+
     const float default_queue_priority = 0.0;
     VkDeviceQueueCreateInfo queue_info = {};
     queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_info.queueFamilyIndex = 0;
+    queue_info.queueFamilyIndex = family;
     queue_info.queueCount = 1;
     queue_info.pQueuePriorities = &default_queue_priority;
 
@@ -201,10 +217,11 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
         return FALSE;
     }
 
-    vkGetDeviceQueue(vaccum_priv->device, 0, 0, &vaccum_priv->queue);
+    vkGetDeviceQueue(vaccum_priv->device, family, 0, &vaccum_priv->queue);
 
     VkCommandPoolCreateInfo cmd_pool_create_info = {};
     cmd_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmd_pool_create_info.queueFamilyIndex = family;
     cmd_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     if (vkCreateCommandPool(vaccum_priv->device, &cmd_pool_create_info, NULL,
                             &vaccum_priv->command_pool) != VK_SUCCESS)
