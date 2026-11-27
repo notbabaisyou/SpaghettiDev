@@ -74,11 +74,16 @@ vaccum_create_pixmap(ScreenPtr screen, int w, int h, int depth,
         return fbCreatePixmap(screen, w, h, depth, usage);
 
     pixmap = fbCreatePixmap(screen, 0, 0, depth, usage);
+    if (!pixmap)
+        return NullPixmap;
 
     pixmap_priv = vaccum_get_pixmap_private(pixmap);
 
     pitch = (((w * pixmap->drawable.bitsPerPixel + 7) / 8) + 3) & ~3;
-    screen->ModifyPixmapHeader(pixmap, w, h, 0, 0, pitch, NULL);
+    if (!screen->ModifyPixmapHeader(pixmap, w, h, 0, 0, pitch, NULL)) {
+        fbDestroyPixmap(pixmap);
+        return NullPixmap;
+    }
 
     pixmap_priv->type = VACCUM_IMAGE_ONLY;
 
@@ -110,7 +115,7 @@ vaccum_destroy_pixmap(PixmapPtr pixmap)
     ScreenPtr pScreen = pixmap->drawable.pScreen;
     vaccum_screen_private *vaccum_priv = vaccum_get_screen_private(pScreen);
     vaccum_pixmap_private *pixmap_priv = vaccum_get_pixmap_private(pixmap);
-    if (pixmap_priv->image)
+    if (pixmap->refcnt == 1 && pixmap_priv->image)
         vaccum_destroy_image(vaccum_priv, pixmap_priv->image);
     return fbDestroyPixmap(pixmap);
 }

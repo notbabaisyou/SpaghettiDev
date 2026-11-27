@@ -7,11 +7,11 @@ vaccum_find_memory_type(struct vaccum_screen_private *vaccum_priv,
 {
     VkPhysicalDeviceMemoryProperties *mem_props = &vaccum_priv->dev_mem_properties;
     for (uint32_t i = 0; i < mem_props->memoryTypeCount; i++) {
-        if ((type_filter & (1 << i)) &&
+        if ((type_filter & (1u << i)) &&
             (mem_props->memoryTypes[i].propertyFlags & properties) == properties)
             return i;
     }
-    return 0;
+    return UINT32_MAX;
 }
 
 void
@@ -26,6 +26,8 @@ vaccum_destroy_image(struct vaccum_screen_private *vaccum_priv, struct vaccum_im
         if (image->memories[i])
             vkFreeMemory(vaccum_priv->device, image->memories[i], NULL);
     }
+
+    free(image);
 }
 
 struct vaccum_image *
@@ -70,6 +72,10 @@ vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
         vaccum_priv,
         img_reqs.memoryTypeBits,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (allocate_info.memoryTypeIndex == UINT32_MAX) {
+        vaccum_destroy_image(vaccum_priv, image);
+        return NULL;
+    }
 
     result = vkAllocateMemory(vaccum_priv->device, &allocate_info, NULL, &image->memories[0]);
     if (result != VK_SUCCESS) {
@@ -80,7 +86,11 @@ vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
 
     image->num_memories = 1;
 
-    vkBindImageMemory(vaccum_priv->device, image->image, image->memories[0], 0);
+    if (vkBindImageMemory(vaccum_priv->device, image->image,
+                          image->memories[0], 0) != VK_SUCCESS) {
+        vaccum_destroy_image(vaccum_priv, image);
+        return NULL;
+    }
 
     VkImageViewCreateInfo imgv_create_info = {};
     imgv_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -91,7 +101,11 @@ vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
     imgv_create_info.subresourceRange.levelCount = 1;
     imgv_create_info.subresourceRange.layerCount = 1;
 
-    result = vkCreateImageView(vaccum_priv->device, &imgv_create_info, NULL, &image->image_view);
+    if (vkCreateImageView(vaccum_priv->device, &imgv_create_info, NULL,
+                          &image->image_view) != VK_SUCCESS) {
+        vaccum_destroy_image(vaccum_priv, image);
+        return NULL;
+    }
     return image;
 }
 
@@ -148,6 +162,10 @@ vaccum_create_image_exportable(struct vaccum_screen_private *vaccum_priv,
         vaccum_priv,
         img_reqs.memoryTypeBits,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (allocate_info.memoryTypeIndex == UINT32_MAX) {
+        vaccum_destroy_image(vaccum_priv, image);
+        return NULL;
+    }
 
     result = vkAllocateMemory(vaccum_priv->device, &allocate_info, NULL, &image->memories[0]);
     if (result != VK_SUCCESS) {
@@ -158,7 +176,11 @@ vaccum_create_image_exportable(struct vaccum_screen_private *vaccum_priv,
 
     image->num_memories = 1;
 
-    vkBindImageMemory(vaccum_priv->device, image->image, image->memories[0], 0);
+    if (vkBindImageMemory(vaccum_priv->device, image->image,
+                          image->memories[0], 0) != VK_SUCCESS) {
+        vaccum_destroy_image(vaccum_priv, image);
+        return NULL;
+    }
 
     VkImageViewCreateInfo imgv_create_info = {};
     imgv_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -169,7 +191,11 @@ vaccum_create_image_exportable(struct vaccum_screen_private *vaccum_priv,
     imgv_create_info.subresourceRange.levelCount = 1;
     imgv_create_info.subresourceRange.layerCount = 1;
 
-    result = vkCreateImageView(vaccum_priv->device, &imgv_create_info, NULL, &image->image_view);
+    if (vkCreateImageView(vaccum_priv->device, &imgv_create_info, NULL,
+                          &image->image_view) != VK_SUCCESS) {
+        vaccum_destroy_image(vaccum_priv, image);
+        return NULL;
+    }
     return image;
 }
 
