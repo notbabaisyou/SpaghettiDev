@@ -1,5 +1,9 @@
 #include "vaccum_priv.h"
 
+#ifdef VACCUM_HAVE_PCIACCESS
+#include <pciaccess.h>
+#endif
+
 #include <stdbool.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -229,8 +233,33 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     vaccum_priv->has_drm_format_modifier = TRUE;
 
-    LogMessage(X_INFO, "vaccum: Initialized on %s\n",
-               vaccum_priv->dev_properties.deviceName);
+    const VkPhysicalDeviceProperties *props = &vaccum_priv->dev_properties;
+    const char *vendor = NULL;
+
+#ifdef VACCUM_HAVE_PCIACCESS
+    if (props->vendorID <= UINT16_MAX) {
+        const struct pci_id_match match = {
+            .vendor_id = props->vendorID,
+            .device_id = PCI_MATCH_ANY,
+            .subvendor_id = PCI_MATCH_ANY,
+            .subdevice_id = PCI_MATCH_ANY,
+        };
+
+        pci_get_strings(&match, NULL, &vendor, NULL, NULL);
+    }
+#endif
+    LogMessage(X_INFO, "vaccum: Initialized on %s\n", props->deviceName);
+    if (vendor)
+        LogMessage(X_INFO, "vaccum: Vendor %s (0x%04x)\n", vendor, props->vendorID);
+    else
+        LogMessage(X_INFO, "vaccum: Vendor 0x%04x\n", props->vendorID);
+    LogMessage(X_INFO, "vaccum: Requested Vulkan %u.%u, device supports %u.%u.%u"
+               " (driver version 0x%08x)\n",
+               VK_API_VERSION_MAJOR(appInfo.apiVersion),
+               VK_API_VERSION_MINOR(appInfo.apiVersion),
+               VK_API_VERSION_MAJOR(props->apiVersion),
+               VK_API_VERSION_MINOR(props->apiVersion),
+               VK_API_VERSION_PATCH(props->apiVersion), props->driverVersion);
 
     return TRUE;
 }

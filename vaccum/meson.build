@@ -22,10 +22,18 @@ srcs_vaccum = [
     'vaccum_ximage.c',
 ]
 
+vaccum_pci_deps = []
+vaccum_c_args = []
+if get_option('pciaccess') and pciaccess_dep.found()
+    vaccum_pci_deps += pciaccess_dep
+    vaccum_c_args += '-DVACCUM_HAVE_PCIACCESS'
+endif
+
 vaccum = static_library('vaccum',
     srcs_vaccum,
     include_directories: inc,
-    dependencies: [
+    c_args: vaccum_c_args,
+    dependencies: vaccum_pci_deps + [
         common_dep,
         vulkan_dep,
         libdrm_dep,
