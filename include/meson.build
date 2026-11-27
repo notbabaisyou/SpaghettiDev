@@ -122,6 +122,8 @@ conf_data.set('GBM_BO_FD_FOR_PLANE',
 conf_data.set('GBM_BO_WITH_MODIFIERS2',
               gbm_dep.found() and gbm_dep.version().version_compare('>= 21.3') ? '1' : false)
 
+conf_data.set('FISSION_VACCUM', build_vaccum and build_fission ? '1' : false)
+conf_data.set('FISSION_FB_BACKEND', build_soft2d or build_vaccum ? '1' : false)
 conf_data.set('FISSION_SOFT2D',
               build_soft2d ? '1' : false)
 

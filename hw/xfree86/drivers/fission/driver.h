@@ -42,10 +42,10 @@
 # include "glamor.h"
 #endif
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
 # include <gbm.h>
 #endif
-#ifdef FISSION_SOFT2D
+#ifdef FISSION_FB_BACKEND
 # include "dri3.h"
 #endif
 
@@ -171,7 +171,7 @@ typedef struct _modesettingRec {
         const char *(*egl_get_driver_name)(ScreenPtr);
     } glamor;
 #endif
-#ifdef FISSION_SOFT2D
+#ifdef FISSION_FB_BACKEND
     struct {
         Bool (*init)(ScreenPtr, struct gbm_device *, int);
         void (*sync_close)(ScreenPtr);
@@ -183,7 +183,8 @@ typedef struct _modesettingRec {
         void (*set_drawable_modifiers_func)(ScreenPtr, dri3_get_drawable_modifiers_proc);
         void (*set_formats_func)(ScreenPtr, dri3_get_formats_proc);
         void (*set_modifiers_func)(ScreenPtr, dri3_get_modifiers_proc);
-    } soft2d;
+        Bool owns_scanout_reference;
+    } fb_backend;
 #endif
 } modesettingRec, *modesettingPtr;
 
@@ -231,7 +232,7 @@ void ms_vblank_close_screen(ScreenPtr screen);
 
 Bool ms_present_screen_init(ScreenPtr screen);
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
 
 typedef void (*ms_pageflip_handler_proc)(modesettingPtr ms,
                                          uint64_t frame,

@@ -40,6 +40,9 @@ endif
 if build_soft2d
     symbol_test_args += soft2d_lib.full_path()
 endif
+if build_vaccum
+    symbol_test_args += vaccum_lib.full_path()
+endif
 symbol_test_args += fission_drv_lib.full_path()
 
 install_man(configure_file(

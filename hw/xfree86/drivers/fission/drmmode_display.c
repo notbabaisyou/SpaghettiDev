@@ -193,7 +193,7 @@ drmmode_is_format_supported(ScrnInfoPtr scrn, uint32_t format,
     return TRUE;
 }
 
-#if defined(GBM_BO_WITH_MODIFIERS) || defined(FISSION_SOFT2D)
+#if defined(GBM_BO_WITH_MODIFIERS) || defined(FISSION_FB_BACKEND)
 static uint32_t
 get_modifiers_set(ScrnInfoPtr scrn, uint32_t format, uint64_t **modifiers,
                   Bool enabled_crtc_only, Bool exclude_multiplane, Bool async_flip)
@@ -1171,8 +1171,12 @@ drmmode_bo_destroy(drmmode_ptr drmmode, drmmode_bo *bo)
 {
     int ret;
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
-    if (bo->gbm && drmmode->glamor) {
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
+    Bool owned = drmmode->glamor;
+#ifdef FISSION_FB_BACKEND
+    owned |= modesettingPTR(drmmode->scrn)->fb_backend.owns_scanout_reference;
+#endif
+    if (bo->gbm && owned) {
         gbm_bo_destroy(bo->gbm);
         bo->gbm = NULL;
     }
@@ -1190,7 +1194,7 @@ drmmode_bo_destroy(drmmode_ptr drmmode, drmmode_bo *bo)
 uint32_t
 drmmode_bo_get_pitch(drmmode_bo *bo)
 {
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     if (bo->gbm)
         return gbm_bo_get_stride(bo->gbm);
 #endif
@@ -1201,7 +1205,7 @@ drmmode_bo_get_pitch(drmmode_bo *bo)
 static Bool
 drmmode_bo_has_bo(drmmode_bo *bo)
 {
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     if (bo->gbm)
         return TRUE;
 #endif
@@ -1212,7 +1216,7 @@ drmmode_bo_has_bo(drmmode_bo *bo)
 uint32_t
 drmmode_bo_get_handle(drmmode_bo *bo)
 {
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     if (bo->gbm)
         return gbm_bo_get_handle(bo->gbm).u32;
 #endif
@@ -1225,7 +1229,7 @@ drmmode_bo_map(drmmode_ptr drmmode, drmmode_bo *bo)
 {
     int ret;
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     if (bo->gbm)
         return NULL;
 #endif
@@ -1259,7 +1263,7 @@ drmmode_bo_import(drmmode_ptr drmmode, drmmode_bo *bo,
 {
     uint32_t format;
 
-#if defined(GBM_BO_WITH_MODIFIERS) || defined(FISSION_SOFT2D)
+#if defined(GBM_BO_WITH_MODIFIERS) || defined(FISSION_FB_BACKEND)
     if (bo->gbm && gbm_bo_get_modifier(bo->gbm) != DRM_FORMAT_MOD_INVALID) {
         int num_fds;
 
@@ -1332,7 +1336,7 @@ drmmode_create_bo(drmmode_ptr drmmode, drmmode_bo *bo,
     bo->width = width;
     bo->height = height;
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     if (drmmode->gbm && !force_dumb) {
         uint32_t format;
         uint32_t num_modifiers;
@@ -1706,7 +1710,7 @@ drmmode_crtc_dpms(xf86CrtcPtr crtc, int mode)
 
 }
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
 static Bool
 depth_bpp_from_format(uint32_t pixel_format, int* depth, int* bpp)
 {
@@ -1807,9 +1811,9 @@ create_pixmap_for_fbcon(drmmode_ptr drmmode, ScrnInfoPtr pScrn, int fbcon_id)
         pixmap = ms->glamor.glamor_pixmap_from_fds(pScreen, num_fds, fds,
                                                    width, height, strides, offsets,
                                                    depth, bpp, modifier);
-#if defined(FISSION_SOFT2D)
-    else if (ms->soft2d.pixmap_from_fds)
-        pixmap = ms->soft2d.pixmap_from_fds(pScreen, num_fds, fds,
+#if defined(FISSION_FB_BACKEND)
+    else if (ms->fb_backend.pixmap_from_fds)
+        pixmap = ms->fb_backend.pixmap_from_fds(pScreen, num_fds, fds,
                                             width, height, strides, offsets,
                                             depth, bpp, modifier);
 #endif
@@ -1833,7 +1837,7 @@ out_free_fb:
 void
 drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 {
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
     ScreenPtr pScreen = xf86ScrnToScreen(pScrn);
     PixmapPtr src, dst;
@@ -2404,7 +2408,7 @@ drmmode_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
         return NULL;
     }
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     if (drmmode->gbm)
         return drmmode_crtc->rotate_bo.gbm;
 #endif
@@ -3891,7 +3895,7 @@ drmmode_clones_init(ScrnInfoPtr scrn, drmmode_ptr drmmode, drmModeResPtr mode_re
 static Bool
 drmmode_set_pixmap_bo(drmmode_ptr drmmode, PixmapPtr pixmap, drmmode_bo *bo)
 {
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     ScrnInfoPtr scrn = drmmode->scrn;
     modesettingPtr ms = modesettingPTR(scrn);
 
@@ -3902,9 +3906,9 @@ drmmode_set_pixmap_bo(drmmode_ptr drmmode, PixmapPtr pixmap, drmmode_bo *bo)
             return FALSE;
         }
     }
-#ifdef FISSION_SOFT2D
+#ifdef FISSION_FB_BACKEND
     else if (bo->gbm) {
-        if (!ms->soft2d.pixmap_from_gbm_bo(pixmap, bo->gbm)) {
+        if (!ms->fb_backend.pixmap_from_gbm_bo(pixmap, bo->gbm)) {
             xf86DrvMsg(scrn->scrnIndex, X_ERROR, "Failed to create pixmap\n");
             return FALSE;
         }
@@ -4238,15 +4242,17 @@ drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
         return TRUE;
     }
 #endif
-#ifdef FISSION_SOFT2D
-    if (ms->soft2d.init) {
-        if (!ms->soft2d.init(pScreen, ms->drmmode.gbm, ms->fd))
+#ifdef FISSION_FB_BACKEND
+    if (ms->fb_backend.init) {
+        if (!ms->fb_backend.init(pScreen, ms->drmmode.gbm, ms->fd))
             return FALSE;
         
-        ms->soft2d.set_drawable_modifiers_func(pScreen,
-                                               drmmode_soft2d_get_drawable_modifiers);
-        ms->soft2d.set_formats_func(pScreen, drmmode_soft2d_get_formats);
-        ms->soft2d.set_modifiers_func(pScreen, drmmode_soft2d_get_modifiers);
+        if (ms->fb_backend.set_drawable_modifiers_func) {
+            ms->fb_backend.set_drawable_modifiers_func(pScreen,
+                                                   drmmode_soft2d_get_drawable_modifiers);
+            ms->fb_backend.set_formats_func(pScreen, drmmode_soft2d_get_formats);
+            ms->fb_backend.set_modifiers_func(pScreen, drmmode_soft2d_get_modifiers);
+        }
     }
 #endif
 

@@ -274,7 +274,7 @@ check_outputs(int fd, int *count)
         *count = res->count_connectors;
 
     ret = res->count_connectors > 0;
-#if defined(HAVE_GBM_LINEAR) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM_LINEAR) || defined(FISSION_FB_BACKEND)
     if (ret == FALSE) {
         uint64_t value = 0;
         if (drmGetCap(fd, DRM_CAP_PRIME, &value) == 0 &&
@@ -1196,6 +1196,10 @@ load_glamor(ScrnInfoPtr pScrn)
 
 #endif
 
+#ifdef FISSION_VACCUM
+#include "vaccum_gbm.h"
+#endif
+
 #ifdef FISSION_SOFT2D
 static Bool
 load_soft2d(ScrnInfoPtr pScrn)
@@ -1206,31 +1210,74 @@ load_soft2d(ScrnInfoPtr pScrn)
     if (!mod)
         return FALSE;
 
-    ms->soft2d.init = LoaderSymbolFromModule(mod, "soft2d_init");
-    ms->soft2d.sync_close = LoaderSymbolFromModule(mod, "soft2d_sync_close");
-    ms->soft2d.shareable_fd_from_pixmap = LoaderSymbolFromModule(mod, "soft2d_shareable_fd_from_pixmap");
-    ms->soft2d.back_pixmap_from_fd = LoaderSymbolFromModule(mod, "soft2d_back_pixmap_from_fd");
-    ms->soft2d.pixmap_from_gbm_bo = LoaderSymbolFromModule(mod, "soft2d_pixmap_from_gbm_bo");
-    ms->soft2d.gbm_bo_from_pixmap = LoaderSymbolFromModule(mod, "soft2d_gbm_bo_from_pixmap");
-    ms->soft2d.pixmap_from_fds = LoaderSymbolFromModule(mod, "soft2d_pixmap_from_fds");
-    ms->soft2d.set_drawable_modifiers_func = LoaderSymbolFromModule(mod, "soft2d_set_drawable_modifiers_func");
-    ms->soft2d.set_formats_func = LoaderSymbolFromModule(mod, "soft2d_set_formats_func");
-    ms->soft2d.set_modifiers_func = LoaderSymbolFromModule(mod, "soft2d_set_modifiers_func");
+    ms->fb_backend.init = LoaderSymbolFromModule(mod, "soft2d_init");
+    ms->fb_backend.sync_close = LoaderSymbolFromModule(mod, "soft2d_sync_close");
+    ms->fb_backend.shareable_fd_from_pixmap = LoaderSymbolFromModule(mod, "soft2d_shareable_fd_from_pixmap");
+    ms->fb_backend.back_pixmap_from_fd = LoaderSymbolFromModule(mod, "soft2d_back_pixmap_from_fd");
+    ms->fb_backend.pixmap_from_gbm_bo = LoaderSymbolFromModule(mod, "soft2d_pixmap_from_gbm_bo");
+    ms->fb_backend.gbm_bo_from_pixmap = LoaderSymbolFromModule(mod, "soft2d_gbm_bo_from_pixmap");
+    ms->fb_backend.pixmap_from_fds = LoaderSymbolFromModule(mod, "soft2d_pixmap_from_fds");
+    ms->fb_backend.set_drawable_modifiers_func = LoaderSymbolFromModule(mod, "soft2d_set_drawable_modifiers_func");
+    ms->fb_backend.set_formats_func = LoaderSymbolFromModule(mod, "soft2d_set_formats_func");
+    ms->fb_backend.set_modifiers_func = LoaderSymbolFromModule(mod, "soft2d_set_modifiers_func");
 
     return TRUE;
 }
 
+#endif
+
 static Bool
-try_enable_soft2d(ScrnInfoPtr pScrn)
+select_fb_backend(ScrnInfoPtr scrn)
 {
-    modesettingPtr ms = modesettingPTR(pScrn);
+    modesettingPtr ms = modesettingPTR(scrn);
+    const char *method = xf86GetOptValString(ms->drmmode.Options,
+                                              OPTION_ACCEL_METHOD);
 
     if (ms->drmmode.glamor)
         return TRUE;
-    else
-        return load_soft2d(pScrn);
-}
+    if (method && strcmp(method, "vaccum") == 0) {
+#ifdef FISSION_VACCUM
+        void *mod = xf86LoadSubModule(scrn, VACCUM_MODULE_NAME);
+
+        if (!mod)
+            return FALSE;
+        ms->fb_backend.owns_scanout_reference = TRUE;
+        ms->fb_backend.init =
+            LoaderSymbolFromModule(mod, "vaccum_gbm_init");
+        if (!ms->fb_backend.init)
+            return FALSE;
+        ms->fb_backend.shareable_fd_from_pixmap =
+            LoaderSymbolFromModule(mod, "vaccum_export_fd");
+        if (!ms->fb_backend.shareable_fd_from_pixmap)
+            return FALSE;
+        ms->fb_backend.back_pixmap_from_fd =
+            LoaderSymbolFromModule(mod, "vaccum_attach_fd");
+        if (!ms->fb_backend.back_pixmap_from_fd)
+            return FALSE;
+        ms->fb_backend.pixmap_from_gbm_bo =
+            LoaderSymbolFromModule(mod, "vaccum_attach_front");
+        if (!ms->fb_backend.pixmap_from_gbm_bo)
+            return FALSE;
+        ms->fb_backend.gbm_bo_from_pixmap =
+            LoaderSymbolFromModule(mod, "vaccum_scanout_bo");
+        if (!ms->fb_backend.gbm_bo_from_pixmap)
+            return FALSE;
+        ms->fb_backend.pixmap_from_fds =
+            LoaderSymbolFromModule(mod, "vaccum_import_fds");
+        if (!ms->fb_backend.pixmap_from_fds)
+            return FALSE;
+        return TRUE;
+#else
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR, "VACCUM support is disabled\n");
+        return FALSE;
 #endif
+    }
+#ifdef FISSION_SOFT2D
+    return load_soft2d(scrn);
+#else
+    return FALSE;
+#endif
+}
 
 static void
 try_enable_glamor(ScrnInfoPtr pScrn)
@@ -1431,22 +1478,15 @@ PreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     try_enable_glamor(pScrn);
-#ifdef FISSION_SOFT2D
-    if (!try_enable_soft2d(pScrn)) {
-        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Failed to load soft2d\n");
-        return FALSE;    
+    if (!select_fb_backend(pScrn)) {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Cannot select AccelMethod\n");
+        return FALSE;
     }
-#endif
 
     ms->drmmode.pageflip =
         xf86ReturnOptValBool(ms->drmmode.Options, OPTION_PAGEFLIP, TRUE);
 
-    if (!ms->drmmode.glamor) {
-#ifndef FISSION_SOFT2D
-        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "AccelMethod 'GLAMOR' is required\n");
-        return FALSE;
-#endif
-    } else {
+    if (ms->drmmode.glamor) {
         if (!pScrn->is_gpu) {
             MessageType from = xf86GetOptValBool(ms->drmmode.Options, OPTION_VARIABLE_REFRESH,
                                                  &ms->vrr_support) ? X_CONFIG : X_DEFAULT;
@@ -1473,7 +1513,7 @@ PreInit(ScrnInfoPtr pScrn, int flags)
             pScrn->capabilities |= RR_Capability_SinkOutput;
             pScrn->capabilities |= RR_Capability_SinkOffload;
         }
-#if defined(HAVE_GBM_LINEAR) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM_LINEAR) || defined(FISSION_FB_BACKEND)
         if (value & DRM_PRIME_CAP_EXPORT)
             pScrn->capabilities |= RR_Capability_SourceOutput | RR_Capability_SourceOffload;
 #endif
@@ -1781,9 +1821,9 @@ msSharePixmapBacking(PixmapPtr ppix, ScreenPtr secondary, void **handle)
     if (ms->drmmode.glamor)
         ret = ms->glamor.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
                                                   &stride, &size);
-#ifdef FISSION_SOFT2D
-    else if (ms->soft2d.shareable_fd_from_pixmap)
-        ret = ms->soft2d.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
+#ifdef FISSION_FB_BACKEND
+    else if (ms->fb_backend.shareable_fd_from_pixmap)
+        ret = ms->fb_backend.shareable_fd_from_pixmap(ppix->drawable.pScreen, ppix,
                                                   &stride, &size);
 #endif
 
@@ -1818,9 +1858,9 @@ msSetSharedPixmapBacking(PixmapPtr ppix, void *fd_handle)
                                                  ppix->devKind,
                                                  ppix->drawable.depth,
                                                  ppix->drawable.bitsPerPixel);
-#ifdef FISSION_SOFT2D
-        else if (ms->soft2d.back_pixmap_from_fd)
-            ret = ms->soft2d.back_pixmap_from_fd(ppix, ihandle,
+#ifdef FISSION_FB_BACKEND
+        else if (ms->fb_backend.back_pixmap_from_fd)
+            ret = ms->fb_backend.back_pixmap_from_fd(ppix, ihandle,
                                                  ppix->drawable.width,
                                                  ppix->drawable.height,
                                                  ppix->devKind,
@@ -2240,9 +2280,9 @@ CloseScreen(ScreenPtr pScreen)
     /* Clear mask of assigned crtc's in this generation */
     ms_ent->assigned_crtcs = 0;
 
-#ifdef FISSION_SOFT2D
-    if (!ms->drmmode.glamor)
-        ms->soft2d.sync_close(pScreen);
+#ifdef FISSION_FB_BACKEND
+    if (ms->fb_backend.sync_close)
+        ms->fb_backend.sync_close(pScreen);
 #endif
 
 #ifdef DRI2
@@ -2282,8 +2322,8 @@ CloseScreen(ScreenPtr pScreen)
         LeaveVT(pScrn);
     }
 
-#ifdef FISSION_SOFT2D
-    if (!ms->drmmode.glamor)
+#ifdef FISSION_FB_BACKEND
+    if (ms->drmmode.destroy_pixmap)
         pScreen->DestroyPixmap = ms->drmmode.destroy_pixmap;
 #endif
 

@@ -46,7 +46,7 @@
 #include "drmmode_display.h"
 #include "vrr.h"
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
 #include "drm_fourcc.h"
 #endif
 
@@ -180,7 +180,7 @@ ms_present_abort_vblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc)
 static void
 ms_present_flush(WindowPtr window)
 {
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     ScreenPtr screen = window->drawable.pScreen;
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
@@ -190,7 +190,7 @@ ms_present_flush(WindowPtr window)
 #endif
 }
 
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
 /**
  * Callback for the DRM event queue when a flip has completed on all pipes
  *
@@ -260,7 +260,7 @@ ms_present_check_unflip(RRCrtcPtr crtc,
         drmmode_crtc_private_ptr drmmode_crtc = config->crtc[i]->driver_private;
 
         /* Don't do pageflipping if CRTCs are rotated. */
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
         if (drmmode_crtc->rotate_bo.gbm)
             return FALSE;
 #endif
@@ -280,9 +280,9 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     /* Check if buffer format/modifier is supported by all active CRTCs */
     if (ms->drmmode.glamor)
         gbm = ms->glamor.gbm_bo_from_pixmap(screen, pixmap);
-#ifdef FISSION_SOFT2D
-    else if (ms->soft2d.gbm_bo_from_pixmap)
-        gbm = ms->soft2d.gbm_bo_from_pixmap(screen, pixmap);
+#ifdef FISSION_FB_BACKEND
+    else if (ms->fb_backend.gbm_bo_from_pixmap)
+        gbm = ms->fb_backend.gbm_bo_from_pixmap(screen, pixmap);
 #endif
 
     if (gbm) {
@@ -292,7 +292,11 @@ ms_present_check_unflip(RRCrtcPtr crtc,
         format = gbm_bo_get_format(gbm);
         modifier = gbm_bo_get_modifier(gbm);
 
-        if (ms->drmmode.glamor)
+        Bool owned = ms->drmmode.glamor;
+#ifdef FISSION_FB_BACKEND
+        owned |= ms->fb_backend.owns_scanout_reference;
+#endif
+        if (owned)
             gbm_bo_destroy(gbm);
 
         if (!drmmode_is_format_supported(scrn, format, modifier, !sync_flip)) {
@@ -478,7 +482,7 @@ static present_screen_info_rec ms_present_screen_info = {
     .flush = ms_present_flush,
 
     .capabilities = PresentCapabilityNone,
-#if defined(HAVE_GBM) || defined(FISSION_SOFT2D)
+#if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
     .check_flip = NULL,
     .check_flip2 = ms_present_check_flip,
 

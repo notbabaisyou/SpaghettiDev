@@ -36,7 +36,7 @@
 
 #include "dumb_bo.h"
 
-#ifdef FISSION_SOFT2D
+#ifdef FISSION_FB_BACKEND
 typedef Bool (*GetDrawableModifiersFuncPtr) (DrawablePtr draw, uint32_t format, uint32_t *num_modifiers, uint64_t **modifiers);
 # ifdef XSYNC
 #  include "misync.h"
@@ -150,7 +150,7 @@ typedef struct {
     Bool use_ctm;
     Bool pending_modeset;
 
-#ifdef FISSION_SOFT2D
+#ifdef FISSION_FB_BACKEND
     DestroyPixmapProcPtr destroy_pixmap;
     GetDrawableModifiersFuncPtr get_drawable_modifiers;
 #ifdef XSYNC
