@@ -33,6 +33,7 @@
 struct dri3_syncobj;
 
 typedef enum {
+    PRESENT_FLIP_REASON_ASYNC_FORMAT = -1,
     PRESENT_FLIP_REASON_UNKNOWN = 0,
     PRESENT_FLIP_REASON_BUFFER_FORMAT,
 

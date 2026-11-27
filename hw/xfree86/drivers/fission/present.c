@@ -246,6 +246,9 @@ ms_present_check_unflip(RRCrtcPtr crtc,
     int num_crtcs_on = 0;
     int i;
     struct gbm_bo *gbm = NULL;
+#ifdef GBM_BO_WITH_MODIFIERS
+    const Bool async_flip = !sync_flip;
+#endif
 
     if (!ms->drmmode.pageflip)
         return FALSE;
@@ -295,9 +298,16 @@ ms_present_check_unflip(RRCrtcPtr crtc,
         if (ms->drmmode.glamor)
             gbm_bo_destroy(gbm);
 
-        if (!drmmode_is_format_supported(scrn, format, modifier, !sync_flip)) {
-            if (reason)
+        if (!drmmode_is_format_supported(scrn, format, modifier, async_flip)) {
+            if (reason) {
+                ms_window_update_async_flip(window, async_flip);
                 *reason = PRESENT_FLIP_REASON_BUFFER_FORMAT;
+
+                /* A replacement buffer may have the same async restriction. */
+                if (async_flip &&
+                    drmmode_is_format_supported(scrn, format, modifier, FALSE))
+                    *reason = PRESENT_FLIP_REASON_ASYNC_FORMAT;
+            }
             return FALSE;
         }
     }
@@ -334,11 +344,8 @@ ms_present_check_flip(RRCrtcPtr crtc,
     if (ms->drmmode.pending_modeset)
         goto no_flip;
 
-    if (!ms_present_check_unflip(crtc, window, pixmap, sync_flip, reason)) {
-        if (reason && *reason == PRESENT_FLIP_REASON_BUFFER_FORMAT)
-            ms_window_update_async_flip(window, async_flip);
+    if (!ms_present_check_unflip(crtc, window, pixmap, sync_flip, reason))
         goto no_flip;
-    }
 
     ms_window_update_async_flip(window, async_flip);
 
