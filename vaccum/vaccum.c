@@ -145,7 +145,8 @@ vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
         LogMessage(X_WARNING,
                    "vaccum%d: Failed to allocate screen private\n",
                    screen->myNum);
-        goto free_vaccum_private;
+        free(vaccum_priv);
+        return FALSE;
     }
     vaccum_set_screen_private(screen, vaccum_priv);
 
@@ -165,13 +166,16 @@ vaccum_init(ScreenPtr screen, unsigned int flags, int drm_fd)
         goto free_vaccum_private;
     }
 
+    if (!vaccum_vulkan_init(vaccum_priv, drm_fd)) {
+        vaccum_vulkan_fini(vaccum_priv);
+        goto free_vaccum_private;
+    }
+
     vaccum_priv->saved_procs.close_screen = screen->CloseScreen;
     screen->CloseScreen = vaccum_close_screen;
 
     vaccum_priv->saved_procs.destroy_pixmap = screen->DestroyPixmap;
     screen->DestroyPixmap = vaccum_destroy_pixmap;
-    if (!vaccum_vulkan_init(vaccum_priv, drm_fd))
-        goto free_vaccum_private;
 
     vaccum_priv->saved_procs.create_pixmap = screen->CreatePixmap;
     screen->CreatePixmap = vaccum_create_pixmap;

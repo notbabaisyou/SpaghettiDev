@@ -12,7 +12,8 @@ void
 vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv)
 {
     free(vaccum_priv->drm_device_path);
-    vkDestroyCommandPool(vaccum_priv->device, vaccum_priv->command_pool, NULL);
+    if (vaccum_priv->command_pool)
+        vkDestroyCommandPool(vaccum_priv->device, vaccum_priv->command_pool, NULL);
     vkDestroyDevice(vaccum_priv->device, NULL);
     vkDestroyInstance(vaccum_priv->instance, NULL);
     free(vaccum_priv->phys_devices);
@@ -40,8 +41,9 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
         return FALSE;
 
     uint32_t gpu_count;
-    result = vkEnumeratePhysicalDevices(vaccum_priv->instance, &gpu_count, NULL);
-    if (gpu_count == 0) {
+
+    if (vkEnumeratePhysicalDevices(vaccum_priv->instance, &gpu_count, NULL) !=
+        VK_SUCCESS || gpu_count == 0) {
         LogMessage(X_WARNING,
                    "vaccum: failed to find any vulkan devices\n");
         return FALSE;
@@ -204,7 +206,9 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     VkCommandPoolCreateInfo cmd_pool_create_info = {};
     cmd_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmd_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    result = vkCreateCommandPool(vaccum_priv->device, &cmd_pool_create_info, NULL, &vaccum_priv->command_pool);
+    if (vkCreateCommandPool(vaccum_priv->device, &cmd_pool_create_info, NULL,
+                            &vaccum_priv->command_pool) != VK_SUCCESS)
+        return FALSE;
 
     vaccum_priv->has_drm_format_modifier = TRUE;
 
