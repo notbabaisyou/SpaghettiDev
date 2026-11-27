@@ -8,6 +8,7 @@ srcs_vaccum = [
     'vaccum_glyphbit.c',
     'vaccum_image.c',
     'vaccum_lines.c',
+    'vaccum_linear.c',
     'vaccum_prepare.c',
     'vaccum_prepare.h',
     'vaccum_points.c',
