@@ -1,20 +1,130 @@
-Rough plan:
+VACCUM roadmap for GLAMOR parity on Fission
+==========================================
 
-Fill out the framework so all fallbacks are in place
+Target the X11 behavior, accelerated workloads and display features available
+with AccelMethod "glamor" on the same Fission build and hardware. Keep VACCUM
+independent of Soft2D. Target Vulkan 1.2 and negotiate optional device
+extensions per feature. Include DRI3 1.4 explicit synchronization as a
+separate deliverable with its own client-visible acceptance tests.
 
-Add image allocation paths
+Starting point
+--------------
 
-Add transfer paths to do software fallback
+Fission loads the VACCUM module through vaccum_gbm_init. The active screen
+hooks use CPU-visible Vulkan buffers for eligible pixmaps and accelerate
+full-planemask GXcopy between distinct eligible 32-bpp pixmaps. The current
+copy path waits for the Vulkan queue to become idle. Framebuffer routines
+handle other drawing. The active GBM callbacks support single-plane linear
+sharing and register a version-2 DRI3 screen interface. Several image,
+transfer, shader-builder and syncobj files in this directory are scaffolding.
+Track progress through calls reachable from the loaded module.
 
-Pull spirv builder from zink (???)
+1. Establish a rendering and presentation baseline
+---------------------------------------------------
 
-Create shader builder
+Run identical X client requests under VACCUM and GLAMOR, with framebuffer
+output as an independent pixel reference where X11 defines exact results.
+Record GPU, driver, depth, compositor, scale, and whether Present copied or
+flipped. Start with the reported title-bar buttons and app icons. Capture
+source pixels, Render picture formats and destination readback, then compare
+composited and uncomposited output on both backends before assigning a cause.
 
-Create pipeline builder
+Deliver a repeatable pixel test for clipped CopyArea, software writes before
+and after a Vulkan copy, GetImage, alpha masks and redirected windows. Include
+both Intel and AMD runs. Use headless tests for rendering and a live Fission
+screen for scanout, resize and VT switching.
 
-Create buffer creation
+2. Make GPU and CPU access coherent
+------------------------------------
 
-Create command submission paths
+Define pixmap backing, ownership and last-use tracking across system memory,
+Vulkan buffers and images, imported dma-bufs and scanout. Implement upload,
+download and region-based fallback for supported depths, pitches and byte
+orders. Cover shared references, backing replacement, large pixmaps,
+allocation failure and teardown with work in flight. Batch submissions and
+recycle command buffers and staging allocations after completion. Replace
+per-copy queue-idle waits with per-resource dependencies.
 
+Pass randomized sequences of GPU draws, CPU reads and writes, export, import
+and destruction. Check pixels and untouched padding, run Vulkan validation
+and verify bounded memory and FD counts over repeated server resets.
 
+3. Implement explicit synchronization across DRI3 and Present
+-------------------------------------------------------------
 
+Start the protocol and kernel capability tests alongside milestone 2. Ship
+explicit sync once rendering, fallback copies and scanout all honor the
+client's acquire and release timeline points.
+
+* DRI3. Import a DRM syncobj FD as a timeline object on the selected DRM
+  device. Keep syncobj FDs distinct from sync_file FDs used to carry a
+  fence for one point. Implement point-aware availability, signaling,
+  import/export and eventfd notification. The existing
+  vaccum_dri3_syncobj.c imports a sync_file and ignores the point in several
+  callbacks. Exercise the replacement through the active GBM screen.
+* Present copies. The screen-mode path in present/present_scmd.c currently
+  rejects requests containing syncobjs. Wire PresentPixmapSynced through
+  request validation, scheduling and completion. Defer a copy until its
+  acquire point is ready without blocking the X server. Signal its release
+  point when the last CPU or Vulkan read of the client pixmap completes.
+* Present flips. Carry the acquire dependency into Fission's KMS submission
+  or defer submission until signaled. Release the previous pixmap only after
+  every CRTC using it has retired it. Cover unflip, skipped presents, flip
+  failure followed by a copy, hot-unplug and client disconnect. Assign one
+  owner to every FD, event source and pending release on each path.
+* Negotiation. Probe DRM timeline and notification support and the Vulkan
+  and KMS fence interop actually used. Register DRI3 screen interface
+  version 4 and its import_syncobj callback only on capable screens.
+  Advertise Present syncobj capability only for implemented paths. Preserve
+  implicit-sync clients and verify DRI3 version negotiation across mixed
+  screens and GPU screens.
+
+Pass a two-client test with delayed acquire, repeated reuse of one buffer,
+distinct points on the same timeline and values above 32 bits. Verify that
+another client remains responsive, no frame appears before acquire, and the
+producer can overwrite immediately after release without corrupting a frame.
+Run both copy and flip cases and repeat with explicit sync unavailable.
+
+4. Accelerate core X11 and Render
+---------------------------------
+
+Build reusable SPIR-V shaders and pipeline state from GC and Picture state.
+Start with fills and copies, including self-overlap, clipping, raster ops and
+planemasks. Extend to spans, tiles, stipples, lines, points, segments, text,
+PutImage, GetImage and CopyPlane. Compare window and pixmap targets, including
+redirected windows with nonzero origins.
+
+For Render, start with Src and Over, A8 masks and premultiplied ARGB icons.
+Add component alpha, glyph caching, operators, transforms, repeat modes,
+filters, gradients, composite rectangles, trapezoids and triangles. Track each
+operation as accelerated or software fallback. Require pixel comparisons for
+both paths and evidence that the accelerated test reached a Vulkan submission.
+
+5. Complete sharing and Fission integration
+-------------------------------------------
+
+Negotiate formats and modifiers across Vulkan, GBM and the active CRTCs.
+Extend dma-buf import/export to supported tiled and multi-plane layouts.
+Validate each plane's offset, stride and size. Test cross-GPU PRIME sharing,
+direct scanout, copy fallback, rotation, mode changes and multi-monitor
+flips. Re-run the explicit-sync lifetime tests for each new sharing path.
+
+Inventory GLAMOR-specific Fission call sites for DRI2/GLX, XVideo, TearFree,
+VRR and asynchronous flips. For each feature record the hardware prerequisites,
+the required VACCUM hook, and a live client test. Verify fallback and reported
+capabilities when the display or device cannot support a feature.
+
+6. Qualify parity
+-----------------
+
+Keep a per-feature comparison for the same Fission configuration, covering
+protocol results, pixel correctness, acceleration and hardware requirements.
+Run the Meson suite, Render and core pixel tests, DRI3/Present stress tests,
+and live desktop workloads. Build and load VACCUM with Soft2D disabled.
+
+Compare x11perf copies, fills, glyphs and composites plus compositor frame
+times on the same hardware, resolution and driver. Record CPU usage, frame
+time percentiles, readbacks, queue-idle waits and memory growth. Agree on
+regression budgets from the measured GLAMOR baseline before declaring
+performance parity. Close each milestone with its test results and document
+any remaining hardware-specific differences.
