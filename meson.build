@@ -436,7 +436,7 @@ else
     build_soft2d = soft2d_option == 'true'
 endif
 
-if not build_glamor and build_soft2d
+if not build_glamor and (build_soft2d or build_vaccum)
     gbm_dep = dependency('gbm', version: '>= 17.1', required: true)
 endif
 

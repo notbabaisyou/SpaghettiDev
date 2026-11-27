@@ -120,6 +120,9 @@ subdir('fbdevhw')
 if build_glamor
     subdir('glamor_egl')
 endif
+if build_vaccum and build_fission
+    subdir('vaccum')
+endif
 if build_soft2d
     subdir('soft2d')
 endif
