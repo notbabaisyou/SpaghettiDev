@@ -54,6 +54,10 @@ ms_flush_drm_events_timeout(ScreenPtr screen, int timeout)
      */
     if (r <= 0)
         return r;
+    if (!(p.revents & POLLIN)) {
+        errno = EIO;
+        return -1;
+    }
 
     /* Try to handle the event.  If there was an error, return it. */
     r = drmHandleEvent(ms->fd, &ms->event_context);
@@ -73,8 +77,12 @@ ms_flush_drm_events(ScreenPtr screen)
 void
 ms_drain_drm_events(ScreenPtr screen)
 {
-    while (!ms_drm_queue_is_empty())
-        ms_flush_drm_events_timeout(screen, -1);
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+
+    while (ms_drm_queue_has_pageflip(scrn)) {
+        if (ms_flush_drm_events_timeout(screen, -1) <= 0)
+            break;
+    }
 }
 
 #if defined(HAVE_GBM) || defined(FISSION_FB_BACKEND)
@@ -229,7 +237,7 @@ alloc_flip_event(xf86CrtcPtr crtc, struct ms_flipdata *flipdata,
     flip->flipdata = flipdata;
 
     uint32_t allocated = ms_drm_queue_alloc_shared(
-        crtc, *seq, flip, ms_pageflip_handler, ms_pageflip_abort);
+        crtc, *seq, TRUE, flip, ms_pageflip_handler, ms_pageflip_abort);
 
     if (!allocated) {
         free(flip);

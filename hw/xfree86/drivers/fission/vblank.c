@@ -349,8 +349,8 @@ ms_drm_socket_handler(int fd, int ready, void *data)
  * appears, we've got data to pass to the handler from here
  */
 uint32_t
-ms_drm_queue_alloc_shared(xf86CrtcPtr crtc, uint32_t seq, void *data,
-                          ms_drm_handler_proc handler,
+ms_drm_queue_alloc_shared(xf86CrtcPtr crtc, uint32_t seq, Bool page_flip,
+                          void *data, ms_drm_handler_proc handler,
                           ms_drm_abort_proc abort)
 {
     ScreenPtr screen = crtc->randr_crtc->pScreen;
@@ -368,6 +368,7 @@ ms_drm_queue_alloc_shared(xf86CrtcPtr crtc, uint32_t seq, void *data,
     }
     q->seq = seq;
     q->crtc_id = drmmode_crtc->mode_crtc->crtc_id;
+    q->page_flip = page_flip;
     q->scrn = scrn;
     q->crtc = crtc;
     q->data = data;
@@ -382,7 +383,7 @@ uint32_t
 ms_drm_queue_alloc(xf86CrtcPtr crtc, void *data, ms_drm_handler_proc handler,
                    ms_drm_abort_proc abort)
 {
-    return ms_drm_queue_alloc_shared(crtc, 0, data, handler, abort);
+    return ms_drm_queue_alloc_shared(crtc, 0, FALSE, data, handler, abort);
 }
 
 /**
@@ -496,9 +497,16 @@ ms_drm_handler_crtc(int fd, uint32_t frame, uint32_t sec, uint32_t usec,
 }
 
 Bool
-ms_drm_queue_is_empty(void)
+ms_drm_queue_has_pageflip(ScrnInfoPtr scrn)
 {
-    return xorg_list_is_empty(&ms_drm_queue);
+    struct ms_drm_queue *q;
+
+    xorg_list_for_each_entry(q, &ms_drm_queue, list) {
+        if (q->scrn == scrn && q->page_flip)
+            return TRUE;
+    }
+
+    return FALSE;
 }
 
 Bool

@@ -96,6 +96,7 @@ struct ms_drm_queue {
     xf86CrtcPtr crtc;
     uint32_t seq;
     uint32_t crtc_id;
+    Bool page_flip;
     void *data;
     ScrnInfoPtr scrn;
     ms_drm_handler_proc handler;
@@ -216,7 +217,8 @@ Bool ms_queue_vblank(xf86CrtcPtr crtc, ms_queue_flag flags,
                      uint64_t msc, uint64_t *msc_queued, uint32_t seq);
 
 uint32_t ms_drm_queue_alloc_shared(xf86CrtcPtr crtc, uint32_t seq,
-                                  void *data, ms_drm_handler_proc handler,
+                                  Bool page_flip, void *data,
+                                  ms_drm_handler_proc handler,
                                   ms_drm_abort_proc abort);
 
 void ms_drm_abort(ScrnInfoPtr scrn,
@@ -224,7 +226,7 @@ void ms_drm_abort(ScrnInfoPtr scrn,
                   void *match_data);
 void ms_drm_abort_seq(ScrnInfoPtr scrn, uint32_t seq);
 
-Bool ms_drm_queue_is_empty(void);
+Bool ms_drm_queue_has_pageflip(ScrnInfoPtr scrn);
 
 Bool xf86_crtc_on(xf86CrtcPtr crtc);
 
