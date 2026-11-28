@@ -147,17 +147,37 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     VACCUM_CHECK_EXT(found_drm_format_modifier, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME);
     VACCUM_CHECK_EXT(found_physical_device_drm, VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME);
-    VACCUM_CHECK_EXT(found_external_memory_dma_buf, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME);
-
-    for (uint32_t i = 0; i < available_ext_count; i++) {
-        if (strcmp(available_exts[i].extensionName,
-                   VK_KHR_MAINTENANCE_5_EXTENSION_NAME) == 0) {
-            vaccum_priv->has_maintenance5 = TRUE;
-            break;
-        }
-    }
+    VACCUM_CHECK_EXT(found_external_memory_dma_buf,
+                     VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME);
+    VACCUM_CHECK_EXT(found_external_memory_fd,
+                     VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
 
 #undef VACCUM_CHECK_EXT
+
+    Bool has_dynamic_rendering = FALSE;
+    Bool has_maintenance5 = FALSE;
+
+    for (uint32_t i = 0; i < available_ext_count; i++) {
+        const char *name = available_exts[i].extensionName;
+
+        has_dynamic_rendering |=
+            strcmp(name, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME) == 0;
+        has_maintenance5 |=
+            strcmp(name, VK_KHR_MAINTENANCE_5_EXTENSION_NAME) == 0;
+    }
+
+    VkPhysicalDeviceMaintenance5FeaturesKHR maintenance5 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR,
+    };
+
+    if (has_maintenance5 && has_dynamic_rendering) {
+        VkPhysicalDeviceFeatures2 features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .pNext = &maintenance5,
+        };
+
+        vkGetPhysicalDeviceFeatures2(vaccum_priv->phys_device, &features);
+    }
 
     /* Build extension list for device creation */
     const char *device_extensions[VACCUM_MAX_DEVICE_EXTENSIONS];
@@ -165,10 +185,18 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     device_extensions[device_extension_count++] = VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME;
     device_extensions[device_extension_count++] = VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME;
-    device_extensions[device_extension_count++] = VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME;
+    device_extensions[device_extension_count++] =
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME;
+    device_extensions[device_extension_count++] =
+        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME;
 
-    if (vaccum_priv->has_maintenance5)
-        device_extensions[device_extension_count++] = VK_KHR_MAINTENANCE_5_EXTENSION_NAME;
+    vaccum_priv->has_maintenance5 = maintenance5.maintenance5;
+    if (vaccum_priv->has_maintenance5) {
+        device_extensions[device_extension_count++] =
+            VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME;
+        device_extensions[device_extension_count++] =
+            VK_KHR_MAINTENANCE_5_EXTENSION_NAME;
+    }
 
     free(available_exts);
 
@@ -208,6 +236,8 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
 
     VkDeviceCreateInfo device_create_info = {};
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    if (vaccum_priv->has_maintenance5)
+        device_create_info.pNext = &maintenance5;
     device_create_info.queueCreateInfoCount = 1;
     device_create_info.pQueueCreateInfos = &queue_info;
     device_create_info.pEnabledFeatures = &features;
