@@ -338,7 +338,11 @@ test_output_loss(xcb_connection_t *client, xcb_connection_t *observer,
                  xcb_window_t root, xcb_window_t win, xcb_pixmap_t pixmap,
                  int fd, const char *output_name)
 {
-    enum { OUTPUT_LOSS_TIMEOUT_MS = 60000 };
+    enum {
+        OUTPUT_LOSS_TIMEOUT_MS = 60000,
+        OUTPUT_RECHECK_INTERVAL_MS = 100,
+        OUTPUT_RECHECK_COUNT = 30,
+    };
 
     xcb_randr_get_screen_resources_current_reply_t *resources =
         get_outputs(observer, root);
@@ -422,16 +426,29 @@ test_output_loss(xcb_connection_t *client, xcb_connection_t *observer,
     free(initial);
     REQUIRE(poll(&done, 1, OUTPUT_LOSS_TIMEOUT_MS) == 1);
 
-    resources = get_outputs(observer, root);
-    xcb_randr_get_output_info_cookie_t cookie = xcb_randr_get_output_info(
-        observer, output, resources->config_timestamp);
-    xcb_randr_get_output_info_reply_t *after =
-        xcb_randr_get_output_info_reply(observer, cookie, NULL);
+    bool disconnected = false;
 
-    REQUIRE(!xcb_connection_has_error(observer));
-    REQUIRE(!after || after->connection == XCB_RANDR_CONNECTION_DISCONNECTED);
-    free(after);
-    free(resources);
+    /* KMS can retire the pixmap before Xorg publishes the RandR change. */
+    for (unsigned i = 0; i < OUTPUT_RECHECK_COUNT; i++) {
+        resources = get_outputs(observer, root);
+        xcb_randr_get_output_info_cookie_t cookie = xcb_randr_get_output_info(
+            observer, output, resources->config_timestamp);
+        xcb_randr_get_output_info_reply_t *after =
+            xcb_randr_get_output_info_reply(observer, cookie, NULL);
+
+        REQUIRE(!xcb_connection_has_error(observer));
+        disconnected = !after ||
+                       after->connection == XCB_RANDR_CONNECTION_DISCONNECTED;
+        free(after);
+        free(resources);
+        if (disconnected)
+            break;
+
+        poll(NULL, 0, OUTPUT_RECHECK_INTERVAL_MS);
+    }
+
+    require(disconnected,
+            "RandR output disconnect after Present released the pixmap");
     xcb_unregister_for_special_event(observer, complete);
     REQUIRE(!drmSyncobjDestroy(fd, handle));
     unmap_pixmap(&map);
