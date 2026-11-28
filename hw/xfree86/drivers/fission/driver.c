@@ -2202,7 +2202,7 @@ EnterVT(ScrnInfoPtr pScrn)
 
     SetMaster(pScrn);
 
-    drmmode_update_kms_state(&ms->drmmode);
+    drmmode_update_kms_state(&ms->drmmode, FALSE);
 
     /* allow not all modes to be set successfully since some events might have
      * happened while not being master that could prevent the previous
