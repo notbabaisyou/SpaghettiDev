@@ -1885,27 +1885,29 @@ drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 #endif
 }
 
-static void drmmode_prepare_modeset(ScrnInfoPtr scrn)
+static Bool
+drmmode_unflip_present(ScrnInfoPtr scrn)
 {
-    ScreenPtr pScreen = scrn->pScreen;
-    modesettingPtr ms = modesettingPTR(scrn);
+    drmmode_ptr drmmode = &modesettingPTR(scrn)->drmmode;
 
-    if (!ms->drmmode.present_flipping)
-        return;
+    if (!drmmode->present_flipping || drmmode->pending_modeset)
+        return FALSE;
 
-    if (ms->drmmode.pending_modeset)
-        return;
+    drmmode->pending_modeset = TRUE;
+    present_check_flips(scrn->pScreen->root);
+    drmmode->pending_modeset = FALSE;
+    return TRUE;
+}
 
+static void
+drmmode_prepare_modeset(ScrnInfoPtr scrn)
+{
     /*
-     * Force present to unflip everything before we might
-     * try lighting up new displays. This makes sure fancy
-     * modifiers can't cause the modeset to fail.
+     * Return to the screen framebuffer before lighting up new displays.
+     * A client framebuffer may use modifiers the new outputs cannot scan out.
      */
-    ms->drmmode.pending_modeset = TRUE;
-    present_check_flips(pScreen->root);
-    ms->drmmode.pending_modeset = FALSE;
-
-    ms_drain_drm_events(pScreen);
+    if (drmmode_unflip_present(scrn))
+        ms_drain_drm_events(scrn->pScreen);
 }
 
 static Bool
@@ -4489,6 +4491,7 @@ drmmode_update_kms_state(drmmode_ptr drmmode)
     Bool found = FALSE;
     Bool changed = FALSE;
     Bool link_fixed = FALSE;
+    Bool lost_scanout = FALSE;
 
     /* Try to re-set the mode on all the connectors with a BAD link-state:
      * This may happen if a link degrades and a new modeset is necessary, using
@@ -4503,7 +4506,12 @@ drmmode_update_kms_state(drmmode_ptr drmmode)
         xf86OutputPtr output = config->output[i];
         drmmode_output_private_ptr drmmode_output = output->driver_private;
 
-        drmmode_output_detect(output);
+        xf86OutputStatus status = drmmode_output_detect(output);
+        Bool disconnected = status == XF86OutputStatusDisconnected &&
+                            output->status != XF86OutputStatusDisconnected;
+
+        if (output->crtc && disconnected)
+            lost_scanout = TRUE;
 
         /* Get an updated view of the properties for the current connector and
          * look for the link-status property
@@ -4563,6 +4571,8 @@ drmmode_update_kms_state(drmmode_ptr drmmode)
         drmmode_output->mode_output = NULL;
         drmmode_output->output_id = -1;
 
+        if (output->crtc)
+            lost_scanout = TRUE;
         changed = TRUE;
     }
 
@@ -4599,6 +4609,9 @@ out_free_res:
 
     drmModeFreeResources(mode_res);
 out:
+    /* Schedule retirement without blocking on the DRM event queue. */
+    if (lost_scanout && modesettingPTR(scrn)->present_atomic_group)
+        drmmode_unflip_present(scrn);
     RRGetInfo(xf86ScrnToScreen(scrn), (changed || link_fixed));
 }
 
