@@ -472,7 +472,7 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
 }
 #endif
 
-static present_screen_info_rec ms_present_screen_info = {
+static const present_screen_info_rec ms_present_screen_info = {
     .version = SPAGHETTI,
 
     .get_crtc = ms_present_get_crtc,
@@ -511,9 +511,16 @@ ms_present_screen_init(ScreenPtr screen)
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     Bool async_supported = ms_present_async_supported(ms);
-    
+
+    ms->present_info = ms_present_screen_info;
+#if defined(DRI3) && defined(FISSION_FB_BACKEND)
+    if (ms->fb_backend.synchronous_copy &&
+        dri3_screen_supports_syncobj(screen))
+        ms->present_info.capabilities |= PresentCapabilitySyncobj;
+#endif
+
     if (async_supported && ms->drmmode.glamor) {
-        ms_present_screen_info.capabilities |= PresentCapabilityAsync;
+        ms->present_info.capabilities |= PresentCapabilityAsync;
 
         ms->drmmode.can_async_flip = TRUE;
     } else {
@@ -521,10 +528,10 @@ ms_present_screen_init(ScreenPtr screen)
                                                        DRM_FORMAT_MOD_LINEAR, TRUE);
 
         if (async_supported) {
-            ms_present_screen_info.capabilities |= PresentCapabilityAsync;
+            ms->present_info.capabilities |= PresentCapabilityAsync;
             ms->drmmode.can_async_flip = TRUE;
         }
     }
 
-    return present_screen_init(screen, &ms_present_screen_info);
+    return present_screen_init(screen, &ms->present_info);
 }

@@ -140,6 +140,9 @@ typedef struct dri3_screen_info {
 } dri3_screen_info_rec, *dri3_screen_info_ptr;
 
 extern _X_EXPORT Bool
+dri3_screen_supports_syncobj(ScreenPtr screen);
+
+extern _X_EXPORT Bool
 dri3_screen_init(ScreenPtr screen, const dri3_screen_info_rec *info);
 
 extern _X_EXPORT int

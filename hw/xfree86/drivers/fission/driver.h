@@ -50,6 +50,7 @@
 #endif
 
 #include "drmmode_display.h"
+#include "present.h"
 
 #define MS_LOGLEVEL_DEBUG 4
 
@@ -115,6 +116,7 @@ typedef struct _modesettingRec {
     void *driver;
 
     drmmode_rec drmmode;
+    present_screen_info_rec present_info;
 
     drmEventContext event_context;
 
@@ -184,6 +186,7 @@ typedef struct _modesettingRec {
         void (*set_formats_func)(ScreenPtr, dri3_get_formats_proc);
         void (*set_modifiers_func)(ScreenPtr, dri3_get_modifiers_proc);
         Bool owns_scanout_reference;
+        Bool synchronous_copy;
     } fb_backend;
 #endif
 } modesettingRec, *modesettingPtr;

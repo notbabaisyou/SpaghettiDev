@@ -1,5 +1,6 @@
 #include "dix-config.h"
 #include "vaccum_gbm_priv.h"
+#include "vaccum_dri3_syncobj.h"
 #include "gcstruct.h"
 #include "picturestr.h"
 #include "os/xserver_poll.h"
@@ -153,6 +154,14 @@ close_screen(ScreenPtr screen)
     return closed;
 }
 
+#ifdef DRI3
+static struct dri3_syncobj *
+import_syncobj(ClientPtr client, ScreenPtr screen, XID id, int fd)
+{
+    return vaccum_syncobj_import(screen, id, screen_data(screen)->fd, fd);
+}
+#endif
+
 Bool
 vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
 {
@@ -171,7 +180,16 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
         goto fail;
 #endif
 #ifdef DRI3
-    if (!dri3_screen_init(screen, &vaccum_gbm_dri3))
+    static dri3_screen_info_rec timeline_info;
+    const dri3_screen_info_rec *info = &vaccum_gbm_dri3;
+
+    if (vaccum_syncobj_supported(fd)) {
+        timeline_info = vaccum_gbm_dri3;
+        timeline_info.version = 4;
+        timeline_info.import_syncobj = import_syncobj;
+        info = &timeline_info;
+    }
+    if (!dri3_screen_init(screen, info))
         goto fail;
 #endif
 

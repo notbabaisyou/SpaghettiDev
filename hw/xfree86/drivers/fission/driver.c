@@ -1242,6 +1242,7 @@ select_fb_backend(ScrnInfoPtr scrn)
         if (!mod)
             return FALSE;
         ms->fb_backend.owns_scanout_reference = TRUE;
+        ms->fb_backend.synchronous_copy = TRUE;
         ms->fb_backend.init =
             LoaderSymbolFromModule(mod, "vaccum_gbm_init");
         if (!ms->fb_backend.init)

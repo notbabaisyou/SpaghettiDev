@@ -317,6 +317,18 @@ dri3_get_supported_modifiers(ScreenPtr screen, DrawablePtr drawable,
     return Success;
 }
 
+Bool
+dri3_screen_supports_syncobj(ScreenPtr screen)
+{
+    if (!dixPrivateKeyRegistered(&dri3_screen_private_key))
+        return FALSE;
+
+    dri3_screen_priv_ptr priv = dri3_screen_priv(screen);
+    const dri3_screen_info_rec *info = priv ? priv->info : NULL;
+
+    return info && info->version >= 4 && info->import_syncobj;
+}
+
 int dri3_import_syncobj(ClientPtr client, ScreenPtr screen, XID id, int fd)
 {
     dri3_screen_priv_ptr priv = dri3_screen_priv(screen);
