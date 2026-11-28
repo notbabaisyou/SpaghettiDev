@@ -10,6 +10,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +30,7 @@ struct args {
     int fullscreen;
     int no_wait_fence;
     int copy;
+    int report_mode;
 };
 
 struct buffer {
@@ -44,13 +46,14 @@ usage(const char *prog)
 {
     fprintf(stderr,
             "usage: %s [--size WxH] [--fps N] [--buffers N]\n"
-            "       [--fullscreen] [--no-wait-fence] [--copy]\n"
+            "       [--fullscreen] [--no-wait-fence] [--copy] [--report-mode]\n"
             "  --size WxH       window size (default 1024x768)\n"
             "  --fps N          frame rate (default 60)\n"
             "  --buffers N      number of rotating buffers (default 3)\n"
             "  --fullscreen     override-redirect full-screen window\n"
             "  --no-wait-fence  pass no wait fence (copy happens immediately)\n"
-            "  --copy           force PresentOptionCopy (prevent page-flip)\n",
+            "  --copy           force PresentOptionCopy (prevent page-flip)\n"
+            "  --report-mode    print the completion mode of each frame\n",
             prog);
 }
 
@@ -64,6 +67,7 @@ parse_args(int argc, char **argv, struct args *args)
     args->fullscreen = 0;
     args->no_wait_fence = 0;
     args->copy = 0;
+    args->report_mode = 0;
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--size") && i + 1 < argc) {
@@ -89,6 +93,8 @@ parse_args(int argc, char **argv, struct args *args)
             args->no_wait_fence = 1;
         } else if (!strcmp(argv[i], "--copy")) {
             args->copy = 1;
+        } else if (!strcmp(argv[i], "--report-mode")) {
+            args->report_mode = 1;
         } else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             usage(argv[0]);
             return 1;
@@ -195,6 +201,29 @@ wait_fence_triggered(xcb_connection_t *conn, xcb_sync_fence_t fence)
     return triggered;
 }
 
+static void
+report_completions(xcb_connection_t *conn, xcb_special_event_t *events)
+{
+    static const char *const modes[] = {
+        [XCB_PRESENT_COMPLETE_MODE_COPY] = "copy",
+        [XCB_PRESENT_COMPLETE_MODE_FLIP] = "flip",
+        [XCB_PRESENT_COMPLETE_MODE_SKIP] = "skip",
+        [XCB_PRESENT_COMPLETE_MODE_SUBOPTIMAL_COPY] = "suboptimal copy",
+    };
+    xcb_generic_event_t *event;
+
+    while ((event = xcb_poll_for_special_event(conn, events))) {
+        const xcb_present_complete_notify_event_t *complete = (void *)event;
+        unsigned mode = complete->mode;
+        const char *name = mode < sizeof(modes) / sizeof(*modes) ?
+            modes[mode] : NULL;
+
+        fprintf(stderr, "Present frame %" PRIu32 " mode %s (%u)\n",
+                complete->serial, name ? name : "unknown", mode);
+        free(event);
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -203,6 +232,7 @@ main(int argc, char **argv)
     xcb_screen_t *screen;
     xcb_window_t win;
     xcb_sync_fence_t wait_fence = 0;
+    xcb_special_event_t *completions = NULL;
     struct buffer *buffers;
     int bar_y = 0;
     uint32_t serial = 0;
@@ -284,9 +314,30 @@ main(int argc, char **argv)
         xcb_sync_create_fence(conn, win, wait_fence, 1);
     }
 
+    if (args.report_mode) {
+        xcb_present_event_t id = xcb_generate_id(conn);
+
+        completions = xcb_register_for_special_xge(conn, &xcb_present_id, id,
+                                                   NULL);
+        xcb_void_cookie_t select =
+            xcb_present_select_input_checked(conn, id, win,
+                                             XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY);
+        xcb_generic_error_t *error = xcb_request_check(conn, select);
+
+        if (!completions || error) {
+            fputs("Could not subscribe to Present completion events\n", stderr);
+            free(error);
+            xcb_disconnect(conn);
+            return 1;
+        }
+    }
+
     for (;;) {
         struct buffer *buf = &buffers[cur];
         struct timespec ts;
+
+        if (completions)
+            report_completions(conn, completions);
 
         /* Wait until this buffer is no longer being scanned out. */
         while (!wait_fence_triggered(conn, buf->idle_fence))
