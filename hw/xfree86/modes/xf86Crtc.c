@@ -3261,14 +3261,22 @@ xf86OutputSetEDID(xf86OutputPtr output, xf86MonPtr edid_mon)
     ScrnInfoPtr scrn = output->scrn;
     xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
     Bool debug_modes = config->debug_modes || xf86Initialising;
+    Bool compat_output = !scrn->is_gpu && output == xf86CompatOutput(scrn);
+    xf86MonPtr old_mon = output->MonInfo;
+    Bool same_edid = old_mon == edid_mon;
+    Bool legacy_ddc_current = same_edid && scrn->monitor &&
+                              scrn->monitor->DDC == edid_mon;
 
 #ifdef RANDR_12_INTERFACE
     int size;
 #endif
 
-    free(output->MonInfo);
-
-    output->MonInfo = edid_mon;
+    if (!same_edid) {
+        if (old_mon && scrn->monitor && scrn->monitor->DDC == old_mon)
+            scrn->monitor->DDC = NULL;
+        free(old_mon);
+        output->MonInfo = edid_mon;
+    }
     if (!autosetDPI || edid_mon) {
         output->mm_width = 0;
         output->mm_height = 0;
@@ -3282,7 +3290,7 @@ xf86OutputSetEDID(xf86OutputPtr output, xf86MonPtr edid_mon)
 
     /* Set the DDC properties for the 'compat' output */
     /* GPU screens don't have a root window */
-    if (output == xf86CompatOutput(scrn) && !scrn->is_gpu)
+    if (compat_output && !legacy_ddc_current)
         xf86SetDDCproperties(scrn, edid_mon);
 
 #ifdef RANDR_12_INTERFACE
