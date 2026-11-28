@@ -39,7 +39,7 @@ depth, compositor and scale when comparing AccelMethod "vaccum" and
 pixmap. For scanout checks, run pattern-present separately and record
 Present completion modes, including whether each frame copied or flipped.
 
-== Explicit Present copies ==
+== Explicit Present synchronization ==
 
 Run `build/test/present-syncobj` on a DRI3-capable VACCUM display at depth
 24. The test uses two X clients and reuses a pixmap across delayed acquire
@@ -47,6 +47,12 @@ points above 32 bits. It checks that the observer remains responsive, that
 the window shows the previous pixels before acquire, and that rewriting
 the pixmap immediately after release preserves the presented pixels. It
 also destroys a window while acquire is pending and checks release.
+
+Run with `--flip` on an uncomposited Fission VACCUM screen that allows
+fullscreen flipping. This checks delayed acquire, retirement after a
+replacement flip and release after destroying the fullscreen window.
+Use `--flip-fallback` with flipping disabled to check the copy path when
+a fullscreen client does not request PresentOptionCopy.
 
 Run with `--unavailable` on a VACCUM display without DRM timeline support
 to check version negotiation, Present capabilities and rejected imports.
