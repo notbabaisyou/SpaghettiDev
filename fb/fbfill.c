@@ -110,8 +110,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
                 alu = FbStipple1Rop(pGC->alu, pGC->fgPixel);
             else
                 alu = FbOpaqueStipple1Rop(pGC->alu, pGC->fgPixel, pGC->bgPixel);
-            fbGetDrawable(&pStip->drawable, stip, stipStride, stipBpp, stipXoff,
-                          stipYoff);
+            fbGetDrawableForRead(&pStip->drawable, stip, stipStride, stipBpp,
+                                 stipXoff, stipYoff);
             fbTile(dst + (y + dstYoff) * dstStride, dstStride, x + dstXoff,
                    width, height, stip, stipStride, stipWidth, stipHeight, alu,
                    pPriv->pm, dstBpp, (pGC->patOrg.x + pDrawable->x + dstXoff),
@@ -136,8 +136,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
                 bgxor = pPriv->bgxor;
             }
 
-            fbGetStipDrawable(&pStip->drawable, stip, stipStride, stipBpp,
-                              stipXoff, stipYoff);
+            fbGetStipDrawableForRead(&pStip->drawable, stip, stipStride,
+                                     stipBpp, stipXoff, stipYoff);
             fbStipple(dst + (y + dstYoff) * dstStride, dstStride,
                       (x + dstXoff) * dstBpp, dstBpp, width * dstBpp, height,
                       stip, stipStride, stipWidth, stipHeight,
@@ -157,8 +157,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
         int tileHeight;
         _X_UNUSED int tileXoff, tileYoff;
 
-        fbGetDrawable(&pTile->drawable, tile, tileStride, tileBpp, tileXoff,
-                      tileYoff);
+        fbGetDrawableForRead(&pTile->drawable, tile, tileStride, tileBpp,
+                             tileXoff, tileYoff);
         tileWidth = pTile->drawable.width;
         tileHeight = pTile->drawable.height;
         fbTile(dst + (y + dstYoff) * dstStride,

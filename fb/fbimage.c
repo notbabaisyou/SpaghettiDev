@@ -223,7 +223,7 @@ fbGetImage(DrawablePtr pDrawable,
     if (!fbDrawableEnabled(pDrawable))
         return;
 
-    fbGetDrawable(pDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    fbGetDrawableForRead(pDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
 
     x += pDrawable->x;
     y += pDrawable->y;

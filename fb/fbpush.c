@@ -136,8 +136,9 @@ fbPushPixels(GCPtr pGC,
     int stipBpp;
     _X_UNUSED int stipXoff, stipYoff;
 
-    fbGetStipDrawable(&pBitmap->drawable, stip, stipStride, stipBpp, stipXoff,
-                      stipYoff);
+    fbGetStipDrawableForRead(&pBitmap->drawable, stip, stipStride, stipBpp,
+                             stipXoff, stipYoff);
 
     fbPushImage(pDrawable, pGC, stip, stipStride, 0, xOrg, yOrg, dx, dy);
+    fbFinishAccess(&pBitmap->drawable);
 }

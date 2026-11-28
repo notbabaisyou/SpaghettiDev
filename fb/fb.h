@@ -388,6 +388,17 @@ typedef void (*SetupWrapProcPtr) (ReadMemoryProcPtr * pRead,
                                   DrawablePtr pDraw);
 typedef void (*FinishWrapProcPtr) (DrawablePtr pDraw);
 
+#ifndef FB_ACCESS_WRAPPER
+typedef enum {
+    FB_PIXMAP_ACCESS_READ,
+    FB_PIXMAP_ACCESS_WRITE,
+    FB_PIXMAP_ACCESS_FINISH,
+} FbPixmapAccess;
+
+typedef void (*FbPixmapCpuAccessProcPtr)(PixmapPtr pixmap,
+                                         FbPixmapAccess access);
+#endif
+
 #ifdef FB_ACCESS_WRAPPER
 
 #define fbPrepareAccess(pDraw) \
@@ -395,17 +406,51 @@ typedef void (*FinishWrapProcPtr) (DrawablePtr pDraw);
 		&wfbReadMemory, \
 		&wfbWriteMemory, \
 		(pDraw))
+#define fbPrepareReadAccess(pDraw) fbPrepareAccess(pDraw)
 #define fbFinishAccess(pDraw) \
 	fbGetScreenPrivate((pDraw)->pScreen)->finishWrap(pDraw)
+
+#elif defined(FB_CPU_ACCESS_SCOPE)
+
+extern DevPrivateKeyRec fbPixmapCpuAccessKey;
+
+/* Only framebuffer code with matching begin and finish calls uses a scope. */
+static inline void
+fbPixmapCpuAccess(DrawablePtr draw, FbPixmapAccess access)
+{
+    if (!dixPrivateKeyRegistered(&fbPixmapCpuAccessKey))
+        return;
+
+    ScreenPtr screen = draw->pScreen;
+    FbPixmapCpuAccessProcPtr *proc =
+        dixGetPrivateAddr(&screen->devPrivates, &fbPixmapCpuAccessKey);
+
+    if (!*proc)
+        return;
+
+    PixmapPtr pixmap = draw->type == DRAWABLE_PIXMAP ?
+        (PixmapPtr)draw : screen->GetWindowPixmap((WindowPtr)draw);
+
+    (*proc)(pixmap, access);
+}
+
+#define fbPrepareAccess(draw) fbPixmapCpuAccess(draw, FB_PIXMAP_ACCESS_WRITE)
+#define fbPrepareReadAccess(draw) \
+    fbPixmapCpuAccess(draw, FB_PIXMAP_ACCESS_READ)
+#define fbFinishAccess(draw) fbPixmapCpuAccess(draw, FB_PIXMAP_ACCESS_FINISH)
 
 #else
 
 #define fbPrepareAccess(pPix)
+#define fbPrepareReadAccess(pPix)
 #define fbFinishAccess(pDraw)
 
 #endif
 
 #ifndef FB_ACCESS_WRAPPER
+extern _X_EXPORT Bool
+fbSetPixmapCpuAccessProc(ScreenPtr screen, FbPixmapCpuAccessProcPtr proc);
+
 typedef void (*FbPixmapAccessProcPtr)(PixmapPtr pixmap);
 
 extern _X_EXPORT DevPrivateKeyRec fbPixmapAccessKey;
@@ -487,7 +532,7 @@ extern _X_EXPORT DevPrivateKey fbGetGCPrivateKey(GCPtr pGC);
 #define __fbPixOffXPix(pPix)	(__fbPixDrawableX(pPix))
 #define __fbPixOffYPix(pPix)	(__fbPixDrawableY(pPix))
 
-#define fbGetDrawablePixmap(pDrawable, pixmap, xoff, yoff) {			\
+#define fbGetDrawablePixmapAccess(pDrawable, pixmap, xoff, yoff, prepare) { \
     if ((pDrawable)->type != DRAWABLE_PIXMAP) { 				\
 	(pixmap) = fbGetWindowPixmap(pDrawable);				\
 	(xoff) = __fbPixOffXWin(pixmap); 					\
@@ -497,8 +542,14 @@ extern _X_EXPORT DevPrivateKey fbGetGCPrivateKey(GCPtr pGC);
 	(xoff) = __fbPixOffXPix(pixmap); 					\
 	(yoff) = __fbPixOffYPix(pixmap); 					\
     } 										\
-    fbPrepareAccess(pDrawable); 						\
+    prepare(pDrawable); 						\
 }
+
+#define fbGetDrawablePixmap(draw, pixmap, xoff, yoff) \
+    fbGetDrawablePixmapAccess(draw, pixmap, xoff, yoff, fbPrepareAccess)
+
+#define fbGetDrawablePixmapForRead(draw, pixmap, xoff, yoff) \
+    fbGetDrawablePixmapAccess(draw, pixmap, xoff, yoff, fbPrepareReadAccess)
 
 #define fbGetPixmapBitsData(pixmap, pointer, stride, bpp) {			\
     fbPreparePixmapAccess(pixmap);					\
@@ -520,10 +571,22 @@ extern _X_EXPORT DevPrivateKey fbGetGCPrivateKey(GCPtr pGC);
     fbGetPixmapBitsData(_pPix, pointer, stride, bpp);				\
 }
 
+#define fbGetDrawableForRead(draw, pointer, stride, bpp, xoff, yoff) { \
+    PixmapPtr _pPix; \
+    fbGetDrawablePixmapForRead(draw, _pPix, xoff, yoff); \
+    fbGetPixmapBitsData(_pPix, pointer, stride, bpp); \
+}
+
 #define fbGetStipDrawable(pDrawable, pointer, stride, bpp, xoff, yoff) { 	\
     PixmapPtr   _pPix; 								\
     fbGetDrawablePixmap(pDrawable, _pPix, xoff, yoff);				\
     fbGetPixmapStipData(_pPix, pointer, stride, bpp);				\
+}
+
+#define fbGetStipDrawableForRead(draw, pointer, stride, bpp, xoff, yoff) { \
+    PixmapPtr _pPix; \
+    fbGetDrawablePixmapForRead(draw, _pPix, xoff, yoff); \
+    fbGetPixmapStipData(_pPix, pointer, stride, bpp); \
 }
 
 /*
@@ -1227,6 +1290,9 @@ extern _X_EXPORT void
 
 fbFillRegionSolid(DrawablePtr pDrawable,
                   RegionPtr pRegion, FbBits and, FbBits xor);
+
+pixman_image_t *fb_image_from_pict(PicturePtr pict, Bool has_clip, Bool write,
+                                    int *xoff, int *yoff);
 
 extern _X_EXPORT pixman_image_t *image_from_pict(PicturePtr pict,
                                                  Bool has_clip,

@@ -39,6 +39,7 @@ hdrs_fb = [
 
 libxserver_fb = static_library('libxserver_fb',
 	srcs_fb,
+	c_args: '-DFB_CPU_ACCESS_SCOPE',
 	include_directories: inc,
 	dependencies: common_dep,
 	pic: true,

@@ -279,7 +279,8 @@ create_conical_gradient_image(PictGradient * gradient)
 }
 
 static pixman_image_t *
-create_bits_picture(PicturePtr pict, Bool has_clip, int *xoff, int *yoff)
+create_bits_picture(PicturePtr pict, Bool has_clip, Bool write,
+                     int *xoff, int *yoff)
 {
     PixmapPtr pixmap;
     FbBits *bits;
@@ -288,7 +289,12 @@ create_bits_picture(PicturePtr pict, Bool has_clip, int *xoff, int *yoff)
     pixman_image_t *image;
     RegionPtr clip;
 
-    fbGetDrawablePixmap(pict->pDrawable, pixmap, *xoff, *yoff);
+    if (write) {
+        fbGetDrawablePixmap(pict->pDrawable, pixmap, *xoff, *yoff);
+    } else {
+        fbGetDrawablePixmapForRead(pict->pDrawable, pixmap, *xoff, *yoff);
+    }
+
     fbGetPixmapBitsData(pixmap, bits, stride, bpp);
 
     image = pixman_image_create_bits((pixman_format_code_t) pict->format,
@@ -296,8 +302,10 @@ create_bits_picture(PicturePtr pict, Bool has_clip, int *xoff, int *yoff)
                                      pixmap->drawable.height, (uint32_t *) bits,
                                      stride * sizeof(FbStride));
 
-    if (!image)
+    if (!image) {
+        fbFinishAccess(pict->pDrawable);
         return NULL;
+    }
 
 #ifdef FB_ACCESS_WRAPPER
     pixman_image_set_accessors(image,
@@ -336,9 +344,9 @@ create_bits_picture(PicturePtr pict, Bool has_clip, int *xoff, int *yoff)
     return image;
 }
 
-static pixman_image_t *image_from_pict_internal(PicturePtr pict, Bool has_clip,
-                                                int *xoff, int *yoff,
-                                                Bool is_alpha_map);
+static pixman_image_t *
+image_from_pict_internal(PicturePtr pict, Bool has_clip, int *xoff, int *yoff,
+                         Bool is_alpha_map, Bool write);
 
 static void image_destroy(pixman_image_t *image, void *data)
 {
@@ -347,7 +355,7 @@ static void image_destroy(pixman_image_t *image, void *data)
 
 static void
 set_image_properties(pixman_image_t * image, PicturePtr pict, Bool has_clip,
-                     int *xoff, int *yoff, Bool is_alpha_map)
+                     int *xoff, int *yoff, Bool is_alpha_map, Bool write)
 {
     pixman_repeat_t repeat;
     pixman_filter_t filter;
@@ -402,7 +410,7 @@ set_image_properties(pixman_image_t * image, PicturePtr pict, Bool has_clip,
         int alpha_xoff, alpha_yoff;
         pixman_image_t *alpha_map =
             image_from_pict_internal(pict->alphaMap, FALSE, &alpha_xoff,
-                                     &alpha_yoff, TRUE);
+                                     &alpha_yoff, TRUE, write);
 
         pixman_image_set_alpha_map(image, alpha_map, pict->alphaOrigin.x,
                                    pict->alphaOrigin.y);
@@ -441,7 +449,7 @@ set_image_properties(pixman_image_t * image, PicturePtr pict, Bool has_clip,
 
 static pixman_image_t *
 image_from_pict_internal(PicturePtr pict, Bool has_clip, int *xoff, int *yoff,
-                         Bool is_alpha_map)
+                         Bool is_alpha_map, Bool write)
 {
     pixman_image_t *image = NULL;
 
@@ -449,7 +457,7 @@ image_from_pict_internal(PicturePtr pict, Bool has_clip, int *xoff, int *yoff,
         return NULL;
 
     if (pict->pDrawable) {
-        image = create_bits_picture(pict, has_clip, xoff, yoff);
+        image = create_bits_picture(pict, has_clip, write, xoff, yoff);
     }
     else if (pict->pSourcePict) {
         SourcePict *sp = pict->pSourcePict;
@@ -471,15 +479,23 @@ image_from_pict_internal(PicturePtr pict, Bool has_clip, int *xoff, int *yoff,
     }
 
     if (image)
-        set_image_properties(image, pict, has_clip, xoff, yoff, is_alpha_map);
+        set_image_properties(image, pict, has_clip, xoff, yoff, is_alpha_map,
+                             write);
 
     return image;
 }
 
 pixman_image_t *
+fb_image_from_pict(PicturePtr pict, Bool has_clip, Bool write,
+                    int *xoff, int *yoff)
+{
+    return image_from_pict_internal(pict, has_clip, xoff, yoff, FALSE, write);
+}
+
+pixman_image_t *
 image_from_pict(PicturePtr pict, Bool has_clip, int *xoff, int *yoff)
 {
-    return image_from_pict_internal(pict, has_clip, xoff, yoff, FALSE);
+    return fb_image_from_pict(pict, has_clip, has_clip, xoff, yoff);
 }
 
 void

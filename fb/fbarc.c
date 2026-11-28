@@ -63,7 +63,7 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
             int x2, y2;
             RegionPtr cclip;
 
-#ifdef FB_ACCESS_WRAPPER
+#if defined(FB_ACCESS_WRAPPER) || defined(FB_CPU_ACCESS_SCOPE)
             Bool wrapped = 1;
 #endif
 
@@ -90,7 +90,7 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
                     box.y2 = y2;
                     if ((x2 <= SHRT_MAX) && (y2 <= SHRT_MAX) &&
                         (RegionContainsRect(cclip, &box) == rgnIN)) {
-#ifdef FB_ACCESS_WRAPPER
+#if defined(FB_ACCESS_WRAPPER) || defined(FB_CPU_ACCESS_SCOPE)
                         if (!wrapped) {
                             fbPrepareAccess(pDrawable);
                             wrapped = 1;
@@ -101,7 +101,7 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
                                 pDrawable->y + dstYoff, pPriv->and, pPriv->xor);
                     }
                     else {
-#ifdef FB_ACCESS_WRAPPER
+#if defined(FB_ACCESS_WRAPPER) || defined(FB_CPU_ACCESS_SCOPE)
                         if (wrapped) {
                             fbFinishAccess(pDrawable);
                             wrapped = 0;
@@ -111,7 +111,7 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
                     }
                 }
                 else {
-#ifdef FB_ACCESS_WRAPPER
+#if defined(FB_ACCESS_WRAPPER) || defined(FB_CPU_ACCESS_SCOPE)
                     if (wrapped) {
                         fbFinishAccess(pDrawable);
                         wrapped = 0;
@@ -121,7 +121,7 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
                 }
                 parcs++;
             }
-#ifdef FB_ACCESS_WRAPPER
+#if defined(FB_ACCESS_WRAPPER) || defined(FB_CPU_ACCESS_SCOPE)
             if (wrapped) {
                 fbFinishAccess(pDrawable);
                 wrapped = 0;

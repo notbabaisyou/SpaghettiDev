@@ -48,7 +48,8 @@ fbCopyNtoN(DrawablePtr pSrcDrawable,
     int dstBpp;
     int dstXoff, dstYoff;
 
-    fbGetDrawable(pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
+                         srcYoff);
     fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
     while (nbox--) {
@@ -102,7 +103,8 @@ fbCopy1toN(DrawablePtr pSrcDrawable,
     int dstBpp;
     int dstXoff, dstYoff;
 
-    fbGetDrawable(pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
+                         srcYoff);
     fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
     while (nbox--) {
@@ -161,8 +163,8 @@ fbCopyNto1(DrawablePtr pSrcDrawable,
             int dstBpp;
             int dstXoff, dstYoff;
 
-            fbGetDrawable(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
-                          srcYoff);
+            fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp,
+                                 srcXoff, srcYoff);
             fbGetStipDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff,
                               dstYoff);
             fbBltPlane(src + (pbox->y1 + dy + srcYoff) * srcStride, srcStride,
@@ -198,8 +200,8 @@ fbCopyNto1(DrawablePtr pSrcDrawable,
             if (!tmp)
                 return;
 
-            fbGetDrawable(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
-                          srcYoff);
+            fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp,
+                                 srcXoff, srcYoff);
             fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff,
                           dstYoff);
 

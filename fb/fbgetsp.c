@@ -44,7 +44,7 @@ fbGetSpans(DrawablePtr pDrawable,
     if (!fbDrawableEnabled(pDrawable))
         return;
 
-    fbGetDrawable(pDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    fbGetDrawableForRead(pDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
 
     while (nspans--) {
         xoff = (int) (((long) pchardstStart) & (FB_MASK >> 3));

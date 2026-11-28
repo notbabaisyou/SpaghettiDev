@@ -245,7 +245,7 @@ fbPixmapToRegion(PixmapPtr pPix)
     FirstRect = RegionBoxptr(pReg);
     rects = FirstRect;
 
-    fbPrepareAccess(&pPix->drawable);
+    fbPrepareReadAccess(&pPix->drawable);
     fbPreparePixmapAccess(pPix);
 
     pwLine = (FbBits *) pPix->devPrivate.ptr;

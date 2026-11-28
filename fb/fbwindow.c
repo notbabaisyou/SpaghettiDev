@@ -79,7 +79,8 @@ fbCopyWindowProc(DrawablePtr pSrcDrawable,
     int dstBpp;
     int dstXoff, dstYoff;
 
-    fbGetDrawable(pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
+                         srcYoff);
     fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
 
     while (nbox--) {
