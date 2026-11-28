@@ -3939,13 +3939,12 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
     modesettingPtr ms = modesettingPTR(scrn);
     drmmode_ptr drmmode = &ms->drmmode;
-    drmmode_bo old_front = { 0 };
     ScreenPtr screen = xf86ScrnToScreen(scrn);
-    uint32_t old_fb_id = 0;
-    int i, pitch, old_width, old_height, old_pitch;
+    PixmapPtr ppix = screen->GetScreenPixmap(screen);
+    drmmode_bo new_front = {0};
+    uint32_t new_fb_id = 0;
     int cpp = (scrn->bitsPerPixel + 7) / 8;
     int kcpp = (drmmode->kbpp + 7) / 8;
-    PixmapPtr ppix = screen->GetScreenPixmap(screen);
     void *new_pixels = NULL;
 
     if (scrn->virtualX == width && scrn->virtualY == height)
@@ -3954,63 +3953,72 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
     xf86DrvMsg(scrn->scrnIndex, X_INFO,
                "Allocate new frame buffer %dx%d stride\n", width, height);
 
-    old_width = scrn->virtualX;
-    old_height = scrn->virtualY;
-    old_pitch = drmmode_bo_get_pitch(&drmmode->front_bo);
-
-    XORG_EXCHANGE(old_front, drmmode->front_bo);
-    XORG_EXCHANGE(old_fb_id, drmmode->fb_id);
-
-    if (!drmmode_create_bo(drmmode, &drmmode->front_bo,
-                           width, height, drmmode->kbpp,
+    if (!drmmode_create_bo(drmmode, &new_front, width, height, drmmode->kbpp,
                            !drmmode->glamor))
         goto fail;
 
-    pitch = drmmode_bo_get_pitch(&drmmode->front_bo);
-
-    scrn->virtualX = width;
-    scrn->virtualY = height;
-    scrn->displayWidth = pitch / kcpp;
-
     if (!drmmode->glamor) {
-        new_pixels = drmmode_map_front_bo(drmmode);
+        new_pixels = drmmode_bo_map(drmmode, &new_front);
         if (!new_pixels)
             goto fail;
     }
 
-    screen->ModifyPixmapHeader(ppix, width, height, -1, -1,
-                               scrn->displayWidth * cpp, new_pixels);
+    if (drmmode_bo_import(drmmode, &new_front, &new_fb_id)) {
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                   "Failed to register resized framebuffer: %s\n",
+                   strerror(errno));
+        goto fail;
+    }
 
-    if (!drmmode_glamor_handle_new_screen_pixmap(drmmode))
+    /* Retire client scanout before changing the screen pixmap. */
+    drmmode_prepare_modeset(scrn);
+    if (drmmode->present_flipping)
         goto fail;
 
+    int old_width = ppix->drawable.width;
+    int old_height = ppix->drawable.height;
+    int old_pitch = ppix->devKind;
+    void *old_pixels = ppix->devPrivate.ptr;
+    int display_width = drmmode_bo_get_pitch(&new_front) / kcpp;
+
+    if (!screen->ModifyPixmapHeader(ppix, width, height, -1, -1,
+                                    display_width * cpp, new_pixels))
+        goto restore_pixmap;
+    if (!drmmode_set_pixmap_bo(drmmode, ppix, &new_front))
+        goto restore_pixmap;
+
+    drmmode_bo old_front = drmmode->front_bo;
+    uint32_t old_fb_id = drmmode->fb_id;
+
+    scrn->virtualX = width;
+    scrn->virtualY = height;
+    scrn->displayWidth = display_width;
+    drmmode->front_bo = new_front;
+    drmmode->fb_id = new_fb_id;
     drmmode_clear_pixmap(ppix);
 
-    for (i = 0; i < xf86_config->num_crtc; i++) {
+    for (int i = 0; i < xf86_config->num_crtc; i++) {
         xf86CrtcPtr crtc = xf86_config->crtc[i];
 
         if (!crtc->enabled)
             continue;
 
-        drmmode_set_mode_major(crtc, &crtc->mode,
-                               crtc->rotation, crtc->x, crtc->y);
+        drmmode_set_mode_major(crtc, &crtc->mode, crtc->rotation, crtc->x,
+                               crtc->y);
     }
 
-    if (old_fb_id)
-        drmModeRmFB(drmmode->fd, old_fb_id);
-
+    drmmode_remove_fb(drmmode, old_fb_id);
     drmmode_bo_destroy(drmmode, &old_front);
-
     return TRUE;
 
- fail:
-    drmmode_bo_destroy(drmmode, &drmmode->front_bo);
-    drmmode->front_bo = old_front;
-    scrn->virtualX = old_width;
-    scrn->virtualY = old_height;
-    scrn->displayWidth = old_pitch / kcpp;
-    drmmode->fb_id = old_fb_id;
-
+restore_pixmap:
+    screen->ModifyPixmapHeader(ppix, old_width, old_height, -1, -1, old_pitch,
+                               old_pixels);
+    if (drmmode->glamor)
+        drmmode_set_pixmap_bo(drmmode, ppix, &drmmode->front_bo);
+fail:
+    drmmode_remove_fb(drmmode, new_fb_id);
+    drmmode_bo_destroy(drmmode, &new_front);
     return FALSE;
 }
 
