@@ -105,9 +105,7 @@ vaccum_syncobj_signaled_eventfd(struct dri3_syncobj *syncobj, uint64_t point,
 {
     struct vaccum_syncobj *vso = (struct vaccum_syncobj *)syncobj;
 
-    /* Let Present recheck the timeline and discard the request on failure. */
-    if (drmSyncobjEventfd(vso->drm_fd, vso->handle, point, efd, 0) != 0)
-        eventfd_write(efd, 1);
+    drmSyncobjEventfd(vso->drm_fd, vso->handle, point, efd, 0);
 }
 
 Bool
@@ -128,7 +126,20 @@ vaccum_syncobj_supported(int drm_fd)
     Bool supported = FALSE;
 
     if (drmSyncobjCreate(drm_fd, 0, &handle) == 0) {
-        supported = drmSyncobjEventfd(drm_fd, handle, 1, notify, 0) == 0;
+        struct vaccum_syncobj probe = { .drm_fd = drm_fd, .handle = handle };
+        uint64_t point = 1;
+        eventfd_t count = 0;
+
+        if (drmSyncobjEventfd(drm_fd, handle, point, notify, 0) == 0 &&
+            drmSyncobjTimelineSignal(drm_fd, &handle, &point, 1) == 0 &&
+            eventfd_read(notify, &count) == 0) {
+            int fd = vaccum_syncobj_export_fence(&probe.base, point);
+
+            supported = fd >= 0;
+            if (supported)
+                close(fd);
+        }
+
         drmSyncobjDestroy(drm_fd, handle);
     }
 
