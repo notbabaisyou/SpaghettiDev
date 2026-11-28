@@ -357,6 +357,7 @@ void *drmmode_map_front_bo(drmmode_ptr drmmode);
 Bool drmmode_map_cursor_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 Bool drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 Bool drmmode_remove_fb(drmmode_ptr drmmode, uint32_t fb_id);
+Bool drmmode_restore_scanout(ScrnInfoPtr scrn);
 void drmmode_get_default_bpp(ScrnInfoPtr pScrn, drmmode_ptr drmmmode,
                              int *depth, int *bpp);
 

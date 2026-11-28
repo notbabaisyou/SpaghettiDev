@@ -123,6 +123,7 @@ typedef struct _modesettingRec {
     Bool present_retire_failed;
     OsTimerPtr present_unflip_timer;
     uint64_t present_unflip_event;
+    uint32_t present_unflip_fb_id;
 
     drmEventContext event_context;
 

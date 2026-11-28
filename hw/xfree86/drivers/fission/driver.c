@@ -2306,10 +2306,13 @@ CloseScreen(ScreenPtr pScreen)
     drmmode_uevent_fini(pScrn, &ms->drmmode);
 
     Bool retired = drmmode_free_bos(pScrn, &ms->drmmode);
+    Bool unflip_retired = drmmode_remove_fb(&ms->drmmode,
+                                           ms->present_unflip_fb_id);
 
+    ms->present_unflip_fb_id = 0;
     if (ms->present_atomic_group)
-        present_finish_syncobj_flips(pScreen,
-                                     retired && !ms->present_retire_failed);
+        present_finish_syncobj_flips(pScreen, retired && unflip_retired &&
+                                               !ms->present_retire_failed);
 
     if (ms->damage) {
         DamageUnregister(ms->damage);

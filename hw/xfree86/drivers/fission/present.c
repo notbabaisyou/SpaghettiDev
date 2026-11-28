@@ -413,45 +413,16 @@ ms_present_flip(RRCrtcPtr crtc,
     return ret;
 }
 
-static Bool
-ms_present_restore_scanout(ScreenPtr screen)
-{
-    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    modesettingPtr ms = modesettingPTR(scrn);
-    xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
-    Bool retired = drmmode_remove_fb(&ms->drmmode, ms->drmmode.fb_id);
-
-    if (!retired && ms->present_atomic_group)
-        return FALSE;
-
-    ms->drmmode.fb_id = 0;
-    ms->drmmode.present_flipping = FALSE;
-
-    for (int i = 0; i < config->num_crtc; i++) {
-        xf86CrtcPtr crtc = config->crtc[i];
-        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-        if (!crtc->enabled)
-            continue;
-        if (drmmode_crtc->dpms_mode == DPMSModeOn)
-            crtc->funcs->set_mode_major(crtc, &crtc->mode, crtc->rotation,
-                                       crtc->x, crtc->y);
-        else
-            drmmode_crtc->need_modeset = TRUE;
-    }
-
-    return TRUE;
-}
-
 #define FISSION_UNFLIP_RETRY_MS 100
 
 static CARD32
 ms_present_retry_unflip(OsTimerPtr timer, CARD32 now, void *data)
 {
     ScreenPtr screen = data;
-    modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(screen));
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    modesettingPtr ms = modesettingPTR(scrn);
 
-    if (!ms_present_restore_scanout(screen))
+    if (!drmmode_restore_scanout(scrn))
         return FISSION_UNFLIP_RETRY_MS;
 
     present_event_notify(ms->present_unflip_event, 0, 0);
@@ -470,7 +441,8 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
 
     vrr_set_flip_window(screen, NULL);
 
-    if (ms_present_check_unflip(NULL, screen->root, pixmap, TRUE, NULL)) {
+    if (!ms->drmmode.pending_modeset &&
+        ms_present_check_unflip(NULL, screen->root, pixmap, TRUE, NULL)) {
         struct ms_present_vblank_event *event;
 
         event = calloc(1, sizeof(struct ms_present_vblank_event));
@@ -486,14 +458,16 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
         }
     }
 
-    if (ms_present_restore_scanout(screen)) {
+    if (drmmode_restore_scanout(scrn)) {
         present_event_notify(event_id, 0, 0);
         return;
     }
 
     ms->present_unflip_event = event_id;
-    TimerSet(ms->present_unflip_timer, 0, FISSION_UNFLIP_RETRY_MS,
-             ms_present_retry_unflip, screen);
+    OsTimerPtr timer = ms->present_unflip_timer;
+
+    ms->present_unflip_timer = TimerSet(timer, 0, FISSION_UNFLIP_RETRY_MS,
+                                      ms_present_retry_unflip, screen);
 }
 #endif
 
