@@ -20,6 +20,9 @@ enum {
     STEPS = 512,
     CHECK_INTERVAL = 16,
     PADDING_BYTE = 0xa7,
+    LARGE_WIDTH = 16385,
+    LARGE_HEIGHT = 3,
+    CHAIN_COPIES = 130,
 };
 
 static const uint32_t pixel_mask = (1u << DEPTH) - 1;
@@ -60,6 +63,21 @@ replace_pixmap(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
     xcb_poly_fill_rectangle(conn, pixmap->id, gc, 1, &full);
 }
 
+static uint32_t
+read_pixel(const uint8_t *data, int order)
+{
+    uint32_t pixel = 0;
+
+    for (unsigned i = 0; i < sizeof(pixel); i++) {
+        unsigned byte =
+            order == XCB_IMAGE_ORDER_LSB_FIRST ? sizeof(pixel) - 1 - i : i;
+
+        pixel = (pixel << 8) | data[byte];
+    }
+
+    return pixel & pixel_mask;
+}
+
 static void
 verify(xcb_connection_t *conn, const struct pixmap *pixmap, unsigned step)
 {
@@ -80,19 +98,12 @@ verify(xcb_connection_t *conn, const struct pixmap *pixmap, unsigned step)
 
     for (unsigned y = 0; y < HEIGHT; y++) {
         for (unsigned x = 0; x < WIDTH; x++, data += sizeof(uint32_t)) {
-            uint32_t pixel = 0;
+            uint32_t pixel = read_pixel(data, order);
 
-            for (unsigned i = 0; i < sizeof(pixel); i++) {
-                unsigned byte = order == XCB_IMAGE_ORDER_LSB_FIRST ?
-                    sizeof(pixel) - 1 - i : i;
-
-                pixel = (pixel << 8) | data[byte];
-            }
-
-            if ((pixel & pixel_mask) == pixmap->pixels[y][x])
+            if (pixel == pixmap->pixels[y][x])
                 continue;
             fprintf(stderr, "Step %u, pixel (%u, %u) got %#x expected %#x\n",
-                    step, x, y, pixel & pixel_mask, pixmap->pixels[y][x]);
+                    step, x, y, pixel, pixmap->pixels[y][x]);
             free(reply);
             exit(EXIT_FAILURE);
         }
@@ -189,6 +200,52 @@ round_trip(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
     close(fd);
 }
 
+static void
+copy_chain(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc)
+{
+    xcb_pixmap_t src = xcb_generate_id(conn);
+    xcb_pixmap_t dst = xcb_generate_id(conn);
+    xcb_rectangle_t full = { 0, 0, LARGE_WIDTH, LARGE_HEIGHT };
+    xcb_rectangle_t marker = { LARGE_WIDTH - CHAIN_COPIES - 1, 1, 1, 1 };
+    const uint32_t black = 0;
+    const uint32_t color = 0x427bf1;
+
+    xcb_create_pixmap(conn, DEPTH, src, root, LARGE_WIDTH, LARGE_HEIGHT);
+    xcb_create_pixmap(conn, DEPTH, dst, root, LARGE_WIDTH, LARGE_HEIGHT);
+    xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &black);
+    xcb_poly_fill_rectangle(conn, src, gc, 1, &full);
+    xcb_poly_fill_rectangle(conn, dst, gc, 1, &full);
+    xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &color);
+    xcb_poly_fill_rectangle(conn, src, gc, 1, &marker);
+
+    for (unsigned i = 0; i < CHAIN_COPIES; i++) {
+        xcb_pixmap_t previous = src;
+
+        xcb_copy_area(conn, src, dst, gc, 0, 0, 1, 0, LARGE_WIDTH - 1,
+                      LARGE_HEIGHT);
+        src = dst;
+        dst = previous;
+    }
+
+    xcb_free_pixmap(conn, dst);
+    xcb_get_image_cookie_t cookie =
+        xcb_get_image(conn, XCB_IMAGE_FORMAT_Z_PIXMAP, src, LARGE_WIDTH - 1,
+                      marker.y, 1, 1, pixel_mask);
+    xcb_get_image_reply_t *reply = xcb_get_image_reply(conn, cookie, NULL);
+    size_t length = reply ? xcb_get_image_data_length(reply) : 0;
+    int order = xcb_get_setup(conn)->image_byte_order;
+
+    if (length != sizeof(color) ||
+        read_pixel(xcb_get_image_data(reply), order) != color) {
+        fputs("Large pixmap copy chain lost the marker pixel\n", stderr);
+        free(reply);
+        exit(EXIT_FAILURE);
+    }
+
+    free(reply);
+    xcb_free_pixmap(conn, src);
+}
+
 int
 main(void)
 {
@@ -282,8 +339,10 @@ main(void)
     for (unsigned i = 0; i < PIXMAPS; i++)
         verify(conn, &pixmaps[i], STEPS);
 
+    copy_chain(conn, root, gc);
     xcb_disconnect(conn);
     printf("PASS %u randomized pixmap operations and dma-buf padding\n",
            STEPS);
+    printf("PASS %u large pixmap copies\n", CHAIN_COPIES);
     return EXIT_SUCCESS;
 }

@@ -45,6 +45,8 @@ Run `build/test/vaccum-pixmap` on a depth-24 VACCUM screen. It checks
 reproducible sequences of CPU writes, CopyArea, GetImage, destruction,
 and DRI3 sharing. The test compares pixels with a CPU reference and
 verifies dma-buf row padding after writes through an imported alias.
+It also verifies a long chain of dependent copies on large pixmaps while
+freeing the last source before the destination readback.
 
 == Explicit Present synchronization ==
 
