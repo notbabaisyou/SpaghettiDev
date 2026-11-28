@@ -62,7 +62,7 @@ addEDIDProp(CallbackListPtr *pcbl, void *scrn, void *screen)
     ScreenPtr pScreen = screen;
     ScrnInfoPtr pScrn = scrn;
 
-    if (xf86ScreenToScrn(pScreen) == pScrn)
+    if (xf86ScreenToScrn(pScreen) == pScrn && pScrn->monitor && pScrn->monitor->DDC)
         setRootWindowEDID(pScreen, pScrn->monitor->DDC);
 }
 
