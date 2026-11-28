@@ -2257,12 +2257,14 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
     }
 
     xgi.length = bytes_to_int32(length);
-    pBuf = ReserveClientOutputSpace(client, length + sizeof (xGetImageReply));
-    if (length != 0 && !pBuf)
-         return BadAlloc;
+    pBuf = ReserveClientOutputSpace(client, length + sizeof(xgi));
+    if (!pBuf)
+        return BadAlloc;
 
-    memcpy(pBuf, &xgi, sizeof (xGetImageReply));
-    pBuf += sizeof (xGetImageReply);
+    if (client->swapped)
+        SwapGetImageReply(&xgi);
+    memcpy(pBuf, &xgi, sizeof(xgi));
+    pBuf += sizeof(xgi);
 
     if (pDraw->type == DRAWABLE_WINDOW) {
         pVisibleRegion = &((WindowPtr) pDraw)->borderClip;

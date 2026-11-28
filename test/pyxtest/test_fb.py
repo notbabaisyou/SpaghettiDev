@@ -3,12 +3,39 @@
 # Security tests for fb (software) font rendering vulnerabilities.
 
 import os
+import struct
 import tempfile
 import time
 
 import pytest
 from proto import pcf, x11
 from xclient import X11Error
+
+
+@pytest.mark.swapped_client
+def test_get_image_reply_swapped(xclient_swapped):
+    conn = xclient_swapped
+    get_image = 73
+    z_pixmap = 2
+    width = height = 1
+    all_planes = 0xffffffff
+    request = struct.pack(
+        ">BBHIhhHHI", get_image, z_pixmap, 5, conn.root_window, 0, 0,
+        width, height, all_planes,
+    )
+
+    sequence = conn.send_request(request)
+    header = conn._recv_exact(32)
+    response, depth, reply_sequence, length, visual = struct.unpack_from(
+        ">BBHII", header,
+    )
+
+    assert response == 1
+    assert depth == conn.root_depth
+    assert reply_sequence == sequence
+    assert length == 1
+    assert visual == conn.root_visual
+    conn._recv_exact(length * 4)
 
 
 class TestFbGlyphBlt:

@@ -458,9 +458,7 @@ SGetFontPathReply(ClientPtr pClient, int size, xGetFontPathReply * pRep)
 void _X_COLD
 SGetImageReply(ClientPtr pClient, int size, xGetImageReply * pRep)
 {
-    swaps(&pRep->sequenceNumber);
-    swapl(&pRep->length);
-    swapl(&pRep->visual);
+    SwapGetImageReply(pRep);
     WriteToClient(pClient, size, pRep);
     /* Fortunately, image doesn't need swapping */
 }

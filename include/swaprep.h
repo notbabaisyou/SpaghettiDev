@@ -26,6 +26,8 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #ifndef SWAPREP_H
 #define SWAPREP_H 1
 
+#include "misc.h"
+
 extern void Swap32Write(ClientPtr /* pClient */ ,
                         int /* size */ ,
                         CARD32 * /* pbuf */ );
@@ -123,6 +125,14 @@ extern void SListFontsWithInfoReply(ClientPtr /* pClient */ ,
 extern void SGetFontPathReply(ClientPtr /* pClient */ ,
                               int /* size */ ,
                               xGetFontPathReply * /* pRep */ );
+
+static inline void
+SwapGetImageReply(xGetImageReply *reply)
+{
+    swaps(&reply->sequenceNumber);
+    swapl(&reply->length);
+    swapl(&reply->visual);
+}
 
 extern void SGetImageReply(ClientPtr /* pClient */ ,
                            int /* size */ ,

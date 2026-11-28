@@ -49,6 +49,7 @@ Equipment Corporation.
 #include "panoramiXsrv.h"
 #include "resource.h"
 #include "panoramiXh.h"
+#include "swaprep.h"
 
 #define XINERAMA_IMAGE_BUFSIZE (256*1024)
 #define INPUTONLY_LEGAL_MASK (CWWinGravity | CWEventMask | \
@@ -2072,12 +2073,14 @@ PanoramiXGetImage(ClientPtr client)
     }
 
     xgi.length = bytes_to_int32(length);
-    pBuf = ReserveClientOutputSpace(client, length + sizeof (xGetImageReply));
-    if (length != 0 && !pBuf)
+    pBuf = ReserveClientOutputSpace(client, length + sizeof(xgi));
+    if (!pBuf)
         return BadAlloc;
 
-    memcpy(pBuf, &xgi, sizeof (xGetImageReply));
-    pBuf += sizeof (xGetImageReply);
+    if (client->swapped)
+        SwapGetImageReply(&xgi);
+    memcpy(pBuf, &xgi, sizeof(xgi));
+    pBuf += sizeof(xgi);
 
     if (length == 0) {
         /* nothing to do */
