@@ -39,6 +39,13 @@ depth, compositor and scale when comparing AccelMethod "vaccum" and
 pixmap. For scanout checks, run pattern-present separately and record
 Present completion modes, including whether each frame copied or flipped.
 
+== VACCUM pixmap backing ==
+
+Run `build/test/vaccum-pixmap` on a depth-24 VACCUM screen. It checks
+reproducible sequences of CPU writes, CopyArea, GetImage, destruction,
+and DRI3 sharing. The test compares pixels with a CPU reference and
+verifies dma-buf row padding after writes through an imported alias.
+
 == Explicit Present synchronization ==
 
 Run `build/test/present-syncobj` on a DRI3-capable VACCUM display at depth

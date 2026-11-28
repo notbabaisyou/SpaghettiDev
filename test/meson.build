@@ -47,6 +47,11 @@ else
     message('xcb present/dri3/sync/libdrm not found, skipping pattern-present test')
 endif
 
+if host_machine.system() == 'linux' and xcb_dep.found() and xcb_dri3_dep.found()
+    executable('vaccum-pixmap', 'vaccum-pixmap.c',
+               dependencies: [xcb_dep, xcb_dri3_dep])
+endif
+
 if xcb_dep.found() and libdrm_dep.found()
     if xcb_present_dep.found() and xcb_dri3_dep.found()
         if xcb_present_dep.version().version_compare('>= 1.17') and xcb_dri3_dep.version().version_compare('>= 1.17')

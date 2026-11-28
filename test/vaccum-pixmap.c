@@ -1,0 +1,289 @@
+/* SPDX-License-Identifier: MIT */
+
+#include <fcntl.h>
+#include <linux/dma-buf.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <xcb/dri3.h>
+#include <xcb/xcb.h>
+
+enum {
+    WIDTH = 37,
+    HEIGHT = 23,
+    DEPTH = 24,
+    BPP = 32,
+    PIXMAPS = 4,
+    STEPS = 512,
+    CHECK_INTERVAL = 16,
+    PADDING_BYTE = 0xa7,
+};
+
+static const uint32_t pixel_mask = (1u << DEPTH) - 1;
+static const size_t row_bytes = WIDTH * sizeof(uint32_t);
+
+struct pixmap {
+    xcb_pixmap_t id;
+    uint32_t pixels[HEIGHT][WIDTH];
+};
+
+static void
+check(xcb_connection_t *conn, xcb_void_cookie_t cookie, const char *operation)
+{
+    xcb_generic_error_t *error = xcb_request_check(conn, cookie);
+
+    if (!error)
+        return;
+    fprintf(stderr, "%s failed with X11 error %u\n", operation,
+            error->error_code);
+    free(error);
+    exit(EXIT_FAILURE);
+}
+
+static void
+replace_pixmap(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
+                struct pixmap *pixmap)
+{
+    if (pixmap->id)
+        xcb_free_pixmap(conn, pixmap->id);
+    pixmap->id = xcb_generate_id(conn);
+    memset(pixmap->pixels, 0, sizeof(pixmap->pixels));
+
+    const uint32_t color = 0;
+    xcb_rectangle_t full = { 0, 0, WIDTH, HEIGHT };
+
+    xcb_create_pixmap(conn, DEPTH, pixmap->id, root, WIDTH, HEIGHT);
+    xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &color);
+    xcb_poly_fill_rectangle(conn, pixmap->id, gc, 1, &full);
+}
+
+static void
+verify(xcb_connection_t *conn, const struct pixmap *pixmap, unsigned step)
+{
+    xcb_get_image_cookie_t cookie =
+        xcb_get_image(conn, XCB_IMAGE_FORMAT_Z_PIXMAP, pixmap->id, 0, 0,
+                      WIDTH, HEIGHT, pixel_mask);
+    xcb_get_image_reply_t *reply = xcb_get_image_reply(conn, cookie, NULL);
+    size_t length = reply ? xcb_get_image_data_length(reply) : 0;
+
+    if (!reply || length != sizeof(pixmap->pixels)) {
+        fprintf(stderr, "No complete GetImage at step %u\n", step);
+        free(reply);
+        exit(EXIT_FAILURE);
+    }
+
+    const uint8_t *data = xcb_get_image_data(reply);
+    int order = xcb_get_setup(conn)->image_byte_order;
+
+    for (unsigned y = 0; y < HEIGHT; y++) {
+        for (unsigned x = 0; x < WIDTH; x++, data += sizeof(uint32_t)) {
+            uint32_t pixel = 0;
+
+            for (unsigned i = 0; i < sizeof(pixel); i++) {
+                unsigned byte = order == XCB_IMAGE_ORDER_LSB_FIRST ?
+                    sizeof(pixel) - 1 - i : i;
+
+                pixel = (pixel << 8) | data[byte];
+            }
+
+            if ((pixel & pixel_mask) == pixmap->pixels[y][x])
+                continue;
+            fprintf(stderr, "Step %u, pixel (%u, %u) got %#x expected %#x\n",
+                    step, x, y, pixel & pixel_mask, pixmap->pixels[y][x]);
+            free(reply);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    free(reply);
+}
+
+static void
+sync_mapping(int fd, uint64_t flags)
+{
+    struct dma_buf_sync access = { .flags = flags };
+
+    if (ioctl(fd, DMA_BUF_IOCTL_SYNC, &access) == 0)
+        return;
+    perror("DMA_BUF_IOCTL_SYNC");
+    exit(EXIT_FAILURE);
+}
+
+static void
+round_trip(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
+            struct pixmap *pixmap, unsigned step)
+{
+    xcb_dri3_buffer_from_pixmap_cookie_t cookie =
+        xcb_dri3_buffer_from_pixmap(conn, pixmap->id);
+    xcb_dri3_buffer_from_pixmap_reply_t *reply =
+        xcb_dri3_buffer_from_pixmap_reply(conn, cookie, NULL);
+
+    if (!reply || reply->nfd != 1) {
+        fprintf(stderr, "BufferFromPixmap failed at step %u\n", step);
+        free(reply);
+        exit(EXIT_FAILURE);
+    }
+
+    int fd = *xcb_dri3_buffer_from_pixmap_reply_fds(conn, reply);
+    size_t stride = reply->stride;
+    size_t length = reply->size;
+
+    if (stride <= row_bytes || length < stride * HEIGHT) {
+        fprintf(stderr, "Expected a padded dma-buf at step %u\n", step);
+        exit(EXIT_FAILURE);
+    }
+
+    uint8_t *map = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED,
+                        fd, 0);
+    int import_fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+
+    if (map == MAP_FAILED || import_fd < 0) {
+        perror("Failed to map or duplicate the dma-buf");
+        exit(EXIT_FAILURE);
+    }
+
+    sync_mapping(fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE);
+
+    for (unsigned y = 0; y < HEIGHT; y++)
+        memset(map + y * stride + row_bytes, PADDING_BYTE,
+               stride - row_bytes);
+
+    sync_mapping(fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE);
+
+    xcb_pixmap_t imported = xcb_generate_id(conn);
+    xcb_void_cookie_t import = xcb_dri3_pixmap_from_buffer_checked(
+        conn, imported, root, length, WIDTH, HEIGHT, stride, DEPTH, BPP,
+        import_fd);
+
+    check(conn, import, "PixmapFromBuffer");
+    free(reply);
+
+    /* Write through the alias first, then drop the original pixmap. */
+    uint32_t color = step & pixel_mask;
+    xcb_rectangle_t pixel = { 0, 0, 1, 1 };
+
+    xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &color);
+    xcb_poly_fill_rectangle(conn, imported, gc, 1, &pixel);
+    pixmap->pixels[0][0] = color;
+    verify(conn, pixmap, step);
+    xcb_free_pixmap(conn, pixmap->id);
+    pixmap->id = imported;
+    verify(conn, pixmap, step);
+
+    sync_mapping(fd, DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
+
+    for (unsigned y = 0; y < HEIGHT; y++) {
+        for (size_t x = row_bytes; x < stride; x++) {
+            if (map[y * stride + x] == PADDING_BYTE)
+                continue;
+            fprintf(stderr, "Changed padding at step %u, row %u\n", step, y);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    sync_mapping(fd, DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ);
+    munmap(map, length);
+    close(fd);
+}
+
+int
+main(void)
+{
+    int screen_number = 0;
+    xcb_connection_t *conn = xcb_connect(NULL, &screen_number);
+
+    if (xcb_connection_has_error(conn)) {
+        fputs("Could not connect to DISPLAY\n", stderr);
+        xcb_disconnect(conn);
+        return EXIT_FAILURE;
+    }
+
+    const xcb_setup_t *setup = xcb_get_setup(conn);
+    xcb_screen_iterator_t screens = xcb_setup_roots_iterator(setup);
+
+    for (int i = 0; i < screen_number && screens.rem; i++)
+        xcb_screen_next(&screens);
+
+    if (!screens.rem || screens.data->root_depth != DEPTH ||
+        !xcb_get_extension_data(conn, &xcb_dri3_id)->present) {
+        fputs("vaccum-pixmap requires a depth-24 screen with DRI3\n", stderr);
+        xcb_disconnect(conn);
+        return EXIT_FAILURE;
+    }
+
+    xcb_window_t root = screens.data->root;
+    xcb_gcontext_t gc = xcb_generate_id(conn);
+    const uint32_t exposures = 0;
+    struct pixmap pixmaps[PIXMAPS] = {0};
+    unsigned seed = 74989;
+
+    check(conn, xcb_create_gc_checked(conn, gc, root,
+                                      XCB_GC_GRAPHICS_EXPOSURES, &exposures),
+          "CreateGC");
+
+    for (unsigned i = 0; i < PIXMAPS; i++)
+        replace_pixmap(conn, root, gc, &pixmaps[i]);
+
+    for (unsigned step = 0; step < STEPS; step++) {
+        struct pixmap *dst = &pixmaps[rand_r(&seed) % PIXMAPS];
+        struct pixmap *src = &pixmaps[rand_r(&seed) % PIXMAPS];
+        unsigned x = rand_r(&seed) % WIDTH;
+        unsigned y = rand_r(&seed) % HEIGHT;
+        unsigned w = 1 + rand_r(&seed) % (WIDTH - x);
+        unsigned h = 1 + rand_r(&seed) % (HEIGHT - y);
+        unsigned op = rand_r(&seed) % 8;
+
+        switch (op) {
+        case 0:
+            replace_pixmap(conn, root, gc, dst);
+            break;
+        case 1:
+            round_trip(conn, root, gc, dst, step);
+            break;
+        case 2:
+        case 3: {
+            uint32_t color = rand_r(&seed) & pixel_mask;
+            xcb_rectangle_t rect = { x, y, w, h };
+
+            xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &color);
+            xcb_poly_fill_rectangle(conn, dst->id, gc, 1, &rect);
+
+            for (unsigned row = y; row < y + h; row++)
+                for (unsigned col = x; col < x + w; col++)
+                    dst->pixels[row][col] = color;
+
+            break;
+        }
+        default: {
+            unsigned sx = rand_r(&seed) % (WIDTH - w + 1);
+            unsigned sy = rand_r(&seed) % (HEIGHT - h + 1);
+            uint32_t snapshot[HEIGHT][WIDTH];
+
+            memcpy(snapshot, src->pixels, sizeof(snapshot));
+            xcb_copy_area(conn, src->id, dst->id, gc, sx, sy, x, y, w, h);
+
+            for (unsigned row = 0; row < h; row++)
+                memcpy(&dst->pixels[y + row][x], &snapshot[sy + row][sx],
+                       w * sizeof(uint32_t));
+
+            break;
+        }
+        }
+
+        if (!(step % CHECK_INTERVAL)) {
+            for (unsigned i = 0; i < PIXMAPS; i++)
+                verify(conn, &pixmaps[i], step);
+        }
+    }
+
+    for (unsigned i = 0; i < PIXMAPS; i++)
+        verify(conn, &pixmaps[i], STEPS);
+
+    xcb_disconnect(conn);
+    printf("PASS %u randomized pixmap operations and dma-buf padding\n",
+           STEPS);
+    return EXIT_SUCCESS;
+}
