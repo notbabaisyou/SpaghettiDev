@@ -4626,6 +4626,7 @@ drmmode_update_kms_state(drmmode_ptr drmmode)
     int i, j;
     Bool found = FALSE;
     Bool changed = FALSE;
+    Bool connection_changed = FALSE;
     Bool link_fixed = FALSE;
     Bool lost_scanout = FALSE;
 
@@ -4643,11 +4644,14 @@ drmmode_update_kms_state(drmmode_ptr drmmode)
         drmmode_output_private_ptr drmmode_output = output->driver_private;
 
         xf86OutputStatus status = drmmode_output_detect(output);
-        Bool disconnected = status == XF86OutputStatusDisconnected &&
-                            output->status != XF86OutputStatusDisconnected;
+        Bool disconnected = status == XF86OutputStatusDisconnected;
 
-        if (output->crtc && disconnected)
-            lost_scanout = TRUE;
+        connection_changed |= status != output->status;
+        if (disconnected) {
+            if (output->crtc && output->status != status)
+                lost_scanout = TRUE;
+            continue;
+        }
 
         /* Get an updated view of the properties for the current connector and
          * look for the link-status property
@@ -4745,10 +4749,13 @@ out_free_res:
 
     drmModeFreeResources(mode_res);
 out:
-    /* Schedule retirement without blocking on the DRM event queue. */
+    /* Retire scanout without waiting for another page-flip event. */
     if (lost_scanout && modesettingPTR(scrn)->present_atomic_group)
         drmmode_unflip_present(scrn);
-    RRGetInfo(xf86ScrnToScreen(scrn), (changed || link_fixed));
+
+    Bool refresh = changed || link_fixed || connection_changed;
+
+    RRGetInfo(xf86ScrnToScreen(scrn), refresh);
 }
 
 #undef DRM_MODE_LINK_STATUS_BAD
