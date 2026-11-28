@@ -180,6 +180,10 @@ round_trip(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
     xcb_poly_fill_rectangle(conn, imported, gc, 1, &pixel);
     pixmap->pixels[0][0] = color;
     verify(conn, pixmap, step);
+
+    /* Both framebuffer access scopes refer to the same dma-buf. */
+    xcb_copy_area(conn, pixmap->id, imported, gc, 0, 0, 1, 0, 1, 1);
+    pixmap->pixels[0][1] = color;
     xcb_free_pixmap(conn, pixmap->id);
     pixmap->id = imported;
     verify(conn, pixmap, step);
