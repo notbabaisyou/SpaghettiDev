@@ -272,6 +272,55 @@ test_legacy_present(xcb_connection_t *client, xcb_connection_t *observer,
 }
 
 static void
+test_access_failure(xcb_connection_t *client, xcb_connection_t *observer,
+                    xcb_window_t win, xcb_pixmap_t pixmap, int fd)
+{
+    xcb_present_event_t id = xcb_generate_id(observer);
+    xcb_special_event_t *complete = xcb_register_for_special_xge(
+        observer, &xcb_present_id, id, NULL);
+    struct producer_mapping map = map_pixmap(client, pixmap);
+    xcb_dri3_syncobj_t timeline = xcb_generate_id(client);
+    uint32_t handle = 0;
+    int timeline_fd = -1;
+    uint64_t acquire = UINT64_C(1) << 40;
+    uint64_t release = acquire + 1;
+    int idle = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    struct pollfd done = { .fd = idle, .events = POLLIN };
+
+    REQUIRE(complete && idle >= 0);
+    write_pixmap(&map, 0xc41758);
+    check(observer, xcb_present_select_input_checked(
+                        observer, id, win,
+                        XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY));
+    REQUIRE(!drmSyncobjCreate(fd, 0, &handle));
+    REQUIRE(!drmSyncobjHandleToFD(fd, handle, &timeline_fd));
+    check(client, xcb_dri3_import_syncobj_checked(client, timeline, win,
+                                                  timeline_fd));
+    REQUIRE(!drmSyncobjEventfd(fd, handle, release, idle, 0));
+    check(client, xcb_present_pixmap_synced_checked(
+                      client, win, pixmap, 1, 0, 0, 0, 0, 0, timeline,
+                      timeline, acquire, release, XCB_PRESENT_OPTION_COPY,
+                      0, 0, 0, 0, NULL));
+    REQUIRE(!drmSyncobjTimelineSignal(fd, &handle, &acquire, 1));
+    check_completion(observer, complete, 1, XCB_PRESENT_COMPLETE_MODE_SKIP);
+    REQUIRE(poll(&done, 1, 3000) == 1);
+    check_color(observer, win, 0);
+    check_color(client, pixmap, 0);
+
+    xcb_generic_error_t *error = NULL;
+    xcb_dri3_buffer_from_pixmap_reply_t *reply =
+        xcb_dri3_buffer_from_pixmap_reply(
+            client, xcb_dri3_buffer_from_pixmap(client, pixmap), &error);
+
+    REQUIRE(!reply && error && error->error_code == XCB_PIXMAP);
+    free(error);
+    xcb_unregister_for_special_event(observer, complete);
+    REQUIRE(!drmSyncobjDestroy(fd, handle));
+    unmap_pixmap(&map);
+    close(idle);
+}
+
+static void
 test_flip(xcb_connection_t *client, xcb_connection_t *observer,
           xcb_window_t win, xcb_rectangle_t rect, int fd)
 {
@@ -489,13 +538,15 @@ main(int argc, char **argv)
                                        !strcmp(argv[1], "--unavailable"));
     bool flip = argc == 2 && !strcmp(argv[1], "--flip");
     bool fallback = argc == 2 && !strcmp(argv[1], "--flip-fallback");
+    bool access_failure = argc == 2 && !strcmp(argv[1], "--access-failure");
 
     bool fullscreen = flip || fallback || legacy_flip;
-    bool recognized = unavailable || fullscreen;
+    bool recognized = unavailable || fullscreen || access_failure;
 
     if (argc > 1 && !recognized) {
         fprintf(stderr, "usage: %s [--unavailable|--unavailable-flip|"
-                        "--flip|--flip-fallback]\n", argv[0]);
+                        "--flip|--flip-fallback|--access-failure]\n",
+                argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -575,6 +626,16 @@ main(int argc, char **argv)
 
     check(client, xcb_create_pixmap_checked(client, 24, pixmap, win,
                                             rect.width, rect.height));
+
+    if (access_failure) {
+        test_access_failure(client, observer, win, pixmap, fd);
+        xcb_disconnect(client);
+        xcb_disconnect(observer);
+        close(fd);
+        puts("PASS dma-buf access failure skipped and released the Present");
+        return EXIT_SUCCESS;
+    }
+
     struct producer_mapping map = map_pixmap(client, pixmap);
 
     uint32_t options = fallback ? 0 : XCB_PRESENT_OPTION_COPY;

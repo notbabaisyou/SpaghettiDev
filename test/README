@@ -73,3 +73,10 @@ to check version negotiation, Present capabilities and rejected imports.
 It also checks legacy Present copies with a delayed X Sync fence and
 buffer reuse after IdleNotify. Use `--unavailable-flip` on an uncomposited
 screen with page flipping enabled to run the equivalent flip test.
+
+Run `present-syncobj --access-failure` against a dedicated test server
+started with `build/test/libvaccum-dmabuf-failure.so` in `LD_PRELOAD`.
+The injected dma-buf read error should cause a skipped Present and
+release the source. The observer should still see the old frame, and
+readback and export of the failed source should return zeros and an
+error respectively.

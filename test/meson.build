@@ -50,6 +50,8 @@ endif
 if host_machine.system() == 'linux' and xcb_dep.found() and xcb_dri3_dep.found()
     executable('vaccum-pixmap', 'vaccum-pixmap.c',
                dependencies: [xcb_dep, xcb_dri3_dep])
+    shared_module('vaccum-dmabuf-failure', 'vaccum-dmabuf-failure.c',
+                  dependencies: dl_dep)
 endif
 
 if xcb_dep.found() and xcb_sync_dep.found() and libdrm_dep.found()
