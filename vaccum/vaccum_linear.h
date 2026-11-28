@@ -14,6 +14,7 @@ struct vaccum_linear_pixmap {
     /* Separate allocation when the mapped buffer contains the CPU shadow. */
     VkDeviceMemory image_memory;
     void *map;
+    uint64_t last_use;
     int stride;
     int width;
     int height;
@@ -26,10 +27,9 @@ Bool vaccum_linear_allocate(struct vaccum_screen_private *screen,
                             int width, int height, int stride);
 void vaccum_linear_release(struct vaccum_screen_private *screen,
                            struct vaccum_linear_pixmap *pixels);
-Bool vaccum_linear_copy(struct vaccum_screen_private *screen,
-                        struct vaccum_linear_pixmap *src,
-                        struct vaccum_linear_pixmap *dst,
-                        BoxPtr boxes, int count, int dx, int dy);
+void vaccum_linear_flush(struct vaccum_screen_private *screen);
+void vaccum_linear_wait(struct vaccum_screen_private *screen,
+                        struct vaccum_linear_pixmap *pixels);
 
 RegionPtr vaccum_linear_copy_area(struct vaccum_screen_private *screen,
                                   struct vaccum_linear_pixmap *src,

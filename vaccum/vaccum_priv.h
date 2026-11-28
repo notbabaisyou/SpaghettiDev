@@ -88,8 +88,7 @@ typedef struct vaccum_screen_private {
 
     VkCommandPool command_pool;
     VkCommandBuffer current_cmd;
-    VkCommandBuffer linear_copy_cmd;
-    VkFence linear_copy_fence;
+    struct vaccum_linear_state *linear;
     VkExtent3D linear_image_extent;
     VkExtent3D optimal_image_extent;
 

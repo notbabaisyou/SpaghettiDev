@@ -12,6 +12,8 @@ struct vaccum_gbm_screen {
     DestroyPixmapProcPtr destroy_pixmap;
     CreateGCProcPtr create_gc;
     CloseScreenProcPtr close;
+    ScreenBlockHandlerProcPtr block_handler;
+    ModifyPixmapHeaderProcPtr modify_pixmap_header;
     GetImageProcPtr get_image;
     CompositeProcPtr composite;
     GCOps ops;

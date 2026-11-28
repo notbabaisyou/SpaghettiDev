@@ -51,6 +51,38 @@ destroy_pixmap(PixmapPtr pixmap)
 }
 
 static void
+wait_pixels(PixmapPtr pixmap)
+{
+    struct vaccum_linear_pixmap *pixels = &pixmap_data(pixmap)->pixels;
+    struct vaccum_gbm_screen *priv = screen_data(pixmap->drawable.pScreen);
+
+    vaccum_linear_wait(priv->gpu, pixels);
+}
+
+static Bool
+modify_pixmap_header(PixmapPtr pixmap, int width, int height, int depth,
+                      int bpp, int stride, void *pixels)
+{
+    struct vaccum_gbm_screen *priv = screen_data(pixmap->drawable.pScreen);
+
+    wait_pixels(pixmap);
+    return priv->modify_pixmap_header(pixmap, width, height, depth, bpp,
+                                     stride, pixels);
+}
+
+static void
+block_handler(ScreenPtr screen, void *timeout)
+{
+    struct vaccum_gbm_screen *priv = screen_data(screen);
+
+    vaccum_linear_flush(priv->gpu);
+    screen->BlockHandler = priv->block_handler;
+    screen->BlockHandler(screen, timeout);
+    priv->block_handler = screen->BlockHandler;
+    screen->BlockHandler = block_handler;
+}
+
+static void
 wait_drawable(DrawablePtr drawable, short events)
 {
     PixmapPtr pixmap =
@@ -105,7 +137,10 @@ copy_area(DrawablePtr src, DrawablePtr dst, GCPtr gc, int x, int y, int w,
 {
     wait_drawable(src, POLLIN);
     wait_drawable(dst, POLLOUT);
-    if (src->type != DRAWABLE_PIXMAP || dst->type != DRAWABLE_PIXMAP)
+    Bool pixmaps = src->type == DRAWABLE_PIXMAP &&
+                   dst->type == DRAWABLE_PIXMAP;
+
+    if (!pixmaps || src->pScreen != dst->pScreen)
         return fbCopyArea(src, dst, gc, x, y, w, h, tx, ty);
 
     struct vaccum_linear_pixmap *s = &pixmap_data((PixmapPtr)src)->pixels;
@@ -141,6 +176,8 @@ close_screen(ScreenPtr screen)
 {
     struct vaccum_gbm_screen *priv = screen_data(screen);
 
+    vaccum_linear_flush(priv->gpu);
+    screen->BlockHandler = priv->block_handler;
     screen->GetImage = priv->get_image;
     if (priv->composite)
         GetPictureScreen(screen)->Composite = priv->composite;
@@ -150,6 +187,8 @@ close_screen(ScreenPtr screen)
     Bool closed = screen->CloseScreen(screen);
 
     screen->DestroyPixmap = priv->destroy_pixmap;
+    screen->ModifyPixmapHeader = priv->modify_pixmap_header;
+    fbSetPixmapAccessProc(screen, NULL);
     vaccum_linear_fini(priv->gpu);
     return closed;
 }
@@ -175,6 +214,8 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
 
     if (!gpu)
         return FALSE;
+    if (!fbSetPixmapAccessProc(screen, wait_pixels))
+        goto fail;
 #ifdef HAVE_XSHMFENCE
     if (!miSyncShmScreenInit(screen))
         goto fail;
@@ -213,12 +254,18 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
     priv->create_pixmap = screen->CreatePixmap;
     priv->destroy_pixmap = screen->DestroyPixmap;
     priv->close = screen->CloseScreen;
+    priv->block_handler = screen->BlockHandler;
+    priv->modify_pixmap_header = screen->ModifyPixmapHeader;
+    screen->BlockHandler = block_handler;
+    screen->ModifyPixmapHeader = modify_pixmap_header;
     screen->CreatePixmap = create_pixmap;
     screen->DestroyPixmap = destroy_pixmap;
     screen->CreateGC = create_gc;
     screen->CloseScreen = close_screen;
     return TRUE;
 fail:
+    if (dixPrivateKeyRegistered(&fbPixmapAccessKey))
+        fbSetPixmapAccessProc(screen, NULL);
     vaccum_linear_fini(gpu);
     return FALSE;
 }

@@ -83,6 +83,8 @@ attach_bo(PixmapPtr pixmap, struct gbm_bo *bo, Bool copy)
     if (map == MAP_FAILED)
         return FALSE;
     if (copy) {
+        fbPreparePixmapAccess(pixmap);
+
         for (unsigned y = 0; y < height; y++)
             memcpy((char *)map + (size_t)y * stride,
                    (char *)pixmap->devPrivate.ptr +

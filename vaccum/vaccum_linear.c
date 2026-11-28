@@ -16,6 +16,48 @@ static const VkImageSubresourceLayers linear_layers = {
     .layerCount = 1,
 };
 
+enum {
+    VACCUM_BATCH_SLOTS = 3,
+    VACCUM_BATCH_COPIES = 32,
+    VACCUM_BATCH_BOXES = 256,
+};
+
+struct vaccum_batch_slot {
+    VkCommandBuffer cmd;
+    VkFence fence;
+    uint64_t serial;
+    Bool in_flight;
+};
+
+struct vaccum_copy {
+    struct vaccum_linear_pixmap *src, *dst;
+    VkImageLayout src_layout, dst_layout;
+    int first_box, count, dx, dy;
+};
+
+struct vaccum_linear_state {
+    struct vaccum_batch_slot slots[VACCUM_BATCH_SLOTS];
+    struct vaccum_copy copies[VACCUM_BATCH_COPIES];
+    BoxRec boxes[VACCUM_BATCH_BOXES];
+    uint64_t serial;
+    int num_copies, num_boxes;
+};
+
+static void
+wait_slot(vaccum_screen_private *screen, struct vaccum_batch_slot *slot)
+{
+    if (!slot->in_flight)
+        return;
+
+    VkResult completed = vkWaitForFences(screen->device, 1, &slot->fence,
+                                         VK_TRUE, UINT64_MAX);
+
+    if (completed != VK_SUCCESS)
+        FatalError("vaccum: Waiting for a pixmap batch failed (%d)\n",
+                   completed);
+    slot->in_flight = FALSE;
+}
+
 struct vaccum_screen_private *
 vaccum_linear_init(int fd)
 {
@@ -26,23 +68,39 @@ vaccum_linear_init(int fd)
     if (!vaccum_vulkan_init(screen, fd))
         goto fail;
 
+    struct vaccum_linear_state *state = calloc(1, sizeof(*state));
+
+    if (!state)
+        goto fail;
+    state->serial = 1;
+    screen->linear = state;
+
     const VkCommandBufferAllocateInfo command = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = screen->command_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
+        .commandBufferCount = ARRAY_SIZE(state->slots),
     };
 
     const VkFenceCreateInfo fence = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
     };
 
-    if (vkAllocateCommandBuffers(screen->device, &command,
-                                 &screen->linear_copy_cmd) != VK_SUCCESS)
+    VkCommandBuffer commands[VACCUM_BATCH_SLOTS];
+
+    if (vkAllocateCommandBuffers(screen->device, &command, commands) !=
+        VK_SUCCESS)
         goto fail;
-    if (vkCreateFence(screen->device, &fence, NULL,
-                      &screen->linear_copy_fence) != VK_SUCCESS)
-        goto fail;
+
+    for (unsigned i = 0; i < ARRAY_SIZE(state->slots); i++) {
+        struct vaccum_batch_slot *slot = &state->slots[i];
+
+        slot->cmd = commands[i];
+        if (vkCreateFence(screen->device, &fence, NULL, &slot->fence) !=
+            VK_SUCCESS)
+            goto fail;
+    }
+
     VkImageFormatProperties image;
 
     if (vkGetPhysicalDeviceImageFormatProperties(
@@ -66,8 +124,21 @@ fail:
 void
 vaccum_linear_fini(vaccum_screen_private *screen)
 {
-    if (screen->linear_copy_fence)
-        vkDestroyFence(screen->device, screen->linear_copy_fence, NULL);
+    struct vaccum_linear_state *state = screen->linear;
+
+    if (state) {
+        vaccum_linear_flush(screen);
+
+        for (unsigned i = 0; i < ARRAY_SIZE(state->slots); i++) {
+            struct vaccum_batch_slot *slot = &state->slots[i];
+
+            wait_slot(screen, slot);
+            vkDestroyFence(screen->device, slot->fence, NULL);
+        }
+
+        free(state);
+    }
+
     vaccum_vulkan_fini(screen);
     free(screen);
 }
@@ -76,6 +147,7 @@ void
 vaccum_linear_release(vaccum_screen_private *screen,
                       struct vaccum_linear_pixmap *pixels)
 {
+    vaccum_linear_wait(screen, pixels);
     if (pixels->map)
         vkUnmapMemory(screen->device, pixels->memory);
     vkDestroyBuffer(screen->device, pixels->buffer, NULL);
@@ -292,6 +364,7 @@ transfer_image(const struct vaccum_linear_pixmap *pixels,
     return (VkImageMemoryBarrier) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_HOST_WRITE_BIT |
+                         VK_ACCESS_TRANSFER_READ_BIT |
                          VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = access,
         .oldLayout = pixels->layout,
@@ -335,11 +408,12 @@ buffer_image_region(const struct vaccum_linear_pixmap *buffer,
 
 static void
 copy_staging_boxes(VkCommandBuffer cmd,
-                    const struct vaccum_linear_pixmap *pixels, BoxPtr boxes,
-                    int count, int dx, int dy, Bool upload)
+                    const struct vaccum_linear_pixmap *pixels,
+                    const BoxRec *boxes, int count, int dx, int dy,
+                    Bool upload)
 {
     for (int i = 0; i < count; i++) {
-        BoxPtr box = &boxes[i];
+        const BoxRec *box = &boxes[i];
         VkOffset3D offset = { box->x1 + dx, box->y1 + dy, 0 };
         VkExtent3D extent = { box->x2 - box->x1, box->y2 - box->y1, 1 };
         VkBufferImageCopy region =
@@ -358,7 +432,7 @@ copy_staging_boxes(VkCommandBuffer cmd,
 
 static void
 copy_image_box(VkCommandBuffer cmd, const struct vaccum_linear_pixmap *src,
-                const struct vaccum_linear_pixmap *dst, BoxPtr box,
+                const struct vaccum_linear_pixmap *dst, const BoxRec *box,
                 int dx, int dy)
 {
     VkOffset3D src_offset = { box->x1 + dx, box->y1 + dy, 0 };
@@ -399,42 +473,31 @@ copy_image_box(VkCommandBuffer cmd, const struct vaccum_linear_pixmap *src,
     }
 }
 
-Bool
-vaccum_linear_copy(vaccum_screen_private *screen,
-                   struct vaccum_linear_pixmap *src,
-                   struct vaccum_linear_pixmap *dst, BoxPtr boxes, int count,
-                   int dx, int dy)
+static VkBufferMemoryBarrier
+transfer_buffer(const struct vaccum_linear_pixmap *pixels,
+                 VkAccessFlags access)
 {
-    VkCommandBuffer cmd = screen->linear_copy_cmd;
-    VkFence fence = screen->linear_copy_fence;
-    VkDevice device = screen->device;
-    const VkCommandBufferBeginInfo begin = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-
-    const VkSubmitInfo submit = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
-    };
-
-    const VkMemoryBarrier ready = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT |
+    return (VkBufferMemoryBarrier) {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT |
                          VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = access,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = pixels->buffer,
+        .size = VK_WHOLE_SIZE,
     };
+}
 
-    /* The first layout transition can write the source image too. */
-    const VkMemoryBarrier host = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
-    };
-
+static void
+record_copy(VkCommandBuffer cmd, struct vaccum_linear_pixmap *src,
+             struct vaccum_linear_pixmap *dst, const BoxRec *boxes,
+             int count, int dx, int dy)
+{
     VkImageMemoryBarrier images[2];
+    VkBufferMemoryBarrier buffers[2];
     uint32_t image_count = 0;
+    uint32_t buffer_count = 0;
     Bool upload = src->image_memory != VK_NULL_HANDLE;
     Bool download = dst->image_memory != VK_NULL_HANDLE;
 
@@ -445,11 +508,12 @@ vaccum_linear_copy(vaccum_screen_private *screen,
     VkAccessFlags src_access = upload ? VK_ACCESS_TRANSFER_WRITE_BIT :
                                        VK_ACCESS_TRANSFER_READ_BIT;
 
-    if (vkResetCommandBuffer(cmd, 0) != VK_SUCCESS)
-        return FALSE;
-    if (vkBeginCommandBuffer(cmd, &begin) != VK_SUCCESS)
-        return FALSE;
-
+    if (src->buffer)
+        buffers[buffer_count++] =
+            transfer_buffer(src, VK_ACCESS_TRANSFER_READ_BIT);
+    if (dst->buffer)
+        buffers[buffer_count++] =
+            transfer_buffer(dst, VK_ACCESS_TRANSFER_WRITE_BIT);
     if (src->image)
         images[image_count++] = transfer_image(src, src_initial, src_access);
     if (dst->image)
@@ -457,8 +521,8 @@ vaccum_linear_copy(vaccum_screen_private *screen,
             transfer_image(dst, dst_initial, VK_ACCESS_TRANSFER_WRITE_BIT);
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT |
                          VK_PIPELINE_STAGE_HOST_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &ready, 0,
-                         NULL, image_count, images);
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL,
+                         buffer_count, buffers, image_count, images);
 
     if (upload) {
         copy_staging_boxes(cmd, src, boxes, count, dx, dy, TRUE);
@@ -466,7 +530,7 @@ vaccum_linear_copy(vaccum_screen_private *screen,
     }
 
     for (int i = 0; i < count; i++) {
-        BoxPtr b = &boxes[i];
+        const BoxRec *b = &boxes[i];
 
         if (image_count) {
             copy_image_box(cmd, src, dst, b, dx, dy);
@@ -491,36 +555,172 @@ vaccum_linear_copy(vaccum_screen_private *screen,
         copy_staging_boxes(cmd, dst, boxes, count, 0, 0, FALSE);
     }
 
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                         VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &host, 0, NULL, 0,
-                         NULL);
-    if (vkEndCommandBuffer(cmd) != VK_SUCCESS)
-        return FALSE;
-    if (vkResetFences(device, 1, &fence) != VK_SUCCESS)
-        return FALSE;
-
-    VkResult submitted = vkQueueSubmit(screen->queue, 1, &submit, fence);
-
-    if (submitted == VK_ERROR_DEVICE_LOST)
-        FatalError("vaccum: Vulkan device lost while submitting pixmap"
-                   " copy\n");
-    if (submitted != VK_SUCCESS)
-        return FALSE;
-
-    /* Framebuffer code can access either mapping as soon as we return. */
-    VkResult completed = vkWaitForFences(device, 1, &fence, VK_TRUE,
-                                         UINT64_MAX);
-
-    if (completed != VK_SUCCESS)
-        FatalError("vaccum: Waiting for Vulkan pixmap copy failed (%d)\n",
-                   completed);
-
     if (src->image)
         src->layout = upload ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
                                VK_IMAGE_LAYOUT_GENERAL;
     if (dst->image)
         dst->layout = download ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
                                  VK_IMAGE_LAYOUT_GENERAL;
+}
+
+static void
+replay_batch(vaccum_screen_private *screen)
+{
+    struct vaccum_linear_state *state = screen->linear;
+
+    for (unsigned i = 0; i < ARRAY_SIZE(state->slots); i++)
+        wait_slot(screen, &state->slots[i]);
+
+    /* Restore layouts before replaying the copies on the CPU. */
+    for (int i = state->num_copies - 1; i >= 0; i--) {
+        const struct vaccum_copy *copy = &state->copies[i];
+
+        copy->src->layout = copy->src_layout;
+        copy->dst->layout = copy->dst_layout;
+    }
+
+    for (int i = 0; i < state->num_copies; i++) {
+        const struct vaccum_copy *copy = &state->copies[i];
+        const BoxRec *boxes = &state->boxes[copy->first_box];
+
+        for (int j = 0; j < copy->count; j++) {
+            const BoxRec *box = &boxes[j];
+            size_t width = (box->x2 - box->x1) * sizeof(uint32_t);
+            ptrdiff_t src_x = (box->x1 + copy->dx) * sizeof(uint32_t);
+            ptrdiff_t dst_x = box->x1 * sizeof(uint32_t);
+
+            for (int y = box->y1; y < box->y2; y++) {
+                size_t src_row = (size_t)(y + copy->dy) * copy->src->stride;
+                size_t dst_row = (size_t)y * copy->dst->stride;
+
+                memcpy((char *)copy->dst->map + dst_row + dst_x,
+                       (char *)copy->src->map + src_row + src_x, width);
+            }
+        }
+    }
+}
+
+void
+vaccum_linear_flush(vaccum_screen_private *screen)
+{
+    struct vaccum_linear_state *state = screen->linear;
+
+    if (!state->num_copies)
+        return;
+
+    struct vaccum_batch_slot *slot =
+        &state->slots[state->serial % ARRAY_SIZE(state->slots)];
+    const VkMemoryBarrier host = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
+    };
+
+    const VkSubmitInfo submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &slot->cmd,
+    };
+
+    vkCmdPipelineBarrier(slot->cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &host, 0, NULL, 0,
+                         NULL);
+
+    VkResult result = vkEndCommandBuffer(slot->cmd);
+
+    if (result == VK_SUCCESS)
+        result = vkResetFences(screen->device, 1, &slot->fence);
+    if (result == VK_SUCCESS)
+        result = vkQueueSubmit(screen->queue, 1, &submit, slot->fence);
+    if (result == VK_ERROR_DEVICE_LOST)
+        FatalError("vaccum: Vulkan device lost while submitting a pixmap"
+                   " batch\n");
+
+    if (result == VK_SUCCESS)
+        slot->in_flight = TRUE;
+    else
+        replay_batch(screen);
+
+    state->num_copies = 0;
+    state->num_boxes = 0;
+    state->serial++;
+}
+
+void
+vaccum_linear_wait(vaccum_screen_private *screen,
+                    struct vaccum_linear_pixmap *pixels)
+{
+    if (!pixels->last_use)
+        return;
+
+    struct vaccum_linear_state *state = screen->linear;
+    uint64_t serial = pixels->last_use;
+
+    if (serial == state->serial)
+        vaccum_linear_flush(screen);
+
+    struct vaccum_batch_slot *slot =
+        &state->slots[serial % ARRAY_SIZE(state->slots)];
+
+    /* Reusing a slot requires its previous submission to have finished. */
+    if (slot->serial == serial)
+        wait_slot(screen, slot);
+    pixels->last_use = 0;
+}
+
+static Bool
+queue_copy(vaccum_screen_private *screen, struct vaccum_linear_pixmap *src,
+            struct vaccum_linear_pixmap *dst, const BoxRec *boxes, int count,
+            int dx, int dy)
+{
+    struct vaccum_linear_state *state = screen->linear;
+
+    if (!count)
+        return TRUE;
+    if (count > VACCUM_BATCH_BOXES)
+        return FALSE;
+
+    Bool copies_fit = state->num_copies < VACCUM_BATCH_COPIES;
+    Bool boxes_fit = count <= VACCUM_BATCH_BOXES - state->num_boxes;
+
+    if (!copies_fit || !boxes_fit)
+        vaccum_linear_flush(screen);
+
+    struct vaccum_batch_slot *slot =
+        &state->slots[state->serial % ARRAY_SIZE(state->slots)];
+
+    if (!state->num_copies) {
+        const VkCommandBufferBeginInfo begin = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        };
+
+        wait_slot(screen, slot);
+        if (vkResetCommandBuffer(slot->cmd, 0) != VK_SUCCESS)
+            return FALSE;
+        if (vkBeginCommandBuffer(slot->cmd, &begin) != VK_SUCCESS)
+            return FALSE;
+        slot->serial = state->serial;
+    }
+
+    struct vaccum_copy *copy = &state->copies[state->num_copies++];
+
+    *copy = (struct vaccum_copy) {
+        .src = src,
+        .dst = dst,
+        .src_layout = src->layout,
+        .dst_layout = dst->layout,
+        .first_box = state->num_boxes,
+        .count = count,
+        .dx = dx,
+        .dy = dy,
+    };
+
+    memcpy(&state->boxes[state->num_boxes], boxes, count * sizeof(*boxes));
+    state->num_boxes += count;
+    src->last_use = state->serial;
+    dst->last_use = state->serial;
+    record_copy(slot->cmd, src, dst, boxes, count, dx, dy);
     return TRUE;
 }
 
@@ -555,8 +755,7 @@ vaccum_copy_boxes(DrawablePtr src, DrawablePtr dst, GCPtr gc, BoxPtr boxes,
 
     if (vaccum_can_copy_pixmap(src, copy->src) &&
         vaccum_can_copy_pixmap(dst, copy->dst) &&
-        vaccum_linear_copy(copy->screen, copy->src, copy->dst, boxes, count,
-                           dx, dy))
+        queue_copy(copy->screen, copy->src, copy->dst, boxes, count, dx, dy))
         return;
     fbCopyNtoN(src, dst, gc, boxes, count, dx, dy, reverse, upsidedown,
                bitplane, NULL);
