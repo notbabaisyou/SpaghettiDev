@@ -54,8 +54,14 @@ present_fence_sync_trigger_fired(SyncTrigger *trigger)
 {
     struct present_fence        *present_fence = container_of(trigger, struct present_fence, trigger);
 
-    if (present_fence->callback)
-        (*present_fence->callback)(present_fence->param);
+    void (*callback)(void *) = present_fence->callback;
+
+    if (!callback)
+        return;
+
+    /* The fence may outlive the callback while a flip is pending. */
+    present_fence->callback = NULL;
+    callback(present_fence->param);
 }
 
 static void

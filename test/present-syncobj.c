@@ -16,6 +16,7 @@
 #include <xcb/xcb.h>
 #include <xcb/dri3.h>
 #include <xcb/present.h>
+#include <xcb/sync.h>
 #include <xf86drm.h>
 
 enum {
@@ -137,29 +138,19 @@ struct flip_buffer {
     int idle;
 };
 
-static uint64_t
-check_completion(xcb_connection_t *conn, xcb_special_event_t *events,
-                 uint32_t frame, uint8_t mode)
+static xcb_generic_event_t *
+next_event(xcb_connection_t *conn, xcb_special_event_t *events)
 {
-    struct pollfd socket = {.fd = xcb_get_file_descriptor(conn),
-                            .events = POLLIN};
+    struct pollfd socket = { .fd = xcb_get_file_descriptor(conn),
+                             .events = POLLIN };
 
     enum { WAIT_SLICE_MS = 50, MAX_SLICES = 60 };
 
     for (unsigned i = 0; i < MAX_SLICES; i++) {
         xcb_generic_event_t *event = xcb_poll_for_special_event(conn, events);
 
-        if (event) {
-            const xcb_present_complete_notify_event_t *completion =
-                (const void *)event;
-
-            uint64_t msc = completion->msc;
-
-            REQUIRE(completion->serial == frame);
-            REQUIRE(completion->mode == mode);
-            free(event);
-            return msc;
-        }
+        if (event)
+            return event;
 
         int ready = poll(&socket, 1, WAIT_SLICE_MS);
 
@@ -174,8 +165,110 @@ check_completion(xcb_connection_t *conn, xcb_special_event_t *events,
         REQUIRE(!xcb_connection_has_error(conn));
     }
 
-    require(false, "Present completion timeout");
-    return 0;
+    require(false, "Present event timeout");
+    return NULL;
+}
+
+static uint64_t
+check_completion(xcb_connection_t *conn, xcb_special_event_t *events,
+                 uint32_t frame, uint8_t mode)
+{
+    xcb_present_complete_notify_event_t *event =
+        (void *)next_event(conn, events);
+
+    REQUIRE(event->event_type == XCB_PRESENT_COMPLETE_NOTIFY);
+    REQUIRE(event->serial == frame);
+    REQUIRE(event->mode == mode);
+    uint64_t msc = event->msc;
+
+    free(event);
+    return msc;
+}
+
+static void
+check_idle(xcb_connection_t *conn, xcb_special_event_t *events,
+           uint32_t frame, xcb_pixmap_t pixmap)
+{
+    xcb_present_idle_notify_event_t *event = (void *)next_event(conn, events);
+
+    REQUIRE(event->event_type == XCB_PRESENT_IDLE_NOTIFY);
+    REQUIRE(event->serial == frame);
+    REQUIRE(event->pixmap == pixmap);
+    free(event);
+}
+
+static void
+test_legacy_present(xcb_connection_t *client, xcb_connection_t *observer,
+                    xcb_window_t win, xcb_rectangle_t rect, bool flip)
+{
+    struct {
+        xcb_pixmap_t pixmap;
+        struct producer_mapping map;
+    } buffers[2];
+
+    xcb_present_event_t complete_id = xcb_generate_id(observer);
+    xcb_present_event_t idle_id = xcb_generate_id(client);
+    xcb_special_event_t *complete = xcb_register_for_special_xge(
+        observer, &xcb_present_id, complete_id, NULL);
+    xcb_special_event_t *idle = xcb_register_for_special_xge(
+        client, &xcb_present_id, idle_id, NULL);
+    uint32_t options = flip ? 0 : XCB_PRESENT_OPTION_COPY;
+    uint8_t mode = flip ? XCB_PRESENT_COMPLETE_MODE_FLIP :
+                          XCB_PRESENT_COMPLETE_MODE_COPY;
+    uint32_t expected = 0;
+
+    REQUIRE(complete && idle);
+    check(observer, xcb_present_select_input_checked(
+                        observer, complete_id, win,
+                        XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY));
+    check(client, xcb_present_select_input_checked(
+                      client, idle_id, win,
+                      XCB_PRESENT_EVENT_MASK_IDLE_NOTIFY));
+
+    for (unsigned i = 0; i < 2; i++) {
+        buffers[i].pixmap = xcb_generate_id(client);
+        check(client, xcb_create_pixmap_checked(client, 24, buffers[i].pixmap,
+                                                win, rect.width,
+                                                rect.height));
+        buffers[i].map = map_pixmap(client, buffers[i].pixmap);
+    }
+
+    for (uint32_t frame = 1; frame <= 3; frame++) {
+        unsigned next = (frame - 1) % 2;
+        unsigned old = 1 - next;
+        uint32_t color = next ? 0x127a4e : 0x8a37c2;
+        xcb_sync_fence_t fence = xcb_generate_id(client);
+
+        write_pixmap(&buffers[next].map, color);
+        check(client, xcb_sync_create_fence_checked(client, win, fence, 0));
+        check(client, xcb_present_pixmap_checked(
+                          client, win, buffers[next].pixmap, frame, 0, 0,
+                          0, 0, 0, fence, 0, options, 0, 0, 0, 0, NULL));
+
+        check_color(observer, win, expected);
+        REQUIRE(!xcb_poll_for_special_event(observer, complete));
+        check(client, xcb_sync_trigger_fence_checked(client, fence));
+        check_completion(observer, complete, frame, mode);
+
+        if (!flip) {
+            check_idle(client, idle, frame, buffers[next].pixmap);
+            write_pixmap(&buffers[next].map, 0);
+        } else if (frame > 1) {
+            check_idle(client, idle, frame - 1, buffers[old].pixmap);
+            write_pixmap(&buffers[old].map, 0);
+        }
+
+        check_color(observer, win, color);
+        expected = color;
+        check(client, xcb_sync_destroy_fence_checked(client, fence));
+    }
+
+    check(client, xcb_destroy_window_checked(client, win));
+    xcb_unregister_for_special_event(observer, complete);
+    xcb_unregister_for_special_event(client, idle);
+
+    for (unsigned i = 0; i < 2; i++)
+        unmap_pixmap(&buffers[i].map);
 }
 
 static void
@@ -391,16 +484,18 @@ test_disconnect(xcb_connection_t *client, xcb_connection_t *observer,
 int
 main(int argc, char **argv)
 {
-    bool unavailable = argc == 2 && !strcmp(argv[1], "--unavailable");
+    bool legacy_flip = argc == 2 && !strcmp(argv[1], "--unavailable-flip");
+    bool unavailable = legacy_flip || (argc == 2 &&
+                                       !strcmp(argv[1], "--unavailable"));
     bool flip = argc == 2 && !strcmp(argv[1], "--flip");
     bool fallback = argc == 2 && !strcmp(argv[1], "--flip-fallback");
 
-    bool fullscreen = flip || fallback;
+    bool fullscreen = flip || fallback || legacy_flip;
     bool recognized = unavailable || fullscreen;
 
     if (argc > 1 && !recognized) {
-        fprintf(stderr, "usage: %s [--unavailable|--flip|--flip-fallback]\n",
-                argv[0]);
+        fprintf(stderr, "usage: %s [--unavailable|--unavailable-flip|"
+                        "--flip|--flip-fallback]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -449,9 +544,11 @@ main(int argc, char **argv)
         free(error);
         free(caps);
         free(version);
+        test_legacy_present(client, observer, win, rect, legacy_flip);
         xcb_disconnect(client);
         xcb_disconnect(observer);
-        puts("PASS unavailable explicit sync");
+        printf("PASS legacy Present %s with explicit sync unavailable\n",
+               legacy_flip ? "flip" : "copy");
         return EXIT_SUCCESS;
     }
 

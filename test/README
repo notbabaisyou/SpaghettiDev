@@ -58,8 +58,8 @@ points above 32 bits. It checks that the observer remains responsive, that
 the window shows the previous pixels before acquire, and that rewriting
 the mapped dma-buf immediately after release preserves the presented
 pixels. It also checks release for a superseded Present, a destroyed
-window, and
-producer disconnect when another client owns the target window.
+window, and producer disconnect when another client owns the target
+window.
 
 Run with `--flip` on an uncomposited Fission VACCUM screen that allows
 fullscreen flipping. This checks delayed acquire, retirement after a
@@ -70,3 +70,6 @@ a fullscreen client does not request PresentOptionCopy.
 
 Run with `--unavailable` on a VACCUM display without DRM timeline support
 to check version negotiation, Present capabilities and rejected imports.
+It also checks legacy Present copies with a delayed X Sync fence and
+buffer reuse after IdleNotify. Use `--unavailable-flip` on an uncomposited
+screen with page flipping enabled to run the equivalent flip test.
