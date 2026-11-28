@@ -28,6 +28,24 @@
 
 static DevPrivateKeyRec fbScreenPrivateKeyRec;
 
+#ifndef FB_ACCESS_WRAPPER
+DevPrivateKeyRec fbPixmapAccessKey;
+
+Bool
+fbSetPixmapAccessProc(ScreenPtr screen, FbPixmapAccessProcPtr proc)
+{
+    if (!dixRegisterPrivateKey(&fbPixmapAccessKey, PRIVATE_SCREEN,
+                               sizeof(FbPixmapAccessProcPtr)))
+        return FALSE;
+
+    FbPixmapAccessProcPtr *access =
+        dixGetPrivateAddr(&screen->devPrivates, &fbPixmapAccessKey);
+
+    *access = proc;
+    return TRUE;
+}
+#endif
+
 DevPrivateKey
 fbGetScreenPrivateKey(void)
 {

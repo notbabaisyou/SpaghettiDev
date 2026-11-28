@@ -405,6 +405,32 @@ typedef void (*FinishWrapProcPtr) (DrawablePtr pDraw);
 
 #endif
 
+#ifndef FB_ACCESS_WRAPPER
+typedef void (*FbPixmapAccessProcPtr)(PixmapPtr pixmap);
+
+extern _X_EXPORT DevPrivateKeyRec fbPixmapAccessKey;
+
+extern _X_EXPORT Bool
+fbSetPixmapAccessProc(ScreenPtr screen, FbPixmapAccessProcPtr proc);
+
+/* Give the driver a chance to finish GPU work before exposing CPU pixels. */
+static inline void
+fbPreparePixmapAccess(PixmapPtr pixmap)
+{
+    if (!dixPrivateKeyRegistered(&fbPixmapAccessKey))
+        return;
+
+    ScreenPtr screen = pixmap->drawable.pScreen;
+    FbPixmapAccessProcPtr *proc =
+        dixGetPrivateAddr(&screen->devPrivates, &fbPixmapAccessKey);
+
+    if (*proc)
+        (*proc)(pixmap);
+}
+#else
+#define fbPreparePixmapAccess(pixmap) ((void)0)
+#endif
+
 extern _X_EXPORT DevPrivateKey
 fbGetScreenPrivateKey(void);
 
@@ -475,12 +501,14 @@ extern _X_EXPORT DevPrivateKey fbGetGCPrivateKey(GCPtr pGC);
 }
 
 #define fbGetPixmapBitsData(pixmap, pointer, stride, bpp) {			\
+    fbPreparePixmapAccess(pixmap);					\
     (pointer) = (FbBits *) (pixmap)->devPrivate.ptr; 			       	\
     (stride) = ((int) (pixmap)->devKind) / sizeof (FbBits); (void)(stride);	\
     (bpp) = (pixmap)->drawable.bitsPerPixel;  (void)(bpp); 			\
 }
 
 #define fbGetPixmapStipData(pixmap, pointer, stride, bpp) {			\
+    fbPreparePixmapAccess(pixmap);					\
     (pointer) = (FbStip *) (pixmap)->devPrivate.ptr; 			       	\
     (stride) = ((int) (pixmap)->devKind) / sizeof (FbStip); (void)(stride);	\
     (bpp) = (pixmap)->drawable.bitsPerPixel;  (void)(bpp); 			\
