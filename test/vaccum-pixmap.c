@@ -209,9 +209,16 @@ round_trip(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
     pixmap->pixels[0][0] = color;
     verify(conn, pixmap, step);
 
-    /* Both framebuffer access scopes refer to the same dma-buf. */
-    xcb_copy_area(conn, pixmap->id, imported, gc, 0, 0, 1, 0, 1, 1);
-    pixmap->pixels[0][1] = color;
+    /* The two X pixmaps overlap even though their mappings use different
+     * virtual addresses. */
+    xcb_copy_area(conn, pixmap->id, imported, gc, 0, 0, 1, 1,
+                  WIDTH - 1, HEIGHT - 1);
+
+    for (unsigned y = HEIGHT - 1; y > 0; y--) {
+        for (unsigned x = WIDTH - 1; x > 0; x--)
+            pixmap->pixels[y][x] = pixmap->pixels[y - 1][x - 1];
+    }
+
     xcb_free_pixmap(conn, pixmap->id);
     pixmap->id = imported;
     verify(conn, pixmap, step);
