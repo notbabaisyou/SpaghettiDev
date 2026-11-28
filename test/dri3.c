@@ -11,13 +11,16 @@
 #include <drm_fourcc.h>
 #include "dixstruct.h"
 #include "external.h"
-#include "dri3.h"
+#include "dri3_priv.h"
 #include "xfixesint.h"
 #include "tests-common.h"
 
 struct dri3_fixture {
     int fd;
-    xDRI3OpenReply reply;
+    union {
+        xDRI3OpenReply open;
+        xDRI3QueryVersionReply version;
+    } reply;
     Bool asynchronous;
     Bool reject_fd;
 };
@@ -91,6 +94,34 @@ get_modifiers(ScreenPtr screen, uint32_t format, uint32_t *count,
     assert(*modifiers);
     **modifiers = DRM_FORMAT_MOD_LINEAR;
     return TRUE;
+}
+
+static PixmapPtr
+import_buffers(ScreenPtr screen, CARD8 num_fds, const int *fds, CARD16 width,
+                CARD16 height, const CARD32 *strides, const CARD32 *offsets,
+                CARD8 depth, CARD8 bpp, CARD64 modifier)
+{
+    return NULL;
+}
+
+static int
+export_buffers(ScreenPtr screen, PixmapPtr pixmap, int *fds,
+                uint32_t *strides, uint32_t *offsets, uint64_t *modifier)
+{
+    return 0;
+}
+
+static int
+get_drawable_modifiers(DrawablePtr draw, uint32_t format, uint32_t *count,
+                        uint64_t **modifiers)
+{
+    return get_modifiers(draw->pScreen, format, count, modifiers);
+}
+
+static struct dri3_syncobj *
+import_timeline(ClientPtr client, ScreenPtr screen, XID id, int fd)
+{
+    return NULL;
 }
 
 static const ExternalClientCallbacks dri3_test_callbacks = {
@@ -181,7 +212,7 @@ dri3_test_send_reply(struct dri3_test *test)
     assert(dri3_send_open_reply(client, fd) == Success);
     AttendClient(client);
     assert(fixture.fd == fd);
-    assert(fixture.reply.type == X_Reply && fixture.reply.nfd == 1);
+    assert(fixture.reply.open.type == X_Reply && fixture.reply.open.nfd == 1);
     assert(client->ignoreCount == 0);
     close(fixture.fd);
     fixture.fd = -1;
@@ -245,9 +276,74 @@ dri3_native_access(void)
     dri3_test_fini(&test);
 }
 
+static void
+dri3_check_version(ClientPtr client, uint32_t requested_minor,
+                   uint32_t expected_minor)
+{
+    xDRI3QueryVersionReq request = {
+        .dri3ReqType = X_DRI3QueryVersion,
+        .length = bytes_to_int32(sizeof(request)),
+        .majorVersion = 1,
+        .minorVersion = requested_minor,
+    };
+
+    client->requestBuffer = &request;
+    client->req_len = request.length;
+    assert(proc_dri3_dispatch(client) == Success);
+    assert(fixture.reply.version.majorVersion == 1);
+    assert(fixture.reply.version.minorVersion == expected_minor);
+    client->requestBuffer = NULL;
+}
+
+static void
+dri3_mixed_screen_versions(void)
+{
+    struct dri3_test test;
+
+    dri3_test_init(&test);
+    dri3_test_client(&test);
+    test.info.pixmap_from_fds = import_buffers;
+    test.info.fds_from_pixmap = export_buffers;
+    test.info.get_drawable_modifiers = get_drawable_modifiers;
+    test.info.import_syncobj = import_timeline;
+
+    dri3_screen_info_rec other = test.info;
+
+    other.version = 2;
+    other.import_syncobj = NULL;
+    test.unavailable.CloseScreen = close_screen;
+    assert(dri3_screen_init(&test.unavailable, &other));
+
+    dri3_check_version(test.client, 4, 4);
+    dri3_check_version(test.client, 2, 2);
+
+    screenInfo.screens[1] = &test.unavailable;
+    screenInfo.numScreens = 2;
+    dri3_check_version(test.client, 4, 2);
+    screenInfo.numScreens = 1;
+    screenInfo.screens[1] = NULL;
+
+    screenInfo.gpuscreens[0] = &test.unavailable;
+    screenInfo.numGPUScreens = 1;
+    dri3_check_version(test.client, 4, 2);
+    other.version = 4;
+    dri3_check_version(test.client, 4, 2);
+    other.import_syncobj = import_timeline;
+    dri3_check_version(test.client, 4, 4);
+    other.get_drawable_modifiers = NULL;
+    dri3_check_version(test.client, 4, 0);
+    screenInfo.numGPUScreens = 0;
+    screenInfo.gpuscreens[0] = NULL;
+
+    assert(test.unavailable.CloseScreen(&test.unavailable));
+    dri3_test_fini(&test);
+}
+
 const testfunc_t *
 dri3_test(void)
 {
-    static const testfunc_t tests[] = { dri3_native_access, NULL };
+    static const testfunc_t tests[] = {
+        dri3_native_access, dri3_mixed_screen_versions, NULL,
+    };
     return tests;
 }
