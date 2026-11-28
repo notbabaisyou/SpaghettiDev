@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "dumb_bo.h"
 #include "inputstr.h"
@@ -2557,7 +2558,6 @@ drmmode_output_update_properties(xf86OutputPtr output)
 static xf86OutputStatus
 drmmode_output_detect(xf86OutputPtr output)
 {
-    /* go to the hw and retrieve a new output struct */
     drmmode_output_private_ptr drmmode_output = output->driver_private;
     drmmode_ptr drmmode = drmmode_output->drmmode;
     xf86OutputStatus status;
@@ -2565,10 +2565,11 @@ drmmode_output_detect(xf86OutputPtr output)
     if (drmmode_output->output_id == -1)
         return XF86OutputStatusDisconnected;
 
-    drmModeFreeConnector(drmmode_output->mode_output);
-
-    drmmode_output->mode_output =
-        drmModeGetConnector(drmmode->fd, drmmode_output->output_id);
+    if (!drmmode->reuse_connector_state) {
+        drmModeFreeConnector(drmmode_output->mode_output);
+        drmmode_output->mode_output =
+            drmModeGetConnector(drmmode->fd, drmmode_output->output_id);
+    }
 
     if (!drmmode_output->mode_output) {
         drmmode_output->output_id = -1;
@@ -4031,7 +4032,7 @@ drmmode_setup_colormap(ScreenPtr pScreen, ScrnInfoPtr pScrn)
 #define DRM_MODE_LINK_STATUS_BAD        1
 
 void
-drmmode_update_kms_state(drmmode_ptr drmmode)
+drmmode_update_kms_state(drmmode_ptr drmmode, Bool hotplug)
 {
     ScrnInfoPtr scrn = drmmode->scrn;
     drmModeResPtr mode_res;
@@ -4055,6 +4056,8 @@ drmmode_update_kms_state(drmmode_ptr drmmode)
         drmmode_output_private_ptr drmmode_output = output->driver_private;
 
         drmmode_output_detect(output);
+        if (!drmmode_output->mode_output)
+            continue;
 
         /* Get an updated view of the properties for the current connector and
          * look for the link-status property
@@ -4158,7 +4161,10 @@ out_free_res:
 
     drmModeFreeResources(mode_res);
 out:
-    RRGetInfo(xf86ScrnToScreen(scrn), (changed || link_fixed));
+    /* Detection and dynamic output initialization already fetched the connectors. */
+    drmmode->reuse_connector_state = TRUE;
+    RRGetInfo(xf86ScrnToScreen(scrn), hotplug || changed || link_fixed);
+    drmmode->reuse_connector_state = FALSE;
 }
 
 #undef DRM_MODE_LINK_STATUS_BAD
@@ -4171,16 +4177,26 @@ drmmode_handle_uevents(int fd, void *closure)
 {
     drmmode_ptr drmmode = closure;
     struct udev_device *dev;
-    Bool found = FALSE;
+    struct stat drm_stat;
+    Bool have_devnum = fstat(drmmode->fd, &drm_stat) == 0;
+    Bool hotplug = FALSE;
+    Bool lease = FALSE;
 
     while ((dev = udev_monitor_receive_device(drmmode->uevent_monitor))) {
-        udev_device_unref(dev);
-        found = TRUE;
-    }
-    if (!found)
-        return;
+        if (!have_devnum || udev_device_get_devnum(dev) == drm_stat.st_rdev) {
+            const char *hotplug_value = udev_device_get_property_value(dev, "HOTPLUG");
+            const char *lease_value = udev_device_get_property_value(dev, "LEASE");
 
-    drmmode_update_kms_state(drmmode);
+            hotplug |= hotplug_value && strcmp(hotplug_value, "1") == 0;
+            lease |= lease_value && strcmp(lease_value, "1") == 0;
+        }
+        udev_device_unref(dev);
+    }
+
+    if (hotplug)
+        drmmode_update_kms_state(drmmode, TRUE);
+    else if (lease)
+        drmmode_validate_leases(drmmode->scrn);
 }
 
 #endif
