@@ -8,17 +8,38 @@ vaccum_linear_init(int fd)
 
     if (!screen)
         return NULL;
+    if (!vaccum_vulkan_init(screen, fd))
+        goto fail;
 
-    if (!vaccum_vulkan_init(screen, fd)) {
-        vaccum_linear_fini(screen);
-        return NULL;
-    }
+    const VkCommandBufferAllocateInfo command = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = screen->command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    const VkFenceCreateInfo fence = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+    };
+
+    if (vkAllocateCommandBuffers(screen->device, &command,
+                                 &screen->linear_copy_cmd) != VK_SUCCESS)
+        goto fail;
+    if (vkCreateFence(screen->device, &fence, NULL,
+                      &screen->linear_copy_fence) != VK_SUCCESS)
+        goto fail;
     return screen;
+
+fail:
+    vaccum_linear_fini(screen);
+    return NULL;
 }
 
 void
 vaccum_linear_fini(vaccum_screen_private *screen)
 {
+    if (screen->linear_copy_fence)
+        vkDestroyFence(screen->device, screen->linear_copy_fence, NULL);
     vaccum_vulkan_fini(screen);
     free(screen);
 }
@@ -96,37 +117,34 @@ vaccum_linear_copy(vaccum_screen_private *screen,
                    struct vaccum_linear_pixmap *dst, BoxPtr boxes, int count,
                    int dx, int dy)
 {
-    VkCommandBuffer cmd;
-    VkCommandBufferAllocateInfo alloc = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = screen->command_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
-
-    VkCommandBufferBeginInfo begin = {
+    VkCommandBuffer cmd = screen->linear_copy_cmd;
+    VkFence fence = screen->linear_copy_fence;
+    VkDevice device = screen->device;
+    const VkCommandBufferBeginInfo begin = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
 
-    VkSubmitInfo submit = {
+    const VkSubmitInfo submit = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1,
         .pCommandBuffers = &cmd,
     };
 
-    VkMemoryBarrier barrier = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+    const VkBufferMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+        .dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = dst->buffer,
+        .size = VK_WHOLE_SIZE,
     };
 
-    Bool copied = FALSE;
-
-    if (vkAllocateCommandBuffers(screen->device, &alloc, &cmd) != VK_SUCCESS)
+    if (vkResetCommandBuffer(cmd, 0) != VK_SUCCESS)
         return FALSE;
     if (vkBeginCommandBuffer(cmd, &begin) != VK_SUCCESS)
-        goto out;
+        return FALSE;
 
     for (int i = 0; i < count; i++) {
         BoxPtr b = &boxes[i];
@@ -145,17 +163,29 @@ vaccum_linear_copy(vaccum_screen_private *screen,
     }
 
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &barrier, 0, NULL,
+                         VK_PIPELINE_STAGE_HOST_BIT, 0, 0, NULL, 1, &barrier,
                          0, NULL);
     if (vkEndCommandBuffer(cmd) != VK_SUCCESS)
-        goto out;
-    if (vkQueueSubmit(screen->queue, 1, &submit, VK_NULL_HANDLE) ==
-        VK_SUCCESS)
-        copied = vkQueueWaitIdle(screen->queue) == VK_SUCCESS;
+        return FALSE;
+    if (vkResetFences(device, 1, &fence) != VK_SUCCESS)
+        return FALSE;
 
-out:
-    vkFreeCommandBuffers(screen->device, screen->command_pool, 1, &cmd);
-    return copied;
+    VkResult submitted = vkQueueSubmit(screen->queue, 1, &submit, fence);
+
+    if (submitted == VK_ERROR_DEVICE_LOST)
+        FatalError("vaccum: Vulkan device lost while submitting pixmap"
+                   " copy\n");
+    if (submitted != VK_SUCCESS)
+        return FALSE;
+
+    /* Framebuffer code can access either mapping as soon as we return. */
+    VkResult completed = vkWaitForFences(device, 1, &fence, VK_TRUE,
+                                         UINT64_MAX);
+
+    if (completed != VK_SUCCESS)
+        FatalError("vaccum: Waiting for Vulkan pixmap copy failed (%d)\n",
+                   completed);
+    return TRUE;
 }
 
 struct vaccum_copy_context {

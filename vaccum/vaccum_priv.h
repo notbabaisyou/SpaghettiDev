@@ -88,6 +88,8 @@ typedef struct vaccum_screen_private {
 
     VkCommandPool command_pool;
     VkCommandBuffer current_cmd;
+    VkCommandBuffer linear_copy_cmd;
+    VkFence linear_copy_fence;
 
     int drm_fd;
     char *drm_device_path;
