@@ -32,8 +32,8 @@ create_pixmap(ScreenPtr screen, int w, int h, int depth, unsigned usage)
     struct vaccum_linear_pixmap *pixels = &pixmap_data(pixmap)->pixels;
     int stride = PixmapBytePad(w, depth);
 
-    if (vaccum_linear_allocate(priv->gpu, pixels, stride, h) &&
-        screen->ModifyPixmapHeader(pixmap, w, h, depth, 32, stride,
+    if (vaccum_linear_allocate(priv->gpu, pixels, w, h, stride) &&
+        screen->ModifyPixmapHeader(pixmap, w, h, depth, 32, pixels->stride,
                                    pixels->map))
         return pixmap;
     screen->DestroyPixmap(pixmap);

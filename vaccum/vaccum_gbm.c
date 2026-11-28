@@ -30,7 +30,7 @@ vaccum_release_backing(PixmapPtr pixmap)
 {
     struct vaccum_gbm_pixmap *priv = pixmap_data(pixmap);
 
-    if (priv->pixels.buffer)
+    if (priv->pixels.map)
         vaccum_linear_release(screen_data(pixmap->drawable.pScreen)->gpu,
                               &priv->pixels);
     if (priv->map)

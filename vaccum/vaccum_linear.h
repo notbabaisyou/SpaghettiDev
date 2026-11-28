@@ -8,9 +8,12 @@ struct vaccum_screen_private;
 
 struct vaccum_linear_pixmap {
     VkBuffer buffer;
+    VkImage image;
+    VkImageLayout layout;
     VkDeviceMemory memory;
     void *map;
     int stride;
+    int width;
     int height;
 };
 
@@ -18,7 +21,7 @@ struct vaccum_screen_private *vaccum_linear_init(int fd);
 void vaccum_linear_fini(struct vaccum_screen_private *screen);
 Bool vaccum_linear_allocate(struct vaccum_screen_private *screen,
                             struct vaccum_linear_pixmap *pixels,
-                            int stride, int height);
+                            int width, int height, int stride);
 void vaccum_linear_release(struct vaccum_screen_private *screen,
                            struct vaccum_linear_pixmap *pixels);
 Bool vaccum_linear_copy(struct vaccum_screen_private *screen,
