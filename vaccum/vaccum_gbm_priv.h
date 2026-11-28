@@ -42,7 +42,7 @@ pixmap_data(PixmapPtr pixmap)
 }
 
 void vaccum_release_backing(PixmapPtr pixmap);
-void vaccum_cpu_access(PixmapPtr pixmap, FbPixmapAccess access);
+Bool vaccum_cpu_access(PixmapPtr pixmap, FbPixmapAccess access);
 extern const dri3_screen_info_rec vaccum_gbm_dri3;
 
 #endif

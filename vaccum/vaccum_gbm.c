@@ -25,6 +25,8 @@ struct vaccum_dmabuf {
     unsigned refs;
     unsigned cpu_users;
     Bool cpu_write;
+    Bool cpu_active;
+    Bool failed;
 };
 
 /* Consume fd on every path. Aliases share one reservation and CPU scope. */
@@ -96,16 +98,24 @@ sync_dmabuf(struct vaccum_dmabuf *buffer, Bool start, Bool write)
 }
 
 static Bool
+fail_dmabuf(struct vaccum_dmabuf *buffer)
+{
+    if (!buffer->failed)
+        LogMessage(X_WARNING, "vaccum: CPU dma-buf access failed (%s)\n",
+                   strerror(errno));
+    buffer->failed = TRUE;
+    return FALSE;
+}
+
+static Bool
 begin_dmabuf(struct vaccum_dmabuf *buffer, Bool write)
 {
+    if (buffer->failed)
+        return FALSE;
     if (buffer->cpu_users && (!write || buffer->cpu_write)) {
         buffer->cpu_users++;
         return TRUE;
     }
-
-    /* A destination may alias an already prepared source. */
-    if (buffer->cpu_users && !sync_dmabuf(buffer, FALSE, FALSE))
-        return FALSE;
 
     struct pollfd fence = {
         .fd = buffer->fd,
@@ -119,14 +129,22 @@ begin_dmabuf(struct vaccum_dmabuf *buffer, Bool write)
     } while (status < 0 && errno == EINTR);
 
     if (status < 0)
-        return FALSE;
+        return fail_dmabuf(buffer);
     if (!(fence.revents & fence.events)) {
         errno = EIO;
-        return FALSE;
+        return fail_dmabuf(buffer);
+    }
+
+    /* Upgrade a shared read scope when an alias is used as a destination. */
+    if (buffer->cpu_active) {
+        buffer->cpu_active = FALSE;
+        if (!sync_dmabuf(buffer, FALSE, FALSE))
+            return fail_dmabuf(buffer);
     }
     if (!sync_dmabuf(buffer, TRUE, write))
-        return FALSE;
+        return fail_dmabuf(buffer);
 
+    buffer->cpu_active = TRUE;
     buffer->cpu_write = write;
     buffer->cpu_users++;
     return TRUE;
@@ -136,26 +154,25 @@ static Bool
 end_dmabuf(struct vaccum_dmabuf *buffer)
 {
     assert(buffer->cpu_users);
-    if (--buffer->cpu_users)
+    if (--buffer->cpu_users || !buffer->cpu_active)
         return TRUE;
-    return sync_dmabuf(buffer, FALSE, buffer->cpu_write);
+
+    buffer->cpu_active = FALSE;
+    if (sync_dmabuf(buffer, FALSE, buffer->cpu_write))
+        return TRUE;
+    return fail_dmabuf(buffer);
 }
 
-void
+Bool
 vaccum_cpu_access(PixmapPtr pixmap, FbPixmapAccess access)
 {
     struct vaccum_gbm_pixmap *priv = pixmap_data(pixmap);
 
     if (!priv->dmabuf || priv->map != pixmap->devPrivate.ptr)
-        return;
-
-    Bool synced = access == FB_PIXMAP_ACCESS_FINISH ?
-        end_dmabuf(priv->dmabuf) :
-        begin_dmabuf(priv->dmabuf, access == FB_PIXMAP_ACCESS_WRITE);
-
-    if (!synced)
-        FatalError("vaccum: failed to synchronize CPU dma-buf access (%s)\n",
-                   strerror(errno));
+        return TRUE;
+    if (access == FB_PIXMAP_ACCESS_FINISH)
+        return end_dmabuf(priv->dmabuf);
+    return begin_dmabuf(priv->dmabuf, access == FB_PIXMAP_ACCESS_WRITE);
 }
 
 static uint32_t
@@ -240,12 +257,17 @@ attach_bo(PixmapPtr pixmap, struct gbm_bo *bo, Bool copy)
 
     if (!dmabuf)
         goto unmap;
+    if (dmabuf->failed)
+        goto release_dmabuf;
     if (copy) {
         if (!begin_dmabuf(dmabuf, TRUE))
             goto release_dmabuf;
 
         fbPreparePixmapAccess(pixmap);
-        vaccum_cpu_access(pixmap, FB_PIXMAP_ACCESS_READ);
+        if (!vaccum_cpu_access(pixmap, FB_PIXMAP_ACCESS_READ)) {
+            end_dmabuf(dmabuf);
+            goto release_dmabuf;
+        }
 
         for (unsigned y = 0; y < height; y++)
             memcpy((char *)map + (size_t)y * stride,
@@ -253,8 +275,10 @@ attach_bo(PixmapPtr pixmap, struct gbm_bo *bo, Bool copy)
                        (size_t)y * pixmap->devKind,
                    row);
 
-        vaccum_cpu_access(pixmap, FB_PIXMAP_ACCESS_FINISH);
-        if (!end_dmabuf(dmabuf))
+        Bool src_synced = vaccum_cpu_access(pixmap, FB_PIXMAP_ACCESS_FINISH);
+        Bool dst_synced = end_dmabuf(dmabuf);
+
+        if (!src_synced || !dst_synced)
             goto release_dmabuf;
     }
     if (!screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, stride, map))
@@ -379,7 +403,7 @@ export_bo(ScreenPtr screen, PixmapPtr pixmap)
     uint32_t format = pixel_format(pixmap->drawable.depth);
 
     if (priv->bo && priv->map == pixmap->devPrivate.ptr)
-        return priv->bo;
+        return priv->dmabuf->failed ? NULL : priv->bo;
     if (!format || pixmap == screen->GetScreenPixmap(screen))
         return NULL;
 

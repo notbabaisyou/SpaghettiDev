@@ -2,6 +2,7 @@
 #include "vaccum_gbm_priv.h"
 #include "vaccum_dri3_syncobj.h"
 #include "gcstruct.h"
+#include "present.h"
 #ifdef HAVE_XSHMFENCE
 #include "misyncshm.h"
 #endif
@@ -128,7 +129,8 @@ close_screen(ScreenPtr screen)
 
     screen->DestroyPixmap = priv->destroy_pixmap;
     screen->ModifyPixmapHeader = priv->modify_pixmap_header;
-    fbSetPixmapCpuAccessProc(screen, NULL);
+    present_set_copy_failures_proc(screen, NULL);
+    fbSetPixmapCheckedAccessProc(screen, NULL);
     fbSetPixmapAccessProc(screen, NULL);
     assert(xorg_list_is_empty(priv->dmabufs));
     free(priv->dmabufs);
@@ -166,12 +168,14 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
         goto free_dmabufs;
     if (!fbSetPixmapAccessProc(screen, wait_pixels))
         goto fail;
-    if (!fbSetPixmapCpuAccessProc(screen, vaccum_cpu_access))
+    if (!fbSetPixmapCheckedAccessProc(screen, vaccum_cpu_access))
         goto clear_wait;
+    if (!present_set_copy_failures_proc(screen, fbPixmapAccessFailures))
+        goto clear_access;
 
 #ifdef HAVE_XSHMFENCE
     if (!miSyncShmScreenInit(screen))
-        goto clear_access;
+        goto clear_present;
 #endif
 #ifdef DRI3
     static dri3_screen_info_rec timeline_info;
@@ -184,7 +188,7 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
         info = &timeline_info;
     }
     if (!dri3_screen_init(screen, info))
-        goto clear_access;
+        goto clear_present;
 #endif
 
     struct vaccum_gbm_screen *priv = screen_data(screen);
@@ -209,9 +213,11 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
     screen->CloseScreen = close_screen;
     return TRUE;
 #if defined(HAVE_XSHMFENCE) || defined(DRI3)
-clear_access:
-    fbSetPixmapCpuAccessProc(screen, NULL);
+clear_present:
+    present_set_copy_failures_proc(screen, NULL);
 #endif
+clear_access:
+    fbSetPixmapCheckedAccessProc(screen, NULL);
 clear_wait:
     fbSetPixmapAccessProc(screen, NULL);
 fail:
