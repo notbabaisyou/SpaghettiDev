@@ -94,6 +94,7 @@ struct present_vblank {
     uint64_t            acquire_point;
     uint64_t            release_point;
     int                 efd;
+    Bool                release_signaled;
 #endif /* DRI3 */
 };
 
@@ -268,7 +269,7 @@ msc_is_after(uint64_t test, uint64_t reference)
  * present.c
  */
 uint32_t
-present_query_capabilities(RRCrtcPtr crtc);
+present_query_capabilities(ScreenPtr screen, RRCrtcPtr crtc);
 
 RRCrtcPtr
 present_get_crtc(WindowPtr window);
@@ -485,6 +486,10 @@ present_vblank_create(WindowPtr window,
                       int num_notifies,
                       uint64_t target_msc,
                       uint64_t crtc_msc);
+
+#ifdef DRI3
+void present_vblank_cancel_acquire(present_vblank_ptr vblank);
+#endif
 
 void
 present_vblank_scrap(present_vblank_ptr vblank);

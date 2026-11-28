@@ -25,19 +25,21 @@
 #include <gcstruct.h>
 
 uint32_t
-present_query_capabilities(RRCrtcPtr crtc)
+present_query_capabilities(ScreenPtr screen, RRCrtcPtr crtc)
 {
     present_screen_priv_ptr screen_priv;
 
-    if (!crtc)
-        return 0;
+    if (crtc)
+        screen = crtc->pScreen;
 
-    screen_priv = present_screen_priv(crtc->pScreen);
+    screen_priv = present_screen_priv(screen);
 
     if (!screen_priv)
         return 0;
 
-    return screen_priv->query_capabilities(screen_priv);
+    uint32_t caps = screen_priv->query_capabilities(screen_priv);
+
+    return crtc ? caps : caps & PresentCapabilitySyncobj;
 }
 
 RRCrtcPtr
@@ -99,6 +101,16 @@ present_copy_region(DrawablePtr drawable,
 void
 present_pixmap_idle(present_vblank_ptr vblank)
 {
+#ifdef DRI3
+    if (vblank->release_syncobj) {
+        if (!vblank->release_signaled) {
+            vblank->release_signaled = TRUE;
+            vblank->release_syncobj->signal(vblank->release_syncobj,
+                                             vblank->release_point);
+        }
+        return;
+    }
+#endif
     if (vblank->pixmap) {
         if (vblank->idle_fence)
             present_fence_set_triggered(vblank->idle_fence);

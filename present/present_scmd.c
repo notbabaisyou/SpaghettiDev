@@ -208,8 +208,7 @@ present_re_execute(present_vblank_ptr vblank)
 {
     uint64_t            ust = 0, crtc_msc = 0;
 
-    if (vblank->crtc)
-        (void) present_get_ust_msc(vblank->screen, vblank->crtc, &ust, &crtc_msc);
+    present_get_ust_msc(vblank->screen, vblank->crtc, &ust, &crtc_msc);
 
     present_execute(vblank, ust, crtc_msc);
 }
@@ -513,7 +512,6 @@ static void
 present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
 {
     WindowPtr window = vblank->window;
-    PixmapPtr pixmap = vblank->pixmap;
     ScreenPtr screen = window->drawable.pScreen;
     ScreenPtr crtc_screen = (vblank->crtc) ? vblank->crtc->pScreen : screen;
     present_screen_priv_ptr screen_priv = (crtc_screen == screen) 
@@ -521,6 +519,8 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
 
     if (present_execute_wait(vblank, crtc_msc))
         return;
+
+    PixmapPtr pixmap = vblank->pixmap;
 
     if (vblank->mode == PresentCompleteModeFlip && pixmap && window) {
         if (screen_priv->flip_pending || screen_priv->unflip_event_id) {
@@ -719,9 +719,14 @@ present_scmd_replace_queued(present_vblank_ptr vblank)
         if (vbl == vblank)
             continue;
 
+        Bool re_execute = vbl->flip_ready;
+
+#ifdef DRI3
+        re_execute |= vbl->efd >= 0;
+#endif
         present_vblank_scrap(vbl);
 
-        if (vbl->flip_ready)
+        if (re_execute)
             present_re_execute(vbl);
     }
 }
@@ -772,8 +777,21 @@ present_scmd_pixmap(WindowPtr window,
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
 
 #ifdef DRI3
-    if (acquire_syncobj || release_syncobj)
-        return BadValue;
+    Bool explicit_sync = acquire_syncobj || release_syncobj;
+
+    if (explicit_sync) {
+        uint32_t caps = present_query_capabilities(screen, NULL);
+
+        if (!acquire_syncobj || !release_syncobj ||
+            !(caps & PresentCapabilitySyncobj))
+            return BadValue;
+        if (acquire_syncobj->screen != screen ||
+            release_syncobj->screen != screen)
+            return BadMatch;
+
+        /* The screen-mode copy path can release synchronously. */
+        options |= PresentOptionCopy;
+    }
 #endif /* DRI3 */
 
     if (!window_priv)
@@ -790,6 +808,11 @@ present_scmd_pixmap(WindowPtr window,
         if (!target_crtc || target_crtc == PresentCrtcNeverSet)
             target_crtc = present_get_crtc(window);
     }
+
+#ifdef DRI3
+    if (explicit_sync && target_crtc && target_crtc->pScreen != screen)
+        return BadMatch;
+#endif
 
     ret = present_get_ust_msc(screen, target_crtc, &ust, &crtc_msc);
 

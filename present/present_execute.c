@@ -43,16 +43,18 @@ present_wait_fence_triggered(void *param)
 }
 
 #ifdef DRI3
-static void present_syncobj_triggered(int fd, int xevents, void *data)
+static void
+present_syncobj_triggered(int fd, int xevents, void *data)
 {
     present_vblank_ptr vblank = data;
     ScreenPtr screen = vblank->screen;
     present_screen_priv_ptr screen_priv = present_screen_priv(screen);
 
-    SetNotifyFd(fd, NULL, 0, NULL);
-    close(fd);
-    vblank->efd = -1;
+    present_vblank_cancel_acquire(vblank);
 
+    if (!vblank->acquire_syncobj->is_signaled(vblank->acquire_syncobj,
+                                              vblank->acquire_point))
+        present_vblank_scrap(vblank);
     screen_priv->re_execute(vblank);
 }
 #endif /* DRI3 */
@@ -63,6 +65,11 @@ present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
     WindowPtr                   window = vblank->window;
     ScreenPtr                   screen = window->drawable.pScreen;
     present_screen_priv_ptr screen_priv = present_screen_priv(screen);
+
+#ifdef DRI3
+    if (vblank->efd >= 0)
+        return TRUE;
+#endif
 
     /* We may have to requeue for the next MSC if check_flip_window prevented
      * using a flip.
@@ -80,19 +87,23 @@ present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
     }
 
 #ifdef DRI3
-    /* Defer execution of explicitly synchronized copies.
-     * Flip synchronization is managed by the driver.
-     */
-    if (vblank->mode != PresentCompleteModeFlip &&
-        vblank->acquire_syncobj &&
+    if (vblank->acquire_syncobj && vblank->pixmap &&
         !vblank->acquire_syncobj->is_signaled(vblank->acquire_syncobj,
                                               vblank->acquire_point)) {
-        vblank->efd = eventfd(0, EFD_CLOEXEC);
-        SetNotifyFd(vblank->efd, present_syncobj_triggered, X_NOTIFY_READ, vblank);
-        vblank->acquire_syncobj->signaled_eventfd(vblank->acquire_syncobj,
-                                                  vblank->acquire_point,
-                                                  vblank->efd);
-        return TRUE;
+        vblank->efd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        Bool listening = vblank->efd >= 0 &&
+            SetNotifyFd(vblank->efd, present_syncobj_triggered, X_NOTIFY_READ,
+                        vblank);
+
+        if (listening) {
+            vblank->acquire_syncobj->signaled_eventfd(vblank->acquire_syncobj,
+                                                      vblank->acquire_point,
+                                                      vblank->efd);
+            return TRUE;
+        }
+
+        /* Skip safely if there is no way to wait without blocking X. */
+        present_vblank_scrap(vblank);
     }
 #endif /* DRI3 */
 
@@ -123,16 +134,17 @@ present_execute_copy(present_vblank_ptr vblank, PixmapPtr pixmap, WindowPtr wind
      */
     vblank->update = NULL;
 #ifdef DRI3
-    if (vblank->release_syncobj) {
+    if (vblank->release_syncobj && screen_priv->flush_fenced) {
         int fence_fd = screen_priv->flush_fenced(window);
+
+        vblank->release_signaled = TRUE;
         vblank->release_syncobj->import_fence(vblank->release_syncobj,
                                               vblank->release_point, fence_fd);
-    } else
-#endif /* DRI3 */
-    {
-        screen_priv->flush(window);
-        present_pixmap_idle(vblank);
+        return;
     }
+#endif
+    screen_priv->flush(window);
+    present_pixmap_idle(vblank);
 }
 
 void

@@ -258,22 +258,25 @@ proc_present_query_capabilities (ClientPtr client)
     };
     WindowPtr   window;
     RRCrtcPtr   crtc = NULL;
+    ScreenPtr   screen;
     int         r;
 
     REQUEST_SIZE_MATCH(xPresentQueryCapabilitiesReq);
     r = dixLookupWindow(&window, stuff->target, client, DixGetAttrAccess);
     switch (r) {
     case Success:
+        screen = window->drawable.pScreen;
         crtc = present_get_crtc(window);
         break;
     case BadWindow:
         VERIFY_RR_CRTC(stuff->target, crtc, DixGetAttrAccess);
+        screen = crtc->pScreen;
         break;
     default:
         return r;
     }
 
-    rep.capabilities = present_query_capabilities(crtc);
+    rep.capabilities = present_query_capabilities(screen, crtc);
 
     if (client->swapped) {
         swaps(&rep.sequenceNumber);

@@ -230,6 +230,19 @@ present_vblank_create(WindowPtr window,
     return NULL;
 }
 
+#ifdef DRI3
+void
+present_vblank_cancel_acquire(present_vblank_ptr vblank)
+{
+    if (vblank->efd < 0)
+        return;
+
+    RemoveNotifyFd(vblank->efd);
+    close(vblank->efd);
+    vblank->efd = -1;
+}
+#endif
+
 void
 present_vblank_scrap(present_vblank_ptr vblank)
 {
@@ -239,12 +252,9 @@ present_vblank_scrap(present_vblank_ptr vblank)
                   vblank->crtc));
 
 #ifdef DRI3
-    if (vblank->release_syncobj)
-        vblank->release_syncobj->signal(vblank->release_syncobj,
-                                        vblank->release_point);
-    else
+    present_vblank_cancel_acquire(vblank);
 #endif /* DRI3 */
-        present_pixmap_idle(vblank);
+    present_pixmap_idle(vblank);
 
     present_fence_destroy(vblank->idle_fence);
     dixDestroyPixmap(vblank->pixmap, vblank->pixmap->drawable.id);
@@ -285,10 +295,7 @@ present_vblank_destroy(present_vblank_ptr vblank)
         present_destroy_notifies(vblank->notifies, vblank->num_notifies);
 
 #ifdef DRI3
-    if (vblank->efd >= 0) {
-        SetNotifyFd(vblank->efd, NULL, 0, NULL);
-        close(vblank->efd);
-    }
+    present_vblank_cancel_acquire(vblank);
 
     if (vblank->acquire_syncobj &&
         --vblank->acquire_syncobj->refcount == 0)

@@ -105,7 +105,9 @@ vaccum_syncobj_signaled_eventfd(struct dri3_syncobj *syncobj, uint64_t point,
 {
     struct vaccum_syncobj *vso = (struct vaccum_syncobj *)syncobj;
 
-    drmSyncobjEventfd(vso->drm_fd, vso->handle, point, efd, 0);
+    /* Let Present recheck the timeline and discard the request on failure. */
+    if (drmSyncobjEventfd(vso->drm_fd, vso->handle, point, efd, 0) != 0)
+        eventfd_write(efd, 1);
 }
 
 Bool

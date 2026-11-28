@@ -79,6 +79,10 @@ present_free_window_vblank(WindowPtr window)
 
     xorg_list_for_each_entry_safe(vblank, tmp, &window_priv->vblank, window_list) {
         screen_priv->abort_vblank(window->drawable.pScreen, window, vblank->crtc, vblank->event_id, vblank->target_msc);
+#ifdef DRI3
+        if (vblank->release_syncobj)
+            present_pixmap_idle(vblank);
+#endif
         present_vblank_destroy(vblank);
     }
 }
