@@ -55,11 +55,13 @@ Run `build/test/present-syncobj` on a DRI3-capable VACCUM display at depth
 points above 32 bits. It checks that the observer remains responsive, that
 the window shows the previous pixels before acquire, and that rewriting
 the pixmap immediately after release preserves the presented pixels. It
-also destroys a window while acquire is pending and checks release.
+also checks release for a superseded Present, a destroyed window, and
+producer disconnect when another client owns the target window.
 
 Run with `--flip` on an uncomposited Fission VACCUM screen that allows
 fullscreen flipping. This checks delayed acquire, retirement after a
-replacement flip and release after destroying the fullscreen window.
+replacement flip, and release after destroying the fullscreen window or
+disconnecting its producer.
 Use `--flip-fallback` with flipping disabled to check the copy path when
 a fullscreen client does not request PresentOptionCopy.
 

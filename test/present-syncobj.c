@@ -67,7 +67,7 @@ struct flip_buffer {
     int idle;
 };
 
-static void
+static uint64_t
 check_completion(xcb_connection_t *conn, xcb_special_event_t *events,
                  uint32_t frame, uint8_t mode)
 {
@@ -83,10 +83,12 @@ check_completion(xcb_connection_t *conn, xcb_special_event_t *events,
             const xcb_present_complete_notify_event_t *completion =
                 (const void *)event;
 
+            uint64_t msc = completion->msc;
+
             REQUIRE(completion->serial == frame);
             REQUIRE(completion->mode == mode);
             free(event);
-            return;
+            return msc;
         }
 
         int ready = poll(&socket, 1, WAIT_SLICE_MS);
@@ -103,6 +105,7 @@ check_completion(xcb_connection_t *conn, xcb_special_event_t *events,
     }
 
     require(false, "Present completion timeout");
+    return 0;
 }
 
 static void
@@ -194,6 +197,135 @@ test_flip(xcb_connection_t *client, xcb_connection_t *observer,
         close(buffers[i].idle);
 }
 
+static void
+test_skipped(xcb_connection_t *client, xcb_connection_t *observer,
+             xcb_window_t win, xcb_pixmap_t pixmap, int fd, uint32_t handle,
+             xcb_dri3_syncobj_t syncobj, uint32_t previous_color)
+{
+    xcb_present_event_t eid = xcb_generate_id(client);
+    xcb_special_event_t *events =
+        xcb_register_for_special_xge(client, &xcb_present_id, eid, NULL);
+    int first = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    int second = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    struct pollfd skipped = { .fd = first, .events = POLLIN };
+    struct pollfd copied = { .fd = second, .events = POLLIN };
+    uint64_t acquire = (UINT64_C(1) << 40) + 20;
+
+    enum {
+        QUERY_SERIAL = 10,
+        SKIP_SERIAL = 11,
+        COPY_SERIAL = 12,
+        QUEUE_AHEAD = 8,
+    };
+
+    REQUIRE(events && first >= 0 && second >= 0);
+    check(client, xcb_present_select_input_checked(
+                      client, eid, win, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY));
+    check(client, xcb_present_notify_msc_checked(
+                      client, win, QUERY_SERIAL, 0, 0, 0));
+
+    uint64_t msc = check_completion(client, events, QUERY_SERIAL,
+                                    XCB_PRESENT_COMPLETE_MODE_COPY);
+    uint64_t target = msc + QUEUE_AHEAD;
+    uint64_t replacement = acquire + 2;
+
+    REQUIRE(!drmSyncobjEventfd(fd, handle, acquire + 1, first, 0));
+    REQUIRE(!drmSyncobjEventfd(fd, handle, replacement + 1, second, 0));
+    xcb_void_cookie_t old = xcb_present_pixmap_synced_checked(
+        client, win, pixmap, SKIP_SERIAL, 0, 0, 0, 0, 0, syncobj, syncobj,
+        acquire, acquire + 1, XCB_PRESENT_OPTION_COPY, target, 0, 0, 0, NULL);
+    xcb_void_cookie_t new = xcb_present_pixmap_synced_checked(
+        client, win, pixmap, COPY_SERIAL, 0, 0, 0, 0, 0, syncobj, syncobj,
+        replacement, replacement + 1, XCB_PRESENT_OPTION_COPY, target,
+        0, 0, 0, NULL);
+
+    check(client, old);
+    check(client, new);
+    REQUIRE(poll(&skipped, 1, 3000) == 1);
+    check_completion(client, events, SKIP_SERIAL, XCB_PRESENT_COMPLETE_MODE_SKIP);
+    REQUIRE(poll(&copied, 1, 0) == 0);
+    check_color(observer, win, previous_color);
+    REQUIRE(!drmSyncobjTimelineSignal(fd, &handle, &replacement, 1));
+    REQUIRE(poll(&copied, 1, 3000) == 1);
+    check_completion(client, events, COPY_SERIAL, XCB_PRESENT_COMPLETE_MODE_COPY);
+    check_color(observer, win, 0);
+
+    close(first);
+    close(second);
+    xcb_unregister_for_special_event(client, events);
+}
+
+static void
+test_disconnect(xcb_connection_t *client, xcb_connection_t *observer,
+                xcb_rectangle_t rect, int fd, bool active_flip)
+{
+    xcb_screen_t *screen =
+        xcb_setup_roots_iterator(xcb_get_setup(observer)).data;
+    xcb_window_t win = xcb_generate_id(observer);
+    xcb_pixmap_t pixmap = xcb_generate_id(client);
+    xcb_gcontext_t gc = xcb_generate_id(client);
+    xcb_dri3_syncobj_t id = xcb_generate_id(client);
+    xcb_present_event_t eid = xcb_generate_id(observer);
+    xcb_special_event_t *events =
+        xcb_register_for_special_xge(observer, &xcb_present_id, eid, NULL);
+    uint32_t bg_override[] = {0, 1};
+    const uint32_t color = 0xd46132;
+    uint32_t handle = 0;
+    int shared = -1;
+    uint64_t acquire = (UINT64_C(1) << 41) + 1;
+    uint64_t release = acquire + 1;
+    int idle = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    struct pollfd done = { .fd = idle, .events = POLLIN };
+
+    REQUIRE(idle >= 0 && events);
+    check(observer, xcb_create_window_checked(
+                        observer, 24, win, screen->root, 0, 0, rect.width,
+                        rect.height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                        screen->root_visual,
+                        XCB_CW_BACK_PIXEL | XCB_CW_OVERRIDE_REDIRECT,
+                        bg_override));
+    check(observer, xcb_map_window_checked(observer, win));
+    check(observer,
+          xcb_present_select_input_checked(
+              observer, eid, win, XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY));
+    check(client, xcb_create_pixmap_checked(client, 24, pixmap, win,
+                                            rect.width, rect.height));
+    check(client, xcb_create_gc_checked(client, gc, pixmap,
+                                        XCB_GC_FOREGROUND, &color));
+    check(client, xcb_poly_fill_rectangle_checked(client, pixmap, gc,
+                                                  1, &rect));
+    REQUIRE(!drmSyncobjCreate(fd, 0, &handle));
+    REQUIRE(!drmSyncobjHandleToFD(fd, handle, &shared));
+    check(client, xcb_dri3_import_syncobj_checked(client, id, win, shared));
+    REQUIRE(!drmSyncobjEventfd(fd, handle, release, idle, 0));
+
+    if (!active_flip)
+        check(client, xcb_set_close_down_mode_checked(
+                          client, XCB_CLOSE_DOWN_RETAIN_TEMPORARY));
+
+    uint32_t options = active_flip ? 0 : XCB_PRESENT_OPTION_COPY;
+
+    check(client, xcb_present_pixmap_synced_checked(
+                      client, win, pixmap, 1, 0, 0, 0, 0, 0, id, id,
+                      acquire, release, options, 0, 0, 0, 0, NULL));
+    if (active_flip) {
+        REQUIRE(!drmSyncobjTimelineSignal(fd, &handle, &acquire, 1));
+        check_completion(observer, events, 1, XCB_PRESENT_COMPLETE_MODE_FLIP);
+    }
+
+    uint32_t expected = active_flip ? color : bg_override[0];
+
+    check_color(observer, win, expected);
+    REQUIRE(poll(&done, 1, 40) == 0);
+    xcb_disconnect(client);
+    REQUIRE(poll(&done, 1, 3000) == 1);
+    check_color(observer, win, expected);
+    xcb_unregister_for_special_event(observer, events);
+    check(observer, xcb_destroy_window_checked(observer, win));
+    REQUIRE(!drmSyncobjDestroy(fd, handle));
+    close(idle);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -275,10 +407,11 @@ main(int argc, char **argv)
     free(render);
     if (flip) {
         test_flip(client, observer, win, rect, fd);
-        xcb_disconnect(client);
+        test_disconnect(client, observer, rect, fd, true);
         xcb_disconnect(observer);
         close(fd);
         puts("PASS delayed flips, replacement retirement and unflip");
+        puts("PASS producer disconnect with an active flip");
         return EXIT_SUCCESS;
     }
 
@@ -326,6 +459,8 @@ main(int argc, char **argv)
         expected = color;
     }
 
+    test_skipped(client, observer, win, pixmap, fd, handle, id, expected);
+
     /* Destroy a window with an untouched pixmap still awaiting acquire. */
     uint64_t pending = (UINT64_C(1) << 40) + 32;
     int notify = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
@@ -339,9 +474,10 @@ main(int argc, char **argv)
     check(client, xcb_destroy_window_checked(client, win));
     REQUIRE(poll(&done, 1, 3000) == 1);
     close(notify);
-    xcb_disconnect(client);
+    test_disconnect(client, observer, rect, fd, false);
     xcb_disconnect(observer);
     close(fd);
     puts("PASS delayed acquire, independent client, reuse and release");
+    puts("PASS superseded Present and producer disconnect");
     return EXIT_SUCCESS;
 }
