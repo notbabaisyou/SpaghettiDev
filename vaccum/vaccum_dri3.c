@@ -6,7 +6,6 @@
 #include <errno.h>
 #ifdef DRI3
 #include "dri3.h"
-#include "vaccum_dri3_syncobj.h"
 #endif
 
 static const struct {
@@ -786,7 +785,7 @@ vaccum_dri3_open_client(ClientPtr client, ScreenPtr screen,
 }
 
 static const dri3_screen_info_rec vaccum_dri3_info = {
-    .version = 4,
+    .version = 2,
     .open_client = vaccum_dri3_open_client,
     .pixmap_from_fds = vaccum_pixmap_from_fds,
     .fd_from_pixmap = vaccum_fd_from_pixmap,
@@ -795,7 +794,6 @@ static const dri3_screen_info_rec vaccum_dri3_info = {
     .get_formats = vaccum_get_formats,
     .get_modifiers = vaccum_get_modifiers,
     .get_drawable_modifiers = vaccum_get_drawable_modifiers,
-    .import_syncobj = vaccum_import_syncobj,
 };
 
 Bool
