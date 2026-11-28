@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 #include <linux/dma-buf.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,19 +64,32 @@ replace_pixmap(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc,
     xcb_poly_fill_rectangle(conn, pixmap->id, gc, 1, &full);
 }
 
+static const xcb_format_t *
+pixmap_format(xcb_connection_t *conn, uint8_t depth)
+{
+    xcb_format_iterator_t format =
+        xcb_setup_pixmap_formats_iterator(xcb_get_setup(conn));
+
+    for (; format.rem; xcb_format_next(&format)) {
+        if (format.data->depth == depth)
+            return format.data;
+    }
+
+    return NULL;
+}
+
 static uint32_t
-read_pixel(const uint8_t *data, int order)
+read_pixel(const uint8_t *data, size_t bytes, int order)
 {
     uint32_t pixel = 0;
 
-    for (unsigned i = 0; i < sizeof(pixel); i++) {
-        unsigned byte =
-            order == XCB_IMAGE_ORDER_LSB_FIRST ? sizeof(pixel) - 1 - i : i;
+    for (size_t i = 0; i < bytes; i++) {
+        size_t byte = order == XCB_IMAGE_ORDER_LSB_FIRST ? bytes - 1 - i : i;
 
         pixel = (pixel << 8) | data[byte];
     }
 
-    return pixel & pixel_mask;
+    return pixel;
 }
 
 static void
@@ -83,12 +97,25 @@ verify(xcb_connection_t *conn, const struct pixmap *pixmap, unsigned step)
 {
     xcb_get_image_cookie_t cookie =
         xcb_get_image(conn, XCB_IMAGE_FORMAT_Z_PIXMAP, pixmap->id, 0, 0,
-                      WIDTH, HEIGHT, pixel_mask);
+                      WIDTH, HEIGHT, UINT32_MAX);
     xcb_get_image_reply_t *reply = xcb_get_image_reply(conn, cookie, NULL);
-    size_t length = reply ? xcb_get_image_data_length(reply) : 0;
+    const xcb_format_t *format = reply ? pixmap_format(conn, reply->depth) :
+                                        NULL;
 
-    if (!reply || length != sizeof(pixmap->pixels)) {
+    if (!format) {
         fprintf(stderr, "No complete GetImage at step %u\n", step);
+        free(reply);
+        exit(EXIT_FAILURE);
+    }
+
+    size_t bytes = format->bits_per_pixel / 8;
+    size_t pad = format->scanline_pad / 8;
+    size_t stride = (WIDTH * bytes + pad - 1) / pad * pad;
+    size_t length = xcb_get_image_data_length(reply);
+    uint32_t mask = UINT32_MAX >> (BPP - reply->depth);
+
+    if (length < stride * HEIGHT) {
+        fprintf(stderr, "Unexpected GetImage pitch at step %u\n", step);
         free(reply);
         exit(EXIT_FAILURE);
     }
@@ -97,8 +124,9 @@ verify(xcb_connection_t *conn, const struct pixmap *pixmap, unsigned step)
     int order = xcb_get_setup(conn)->image_byte_order;
 
     for (unsigned y = 0; y < HEIGHT; y++) {
-        for (unsigned x = 0; x < WIDTH; x++, data += sizeof(uint32_t)) {
-            uint32_t pixel = read_pixel(data, order);
+        for (unsigned x = 0; x < WIDTH; x++) {
+            const uint8_t *pixel_bytes = data + y * stride + x * bytes;
+            uint32_t pixel = read_pixel(pixel_bytes, bytes, order) & mask;
 
             if (pixel == pixmap->pixels[y][x])
                 continue;
@@ -240,7 +268,8 @@ copy_chain(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc)
     int order = xcb_get_setup(conn)->image_byte_order;
 
     if (length != sizeof(color) ||
-        read_pixel(xcb_get_image_data(reply), order) != color) {
+        (read_pixel(xcb_get_image_data(reply), sizeof(color), order) &
+         pixel_mask) != color) {
         fputs("Large pixmap copy chain lost the marker pixel\n", stderr);
         free(reply);
         exit(EXIT_FAILURE);
@@ -248,6 +277,73 @@ copy_chain(xcb_connection_t *conn, xcb_window_t root, xcb_gcontext_t gc)
 
     free(reply);
     xcb_free_pixmap(conn, src);
+}
+
+static void
+check_depth(xcb_connection_t *conn, xcb_window_t root, uint8_t depth)
+{
+    const xcb_format_t *format = pixmap_format(conn, depth);
+
+    if (!format)
+        return;
+
+    xcb_pixmap_t src = xcb_generate_id(conn);
+    struct pixmap dst = { .id = xcb_generate_id(conn) };
+    xcb_gcontext_t gc = xcb_generate_id(conn);
+    uint32_t mask = UINT32_MAX >> (BPP - depth);
+    const uint32_t foreground = 0x3b557aac & mask;
+    const uint32_t background = 0x97123216 & mask;
+    xcb_rectangle_t full = { 0, 0, WIDTH, HEIGHT };
+    xcb_rectangle_t area = { 2, 3, WIDTH - 4, HEIGHT - 6 };
+
+    check(conn, xcb_create_pixmap_checked(conn, depth, src, root, WIDTH,
+                                          HEIGHT), "CreatePixmap");
+    check(conn, xcb_create_pixmap_checked(conn, depth, dst.id, root, WIDTH,
+                                          HEIGHT), "CreatePixmap");
+    check(conn, xcb_create_gc_checked(conn, gc, src, XCB_GC_FOREGROUND,
+                                      &foreground), "CreateGC");
+    xcb_poly_fill_rectangle(conn, src, gc, 1, &full);
+    xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &background);
+    xcb_poly_fill_rectangle(conn, dst.id, gc, 1, &full);
+    xcb_copy_area(conn, src, dst.id, gc, 0, 0, area.x, area.y, area.width,
+                  area.height);
+
+    for (int y = 0; y < HEIGHT; y++) {
+        for (int x = 0; x < WIDTH; x++) {
+            bool inside_x = x >= area.x && x < area.x + area.width;
+            bool inside_y = y >= area.y && y < area.y + area.height;
+
+            dst.pixels[y][x] = inside_x && inside_y ? foreground : background;
+        }
+    }
+
+    verify(conn, &dst, STEPS);
+
+    xcb_dri3_buffer_from_pixmap_cookie_t cookie =
+        xcb_dri3_buffer_from_pixmap(conn, dst.id);
+    xcb_dri3_buffer_from_pixmap_reply_t *reply =
+        xcb_dri3_buffer_from_pixmap_reply(conn, cookie, NULL);
+
+    if (!reply || reply->nfd != 1 || reply->bpp != format->bits_per_pixel) {
+        fprintf(stderr, "BufferFromPixmap failed for depth %u\n", depth);
+        exit(EXIT_FAILURE);
+    }
+
+    int fd = *xcb_dri3_buffer_from_pixmap_reply_fds(conn, reply);
+    xcb_pixmap_t imported = xcb_generate_id(conn);
+    xcb_void_cookie_t import = xcb_dri3_pixmap_from_buffer_checked(
+        conn, imported, root, reply->size, WIDTH, HEIGHT, reply->stride,
+        depth, reply->bpp, fd);
+
+    check(conn, import, "PixmapFromBuffer");
+    free(reply);
+    xcb_free_pixmap(conn, dst.id);
+    dst.id = imported;
+    verify(conn, &dst, STEPS);
+    xcb_free_pixmap(conn, imported);
+    xcb_free_pixmap(conn, src);
+    xcb_free_gc(conn, gc);
+    printf("PASS copy and DRI3 round trip at depth %u\n", depth);
 }
 
 int
@@ -344,6 +440,12 @@ main(void)
         verify(conn, &pixmaps[i], STEPS);
 
     copy_chain(conn, root, gc);
+
+    const uint8_t depths[] = { 16, 24, 30, 32 };
+
+    for (size_t i = 0; i < sizeof(depths); i++)
+        check_depth(conn, root, depths[i]);
+
     xcb_disconnect(conn);
     printf("PASS %u randomized pixmap operations and dma-buf padding\n",
            STEPS);

@@ -46,7 +46,9 @@ reproducible sequences of CPU writes, CopyArea, GetImage, destruction,
 and DRI3 sharing. The test compares pixels with a CPU reference and
 verifies dma-buf row padding after writes through an imported alias.
 It also verifies a long chain of dependent copies on large pixmaps while
-freeing the last source before the destination readback.
+freeing the last source before the destination readback. It compares
+clipped copies and DRI3 round trips at depths 16, 24, 30, and 32 when
+the server exposes those formats.
 
 == Explicit Present synchronization ==
 
