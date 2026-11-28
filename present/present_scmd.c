@@ -650,7 +650,7 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
          * If the fake flip attempt fails, then fall back to just enqueuing a
          * vblank event targeting the next MSC.
          */
-        if (!vblank->queued &&
+        if (!vblank->queued && vblank->mode != PresentCompleteModeSkip &&
             vblank->reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE) {
             uint64_t completion_msc = crtc_msc + 1;
 

@@ -62,20 +62,58 @@ present_get_crtc(WindowPtr window)
     return crtc;
 }
 
+static DevPrivateKeyRec present_copy_failures_key;
+
+Bool
+present_set_copy_failures_proc(ScreenPtr screen,
+                               present_copy_failures_proc proc)
+{
+    if (!dixRegisterPrivateKey(&present_copy_failures_key, PRIVATE_SCREEN,
+                               sizeof(proc)))
+        return FALSE;
+
+    present_copy_failures_proc *access =
+        dixGetPrivateAddr(&screen->devPrivates, &present_copy_failures_key);
+
+    *access = proc;
+    return TRUE;
+}
+
+static uint64_t
+present_copy_failures(ScreenPtr screen)
+{
+    if (!dixPrivateKeyRegistered(&present_copy_failures_key))
+        return 0;
+
+    present_copy_failures_proc *proc =
+        dixGetPrivateAddr(&screen->devPrivates, &present_copy_failures_key);
+
+    return *proc ? (*proc)(screen) : 0;
+}
+
 /*
  * Copies the update region from a pixmap to the target drawable
  */
-void
+Bool
 present_copy_region(DrawablePtr drawable,
                     PixmapPtr pixmap,
                     RegionPtr update,
                     int16_t x_off,
                     int16_t y_off)
 {
-    ScreenPtr   screen = drawable->pScreen;
-    GCPtr       gc;
+    ScreenPtr screen = drawable->pScreen;
+    ScreenPtr source_screen = pixmap->drawable.pScreen;
+    uint64_t failures = present_copy_failures(screen);
+    uint64_t source_failures = source_screen == screen ? failures :
+                               present_copy_failures(source_screen);
+    GCPtr gc = GetScratchGC(drawable->depth, screen);
 
-    gc = GetScratchGC(drawable->depth, screen);
+    if (!gc) {
+        if (update)
+            RegionDestroy(update);
+        return FALSE;
+    }
+
     if (update) {
         ChangeGCVal     changes[2];
 
@@ -96,6 +134,10 @@ present_copy_region(DrawablePtr drawable,
     if (update)
         (*gc->funcs->ChangeClip)(gc, CT_NONE, NULL, 0);
     FreeScratchGC(gc);
+    if (failures != present_copy_failures(screen))
+        return FALSE;
+    return source_screen == screen ||
+           source_failures == present_copy_failures(source_screen);
 }
 
 void

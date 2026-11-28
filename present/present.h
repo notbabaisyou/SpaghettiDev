@@ -199,6 +199,12 @@ present_enable_syncobj_flips(ScreenPtr screen);
 extern _X_EXPORT void
 present_finish_syncobj_flips(ScreenPtr screen, Bool retired);
 
+typedef uint64_t (*present_copy_failures_proc)(ScreenPtr screen);
+
+extern _X_EXPORT Bool
+present_set_copy_failures_proc(ScreenPtr screen,
+                               present_copy_failures_proc proc);
+
 extern _X_EXPORT void
 present_check_flips(WindowPtr window);
 

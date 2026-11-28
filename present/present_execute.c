@@ -127,7 +127,12 @@ present_execute_copy(present_vblank_ptr vblank, PixmapPtr pixmap, WindowPtr wind
         return;
     }
 
-    present_copy_region(&window->drawable, pixmap, vblank->update, vblank->x_off, vblank->y_off);
+    Bool copied = present_copy_region(&window->drawable, pixmap,
+                                       vblank->update, vblank->x_off,
+                                       vblank->y_off);
+
+    if (!copied)
+        vblank->mode = PresentCompleteModeSkip;
 
     /* present_copy_region sticks the region into a scratch GC,
      * which is then freed, freeing the region
@@ -151,7 +156,11 @@ void
 present_execute_post(present_vblank_ptr vblank, PixmapPtr pixmap,
                      WindowPtr window, uint64_t ust, uint64_t crtc_msc)
 {
-    if (vblank->has_suboptimal && vblank->reason == PRESENT_FLIP_REASON_BUFFER_FORMAT)
+    Bool format_fallback =
+        vblank->reason == PRESENT_FLIP_REASON_BUFFER_FORMAT;
+
+    if (vblank->mode == PresentCompleteModeCopy && vblank->has_suboptimal &&
+        format_fallback)
         vblank->mode = PresentCompleteModeSuboptimalCopy;
 
     present_vblank_notify(vblank, ust, crtc_msc);

@@ -281,7 +281,7 @@ present_query_capabilities(ScreenPtr screen, RRCrtcPtr crtc);
 RRCrtcPtr
 present_get_crtc(WindowPtr window);
 
-void
+Bool
 present_copy_region(DrawablePtr drawable,
                     PixmapPtr pixmap,
                     RegionPtr update,
