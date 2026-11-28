@@ -329,6 +329,9 @@ present_vblank_destroy(present_vblank_ptr vblank)
         present_destroy_notifies(vblank->notifies, vblank->num_notifies);
 
 #ifdef DRI3
+    if (vblank->owner_id)
+        FreeResource(vblank->owner_id, present_syncobj_request_type);
+
     present_vblank_cancel_acquire(vblank);
     if (vblank->flip_valid)
         RegionDestroy(vblank->flip_valid);

@@ -232,6 +232,35 @@ present_get_target_msc(uint64_t target_msc_arg,
 }
 
 int
+present_pixmap_from_client(ClientPtr client, WindowPtr window,
+                           PixmapPtr pixmap, CARD32 serial, RegionPtr valid,
+                           RegionPtr update, int16_t x_off, int16_t y_off,
+                           RRCrtcPtr target_crtc, SyncFence *wait_fence,
+                           SyncFence *idle_fence,
+#ifdef DRI3
+                           struct dri3_syncobj *acquire_syncobj,
+                           struct dri3_syncobj *release_syncobj,
+                           uint64_t acquire_point, uint64_t release_point,
+#endif
+                           uint32_t options, uint64_t target_msc,
+                           uint64_t divisor, uint64_t remainder,
+                           present_notify_ptr notifies, int num_notifies)
+{
+    ScreenPtr                   screen = window->drawable.pScreen;
+    present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
+
+    return screen_priv->present_pixmap(client, window, pixmap, serial, valid,
+                                       update, x_off, y_off, target_crtc,
+                                       wait_fence, idle_fence,
+#ifdef DRI3
+                                       acquire_syncobj, release_syncobj,
+                                       acquire_point, release_point,
+#endif
+                                       options, target_msc, divisor,
+                                       remainder, notifies, num_notifies);
+}
+
+int
 present_pixmap(WindowPtr window,
                PixmapPtr pixmap,
                CARD32 serial,
@@ -255,31 +284,15 @@ present_pixmap(WindowPtr window,
                present_notify_ptr notifies,
                int num_notifies)
 {
-    ScreenPtr                   screen = window->drawable.pScreen;
-    present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
-
-    return screen_priv->present_pixmap(window,
-                                       pixmap,
-                                       serial,
-                                       valid,
-                                       update,
-                                       x_off,
-                                       y_off,
-                                       target_crtc,
-                                       wait_fence,
-                                       idle_fence,
+    return present_pixmap_from_client(NULL, window, pixmap, serial, valid,
+                                      update, x_off, y_off, target_crtc,
+                                      wait_fence, idle_fence,
 #ifdef DRI3
-                                       acquire_syncobj,
-                                       release_syncobj,
-                                       acquire_point,
-                                       release_point,
-#endif /* DRI3 */
-                                       options,
-                                       window_msc,
-                                       divisor,
-                                       remainder,
-                                       notifies,
-                                       num_notifies);
+                                      acquire_syncobj, release_syncobj,
+                                      acquire_point, release_point,
+#endif
+                                      options, window_msc, divisor, remainder,
+                                      notifies, num_notifies);
 }
 
 int

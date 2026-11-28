@@ -92,6 +92,7 @@ struct present_vblank {
     struct dri3_syncobj *acquire_syncobj;
     struct dri3_syncobj *release_syncobj;
     RegionPtr           flip_valid;
+    XID                 owner_id;
     Bool                flip_deferred;
     uint64_t            acquire_point;
     uint64_t            release_point;
@@ -128,7 +129,8 @@ typedef void (*present_priv_check_flip_window_ptr)(WindowPtr window);
 typedef Bool (*present_priv_can_window_flip_ptr)(WindowPtr window);
 typedef void (*present_priv_clear_window_flip_ptr)(WindowPtr window);
 
-typedef int (*present_priv_pixmap_ptr)(WindowPtr window,
+typedef int (*present_priv_pixmap_ptr)(ClientPtr client,
+                                       WindowPtr window,
                                        PixmapPtr pixmap,
                                        CARD32 serial,
                                        RegionPtr valid,
@@ -399,6 +401,25 @@ present_destroy_notifies(present_notify_ptr notifies, int num_notifies);
 
 WindowPtr
 present_redirect(ClientPtr client, WindowPtr target);
+
+int
+present_pixmap_from_client(ClientPtr client, WindowPtr window,
+                           PixmapPtr pixmap, CARD32 serial, RegionPtr valid,
+                           RegionPtr update, int16_t x_off, int16_t y_off,
+                           RRCrtcPtr target_crtc, SyncFence *wait_fence,
+                           SyncFence *idle_fence,
+#ifdef DRI3
+                           struct dri3_syncobj *acquire_syncobj,
+                           struct dri3_syncobj *release_syncobj,
+                           uint64_t acquire_point, uint64_t release_point,
+#endif
+                           uint32_t options, uint64_t target_msc,
+                           uint64_t divisor, uint64_t remainder,
+                           present_notify_ptr notifies, int num_notifies);
+
+#ifdef DRI3
+extern RESTYPE present_syncobj_request_type;
+#endif
 
 /*
  * present_request.c

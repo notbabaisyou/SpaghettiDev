@@ -163,15 +163,15 @@ proc_present_pixmap_common(ClientPtr client,
             return ret;
     }
 
-    ret = present_pixmap(window, pixmap, req_serial,
-                         valid, update, req_x_off, req_y_off, target_crtc,
-                         wait_fence, idle_fence,
+    ret = present_pixmap_from_client(client, window, pixmap, req_serial,
+                                     valid, update, req_x_off, req_y_off,
+                                     target_crtc, wait_fence, idle_fence,
 #ifdef DRI3
-                         acquire_syncobj, release_syncobj,
-                         req_acquire_point, req_release_point,
+                                     acquire_syncobj, release_syncobj,
+                                     req_acquire_point, req_release_point,
 #endif /* DRI3 */
-                         req_options, req_target_msc, req_divisor, req_remainder,
-                         notifies, nnotifies);
+                                     req_options, req_target_msc, req_divisor,
+                                     req_remainder, notifies, nnotifies);
 
     if (ret != Success)
         present_destroy_notifies(notifies, nnotifies);

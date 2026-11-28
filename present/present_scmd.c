@@ -773,29 +773,55 @@ present_adjust_exec_msc(present_vblank_ptr vblank, uint64_t crtc_msc)
 #endif
 }
 
+#ifdef DRI3
+RESTYPE present_syncobj_request_type;
+
 static int
-present_scmd_pixmap(WindowPtr window,
-                    PixmapPtr pixmap,
-                    CARD32 serial,
-                    RegionPtr valid,
-                    RegionPtr update,
-                    int16_t x_off,
-                    int16_t y_off,
-                    RRCrtcPtr target_crtc,
-                    SyncFence *wait_fence,
-                    SyncFence *idle_fence,
+present_syncobj_request_disconnect(void *data, XID id)
+{
+    present_vblank_ptr vblank = data;
+
+    /* AddResource runs the delete callback if allocation fails. */
+    if (!vblank->owner_id)
+        return Success;
+
+    vblank->owner_id = 0;
+    ScreenPtr screen = vblank->screen;
+    present_screen_priv_ptr priv = present_screen_priv(screen);
+
+    if (priv->flip_pending == vblank) {
+        present_set_abort_flip(screen);
+        return Success;
+    }
+
+    if (priv->flip_active == vblank) {
+        if (!priv->flip_pending && !priv->unflip_event_id)
+            present_unflip(screen);
+        return Success;
+    }
+
+    priv->abort_vblank(screen, vblank->window, vblank->crtc, vblank->event_id,
+                        vblank->target_msc);
+    if (vblank->pixmap)
+        present_pixmap_idle(vblank);
+    present_vblank_destroy(vblank);
+    return Success;
+}
+#endif
+
+static int
+present_scmd_pixmap(ClientPtr client, WindowPtr window, PixmapPtr pixmap,
+                    CARD32 serial, RegionPtr valid, RegionPtr update,
+                    int16_t x_off, int16_t y_off, RRCrtcPtr target_crtc,
+                    SyncFence *wait_fence, SyncFence *idle_fence,
 #ifdef DRI3
                     struct dri3_syncobj *acquire_syncobj,
                     struct dri3_syncobj *release_syncobj,
-                    uint64_t acquire_point,
-                    uint64_t release_point,
-#endif /* DRI3 */
-                    uint32_t options,
-                    uint64_t target_window_msc,
-                    uint64_t divisor,
-                    uint64_t remainder,
-                    present_notify_ptr notifies,
-                    int num_notifies)
+                    uint64_t acquire_point, uint64_t release_point,
+#endif
+                    uint32_t options, uint64_t target_window_msc,
+                    uint64_t divisor, uint64_t remainder,
+                    present_notify_ptr notifies, int num_notifies)
 {
     uint64_t                    ust = 0;
     uint64_t                    target_msc;
@@ -885,6 +911,20 @@ present_scmd_pixmap(WindowPtr window,
 
     if (!vblank)
         return BadAlloc;
+
+#ifdef DRI3
+    if (client && explicit_sync) {
+        XID owner_id = FakeClientID(client->index);
+
+        if (!AddResource(owner_id, present_syncobj_request_type, vblank)) {
+            vblank->notifies = NULL;
+            present_vblank_destroy(vblank);
+            return BadAlloc;
+        }
+
+        vblank->owner_id = owner_id;
+    }
+#endif
 
     present_scmd_replace_queued(vblank);
 
@@ -1057,5 +1097,13 @@ present_init(void)
     xorg_list_init(&present_exec_queue);
     xorg_list_init(&present_flip_queue);
     present_fake_queue_init();
+#ifdef DRI3
+    present_syncobj_request_type =
+        CreateNewResourceType(present_syncobj_request_disconnect,
+                              "PresentSyncobjRequest");
+    if (!present_syncobj_request_type)
+        return FALSE;
+    present_syncobj_request_type |= RC_NEVERRETAIN;
+#endif
     return TRUE;
 }
