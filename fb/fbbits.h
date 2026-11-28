@@ -81,6 +81,8 @@ BRESSOLID(DrawablePtr pDrawable,
     BITS xor = (BITS) pPriv->xor;
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     bits =
         ((UNIT *) (dst + ((y1 + dstYoff) * dstStride))) + (x1 + dstXoff);
     bitsStride = dstStride * (sizeof(FbBits) / sizeof(UNIT));
@@ -132,6 +134,8 @@ BRESDASH(DrawablePtr pDrawable,
     Bool doOdd;
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     doOdd = pGC->lineStyle == LineDoubleDash;
     xorfg = (BITS) pPriv->xor;
     xorbg = (BITS) pPriv->bgxor;
@@ -620,6 +624,8 @@ POLYLINE(DrawablePtr pDrawable,
         fbFixCoordModePrevious(npt, ptsOrig);
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     bitsStride = dstStride * (sizeof(FbBits) / sizeof(UNIT));
     bitsBase =
         ((UNIT *) dst) + (yoff + dstYoff) * bitsStride + (xoff + dstXoff);
@@ -740,6 +746,8 @@ POLYSEGMENT(DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment * pseg)
     Bool capNotLast;
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     bitsStride = dstStride * (sizeof(FbBits) / sizeof(UNIT));
     bitsBase =
         ((UNIT *) dst) + (yoff + dstYoff) * bitsStride + (xoff + dstXoff);

@@ -69,6 +69,8 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
 
             cclip = fbGetCompositeClip(pGC);
             fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+            if (!dstBpp)
+                return;
             while (narcs--) {
                 if (miCanZeroArc(parcs)) {
                     box.x1 = parcs->x + pDrawable->x;
@@ -92,7 +94,8 @@ fbPolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs)
                         (RegionContainsRect(cclip, &box) == rgnIN)) {
 #if defined(FB_ACCESS_WRAPPER) || defined(FB_CPU_ACCESS_SCOPE)
                         if (!wrapped) {
-                            fbPrepareAccess(pDrawable);
+                            if (!fbPrepareAccess(pDrawable))
+                                return;
                             wrapped = 1;
                         }
 #endif

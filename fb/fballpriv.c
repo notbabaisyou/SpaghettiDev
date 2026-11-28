@@ -32,18 +32,51 @@ static DevPrivateKeyRec fbScreenPrivateKeyRec;
 DevPrivateKeyRec fbPixmapAccessKey;
 DevPrivateKeyRec fbPixmapCpuAccessKey;
 
+static FbPixmapCpuAccessRec *
+fbGetPixmapCpuAccess(ScreenPtr screen)
+{
+    if (!dixRegisterPrivateKey(&fbPixmapCpuAccessKey, PRIVATE_SCREEN,
+                               sizeof(FbPixmapCpuAccessRec)))
+        return NULL;
+
+    return dixGetPrivateAddr(&screen->devPrivates, &fbPixmapCpuAccessKey);
+}
+
 Bool
 fbSetPixmapCpuAccessProc(ScreenPtr screen, FbPixmapCpuAccessProcPtr proc)
 {
-    if (!dixRegisterPrivateKey(&fbPixmapCpuAccessKey, PRIVATE_SCREEN,
-                               sizeof(FbPixmapCpuAccessProcPtr)))
-        return FALSE;
+    FbPixmapCpuAccessRec *access = fbGetPixmapCpuAccess(screen);
 
-    FbPixmapCpuAccessProcPtr *access =
+    if (!access)
+        return FALSE;
+    access->access = proc;
+    access->checked = NULL;
+    return TRUE;
+}
+
+Bool
+fbSetPixmapCheckedAccessProc(ScreenPtr screen,
+                             FbPixmapCheckedAccessProcPtr proc)
+{
+    FbPixmapCpuAccessRec *access = fbGetPixmapCpuAccess(screen);
+
+    if (!access)
+        return FALSE;
+    access->checked = proc;
+    access->access = NULL;
+    return TRUE;
+}
+
+uint64_t
+fbPixmapAccessFailures(ScreenPtr screen)
+{
+    if (!dixPrivateKeyRegistered(&fbPixmapCpuAccessKey))
+        return 0;
+
+    FbPixmapCpuAccessRec *access =
         dixGetPrivateAddr(&screen->devPrivates, &fbPixmapCpuAccessKey);
 
-    *access = proc;
-    return TRUE;
+    return access->failures;
 }
 
 Bool

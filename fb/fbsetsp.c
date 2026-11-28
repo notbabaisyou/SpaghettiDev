@@ -43,6 +43,8 @@ fbSetSpans(DrawablePtr pDrawable,
     int x1, x2;
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     while (nspans--) {
         d = dst + (ppt->y + dstYoff) * dstStride;
         xoff = (int) (((long) src) & (FB_MASK >> 3));

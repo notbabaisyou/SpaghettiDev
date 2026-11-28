@@ -91,6 +91,8 @@ fbPadPixmap(PixmapPtr pPixmap)
     _X_UNUSED int xOff, yOff;
 
     fbGetDrawable(&pPixmap->drawable, bits, stride, bpp, xOff, yOff);
+    if (!bpp)
+        return;
 
     width = pPixmap->drawable.width * pPixmap->drawable.bitsPerPixel;
     height = pPixmap->drawable.height;

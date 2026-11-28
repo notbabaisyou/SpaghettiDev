@@ -102,6 +102,8 @@ fbPolyGlyphBlt(DrawablePtr pDrawable,
                 fbGlyphIn(fbGetCompositeClip(pGC), gx, gy, gWidth, gHeight)) {
                 fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff,
                               dstYoff);
+                if (!dstBpp)
+                    return;
                 (*glyph) (dst + (gy + dstYoff) * dstStride, dstStride, dstBpp,
                           (FbStip *) pglyph, pPriv->xor, gx + dstXoff, gHeight);
                 fbFinishAccess(pDrawable);
@@ -204,6 +206,8 @@ fbImageGlyphBlt(DrawablePtr pDrawable,
                 fbGlyphIn(fbGetCompositeClip(pGC), gx, gy, gWidth, gHeight)) {
                 fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff,
                               dstYoff);
+                if (!dstBpp)
+                    return;
                 (*glyph) (dst + (gy + dstYoff) * dstStride, dstStride, dstBpp,
                           (FbStip *) pglyph, pPriv->fg, gx + dstXoff, gHeight);
                 fbFinishAccess(pDrawable);

@@ -92,6 +92,8 @@ fbPutZImage(DrawablePtr pDrawable,
     int x1, y1, x2, y2;
 
     fbGetStipDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
 
     for (nbox = RegionNumRects(pClip),
          pbox = RegionRects(pClip); nbox--; pbox++) {
@@ -143,6 +145,8 @@ fbPutXYImage(DrawablePtr pDrawable,
     FbBits fgand = 0, fgxor = 0, bgand = 0, bgxor = 0;
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
 
     if (dstBpp == 1) {
         if (opaque)
@@ -224,6 +228,13 @@ fbGetImage(DrawablePtr pDrawable,
         return;
 
     fbGetDrawableForRead(pDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    if (!srcBpp) {
+        size_t stride = format == ZPixmap ?
+            PixmapBytePad(w, pDrawable->depth) : BitmapBytePad(w);
+
+        memset(d, 0, stride * h);
+        return;
+    }
 
     x += pDrawable->x;
     y += pDrawable->y;

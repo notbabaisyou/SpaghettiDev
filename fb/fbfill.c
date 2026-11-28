@@ -80,6 +80,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
     FbGCPrivPtr pPriv = fbGetGCPrivate(pGC);
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
 
     switch (pGC->fillStyle) {
     case FillSolid:
@@ -112,6 +114,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
                 alu = FbOpaqueStipple1Rop(pGC->alu, pGC->fgPixel, pGC->bgPixel);
             fbGetDrawableForRead(&pStip->drawable, stip, stipStride, stipBpp,
                                  stipXoff, stipYoff);
+            if (!stipBpp)
+                break;
             fbTile(dst + (y + dstYoff) * dstStride, dstStride, x + dstXoff,
                    width, height, stip, stipStride, stipWidth, stipHeight, alu,
                    pPriv->pm, dstBpp, (pGC->patOrg.x + pDrawable->x + dstXoff),
@@ -138,6 +142,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
 
             fbGetStipDrawableForRead(&pStip->drawable, stip, stipStride,
                                      stipBpp, stipXoff, stipYoff);
+            if (!stipBpp)
+                break;
             fbStipple(dst + (y + dstYoff) * dstStride, dstStride,
                       (x + dstXoff) * dstBpp, dstBpp, width * dstBpp, height,
                       stip, stipStride, stipWidth, stipHeight,
@@ -159,6 +165,8 @@ fbFill(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int width, int height)
 
         fbGetDrawableForRead(&pTile->drawable, tile, tileStride, tileBpp,
                              tileXoff, tileYoff);
+        if (!tileBpp)
+            break;
         tileWidth = pTile->drawable.width;
         tileHeight = pTile->drawable.height;
         fbTile(dst + (y + dstYoff) * dstStride,
@@ -196,6 +204,8 @@ fbSolidBoxClipped(DrawablePtr pDrawable,
     int partX1, partX2, partY1, partY2;
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
 
     for (nbox = RegionNumRects(pClip), pbox = RegionRects(pClip);
          nbox--; pbox++) {

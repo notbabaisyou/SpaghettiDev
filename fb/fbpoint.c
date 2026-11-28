@@ -101,6 +101,8 @@ fbPolyPoint(DrawablePtr pDrawable,
         }
     }
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     and = pPriv->and;
     xor = pPriv->xor;
     dots = fbDots;

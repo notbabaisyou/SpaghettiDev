@@ -45,6 +45,16 @@ fbGetSpans(DrawablePtr pDrawable,
         return;
 
     fbGetDrawableForRead(pDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    if (!srcBpp) {
+        for (int i = 0; i < nspans; i++) {
+            size_t stride = PixmapBytePad(pwidth[i], pDrawable->depth);
+
+            memset(pchardstStart, 0, stride);
+            pchardstStart += stride;
+        }
+
+        return;
+    }
 
     while (nspans--) {
         xoff = (int) (((long) pchardstStart) & (FB_MASK >> 3));

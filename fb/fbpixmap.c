@@ -245,7 +245,10 @@ fbPixmapToRegion(PixmapPtr pPix)
     FirstRect = RegionBoxptr(pReg);
     rects = FirstRect;
 
-    fbPrepareReadAccess(&pPix->drawable);
+    if (!fbPrepareReadAccess(&pPix->drawable)) {
+        RegionDestroy(pReg);
+        return NullRegion;
+    }
     fbPreparePixmapAccess(pPix);
 
     pwLine = (FbBits *) pPix->devPrivate.ptr;
@@ -389,6 +392,8 @@ fbValidateDrawable(DrawablePtr pDrawable)
     if (pDrawable->type != DRAWABLE_PIXMAP)
         pDrawable = (DrawablePtr) fbGetWindowPixmap(pDrawable);
     fbGetStipDrawable(pDrawable, bits, stride, bpp, xoff, yoff);
+    if (!bpp)
+        return;
     first = bits - stride;
     last = bits + stride * pDrawable->height;
     if (!fbValidateBits(first, stride, FB_HEAD_BITS) ||
@@ -412,6 +417,8 @@ fbInitializeDrawable(DrawablePtr pDrawable)
     int xoff, yoff;
 
     fbGetStipDrawable(pDrawable, bits, stride, bpp, xoff, yoff);
+    if (!bpp)
+        return;
     first = bits - stride;
     last = bits + stride * pDrawable->height;
     fbSetBits(first, stride, FB_HEAD_BITS);

@@ -81,7 +81,13 @@ fbCopyWindowProc(DrawablePtr pSrcDrawable,
 
     fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
                          srcYoff);
+    if (!srcBpp)
+        return;
     fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp) {
+        fbFinishAccess(pSrcDrawable);
+        return;
+    }
 
     while (nbox--) {
         fbBlt(src + (pbox->y1 + dy + srcYoff) * srcStride,
@@ -171,6 +177,8 @@ fbFillRegionSolid(DrawablePtr pDrawable,
 #endif
 
     fbGetDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
 
     while (n--) {
 #ifndef FB_ACCESS_WRAPPER

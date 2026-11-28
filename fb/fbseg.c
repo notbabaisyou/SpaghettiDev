@@ -52,6 +52,8 @@ fbBresSolid(DrawablePtr pDrawable,
     FbStip bits;
 
     fbGetStipDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     dst += ((y1 + dstYoff) * dstStride);
     x1 = (x1 + dstXoff) * dstBpp;
     dst += x1 >> FB_STIP_SHIFT;
@@ -129,6 +131,8 @@ fbBresDash(DrawablePtr pDrawable,
     Bool doOdd;
 
     fbGetStipDrawable(pDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp)
+        return;
     doOdd = pGC->lineStyle == LineDoubleDash;
 
     FbDashInit(pGC, pPriv, dashOffset, dashlen, even);

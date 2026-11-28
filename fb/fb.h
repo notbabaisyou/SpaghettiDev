@@ -397,41 +397,57 @@ typedef enum {
 
 typedef void (*FbPixmapCpuAccessProcPtr)(PixmapPtr pixmap,
                                          FbPixmapAccess access);
+
+typedef Bool (*FbPixmapCheckedAccessProcPtr)(PixmapPtr pixmap,
+                                            FbPixmapAccess access);
+
+typedef struct {
+    FbPixmapCpuAccessProcPtr access;
+    FbPixmapCheckedAccessProcPtr checked;
+    uint64_t failures;
+} FbPixmapCpuAccessRec;
 #endif
 
 #ifdef FB_ACCESS_WRAPPER
 
+/* Keep the wrapped access hooks infallible. */
 #define fbPrepareAccess(pDraw) \
-	fbGetScreenPrivate((pDraw)->pScreen)->setupWrap( \
-		&wfbReadMemory, \
-		&wfbWriteMemory, \
-		(pDraw))
+    (fbGetScreenPrivate((pDraw)->pScreen)->setupWrap( \
+        &wfbReadMemory, &wfbWriteMemory, (pDraw)), TRUE)
 #define fbPrepareReadAccess(pDraw) fbPrepareAccess(pDraw)
 #define fbFinishAccess(pDraw) \
-	fbGetScreenPrivate((pDraw)->pScreen)->finishWrap(pDraw)
+    fbGetScreenPrivate((pDraw)->pScreen)->finishWrap(pDraw)
 
 #elif defined(FB_CPU_ACCESS_SCOPE)
 
 extern DevPrivateKeyRec fbPixmapCpuAccessKey;
 
 /* Only framebuffer code with matching begin and finish calls uses a scope. */
-static inline void
+static inline Bool
 fbPixmapCpuAccess(DrawablePtr draw, FbPixmapAccess access)
 {
     if (!dixPrivateKeyRegistered(&fbPixmapCpuAccessKey))
-        return;
+        return TRUE;
 
     ScreenPtr screen = draw->pScreen;
-    FbPixmapCpuAccessProcPtr *proc =
+    FbPixmapCpuAccessRec *priv =
         dixGetPrivateAddr(&screen->devPrivates, &fbPixmapCpuAccessKey);
 
-    if (!*proc)
-        return;
+    if (!priv->access && !priv->checked)
+        return TRUE;
 
     PixmapPtr pixmap = draw->type == DRAWABLE_PIXMAP ?
         (PixmapPtr)draw : screen->GetWindowPixmap((WindowPtr)draw);
 
-    (*proc)(pixmap, access);
+    if (priv->access) {
+        priv->access(pixmap, access);
+        return TRUE;
+    }
+
+    if (priv->checked(pixmap, access))
+        return TRUE;
+    priv->failures++;
+    return FALSE;
 }
 
 #define fbPrepareAccess(draw) fbPixmapCpuAccess(draw, FB_PIXMAP_ACCESS_WRITE)
@@ -441,8 +457,8 @@ fbPixmapCpuAccess(DrawablePtr draw, FbPixmapAccess access)
 
 #else
 
-#define fbPrepareAccess(pPix)
-#define fbPrepareReadAccess(pPix)
+#define fbPrepareAccess(pPix) TRUE
+#define fbPrepareReadAccess(pPix) TRUE
 #define fbFinishAccess(pDraw)
 
 #endif
@@ -450,6 +466,13 @@ fbPixmapCpuAccess(DrawablePtr draw, FbPixmapAccess access)
 #ifndef FB_ACCESS_WRAPPER
 extern _X_EXPORT Bool
 fbSetPixmapCpuAccessProc(ScreenPtr screen, FbPixmapCpuAccessProcPtr proc);
+
+extern _X_EXPORT Bool
+fbSetPixmapCheckedAccessProc(ScreenPtr screen,
+                             FbPixmapCheckedAccessProcPtr proc);
+
+extern _X_EXPORT uint64_t
+fbPixmapAccessFailures(ScreenPtr screen);
 
 typedef void (*FbPixmapAccessProcPtr)(PixmapPtr pixmap);
 
@@ -542,7 +565,8 @@ extern _X_EXPORT DevPrivateKey fbGetGCPrivateKey(GCPtr pGC);
 	(xoff) = __fbPixOffXPix(pixmap); 					\
 	(yoff) = __fbPixOffYPix(pixmap); 					\
     } 										\
-    prepare(pDrawable); 						\
+    if (!prepare(pDrawable)) \
+        (pixmap) = NULL; 						\
 }
 
 #define fbGetDrawablePixmap(draw, pixmap, xoff, yoff) \
@@ -551,18 +575,34 @@ extern _X_EXPORT DevPrivateKey fbGetGCPrivateKey(GCPtr pGC);
 #define fbGetDrawablePixmapForRead(draw, pixmap, xoff, yoff) \
     fbGetDrawablePixmapAccess(draw, pixmap, xoff, yoff, fbPrepareReadAccess)
 
-#define fbGetPixmapBitsData(pixmap, pointer, stride, bpp) {			\
-    fbPreparePixmapAccess(pixmap);					\
-    (pointer) = (FbBits *) (pixmap)->devPrivate.ptr; 			       	\
-    (stride) = ((int) (pixmap)->devKind) / sizeof (FbBits); (void)(stride);	\
-    (bpp) = (pixmap)->drawable.bitsPerPixel;  (void)(bpp); 			\
+#define fbGetPixmapBitsData(pixmap, pointer, stride, bpp) { \
+    if (pixmap) { \
+        fbPreparePixmapAccess(pixmap); \
+        (pointer) = (FbBits *)(pixmap)->devPrivate.ptr; \
+        (stride) = ((int)(pixmap)->devKind) / sizeof(FbBits); \
+        (bpp) = (pixmap)->drawable.bitsPerPixel; \
+    } else { \
+        (pointer) = NULL; \
+        (stride) = 0; \
+        (bpp) = 0; \
+    } \
+    (void)(stride); \
+    (void)(bpp); \
 }
 
-#define fbGetPixmapStipData(pixmap, pointer, stride, bpp) {			\
-    fbPreparePixmapAccess(pixmap);					\
-    (pointer) = (FbStip *) (pixmap)->devPrivate.ptr; 			       	\
-    (stride) = ((int) (pixmap)->devKind) / sizeof (FbStip); (void)(stride);	\
-    (bpp) = (pixmap)->drawable.bitsPerPixel;  (void)(bpp); 			\
+#define fbGetPixmapStipData(pixmap, pointer, stride, bpp) { \
+    if (pixmap) { \
+        fbPreparePixmapAccess(pixmap); \
+        (pointer) = (FbStip *)(pixmap)->devPrivate.ptr; \
+        (stride) = ((int)(pixmap)->devKind) / sizeof(FbStip); \
+        (bpp) = (pixmap)->drawable.bitsPerPixel; \
+    } else { \
+        (pointer) = NULL; \
+        (stride) = 0; \
+        (bpp) = 0; \
+    } \
+    (void)(stride); \
+    (void)(bpp); \
 }
 
 #define fbGetDrawable(pDrawable, pointer, stride, bpp, xoff, yoff) { 		\

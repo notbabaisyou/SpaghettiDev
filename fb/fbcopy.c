@@ -50,7 +50,13 @@ fbCopyNtoN(DrawablePtr pSrcDrawable,
 
     fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
                          srcYoff);
+    if (!srcBpp)
+        return;
     fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp) {
+        fbFinishAccess(pSrcDrawable);
+        return;
+    }
 
     while (nbox--) {
 #ifndef FB_ACCESS_WRAPPER       /* pixman_blt() doesn't support accessors yet */
@@ -105,7 +111,13 @@ fbCopy1toN(DrawablePtr pSrcDrawable,
 
     fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp, srcXoff,
                          srcYoff);
+    if (!srcBpp)
+        return;
     fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+    if (!dstBpp) {
+        fbFinishAccess(pSrcDrawable);
+        return;
+    }
 
     while (nbox--) {
         if (dstBpp == 1) {
@@ -165,8 +177,14 @@ fbCopyNto1(DrawablePtr pSrcDrawable,
 
             fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp,
                                  srcXoff, srcYoff);
+            if (!srcBpp)
+                return;
             fbGetStipDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff,
                               dstYoff);
+            if (!dstBpp) {
+                fbFinishAccess(pSrcDrawable);
+                return;
+            }
             fbBltPlane(src + (pbox->y1 + dy + srcYoff) * srcStride, srcStride,
                        (pbox->x1 + dx + srcXoff) * srcBpp, srcBpp,
                        dst + (pbox->y1 + dstYoff) * dstStride, dstStride,
@@ -202,8 +220,17 @@ fbCopyNto1(DrawablePtr pSrcDrawable,
 
             fbGetDrawableForRead(pSrcDrawable, src, srcStride, srcBpp,
                                  srcXoff, srcYoff);
+            if (!srcBpp) {
+                free(tmp);
+                return;
+            }
             fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff,
                           dstYoff);
+            if (!dstBpp) {
+                free(tmp);
+                fbFinishAccess(pSrcDrawable);
+                return;
+            }
 
             fbBltPlane(src + (pbox->y1 + dy + srcYoff) * srcStride,
                        srcStride,

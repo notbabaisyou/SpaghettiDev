@@ -295,6 +295,8 @@ create_bits_picture(PicturePtr pict, Bool has_clip, Bool write,
         fbGetDrawablePixmapForRead(pict->pDrawable, pixmap, *xoff, *yoff);
     }
 
+    if (!pixmap)
+        return NULL;
     fbGetPixmapBitsData(pixmap, bits, stride, bpp);
 
     image = pixman_image_create_bits((pixman_format_code_t) pict->format,
@@ -353,12 +355,16 @@ static void image_destroy(pixman_image_t *image, void *data)
     fbFinishAccess((DrawablePtr)data);
 }
 
-static void
+static Bool
 set_image_properties(pixman_image_t * image, PicturePtr pict, Bool has_clip,
                      int *xoff, int *yoff, Bool is_alpha_map, Bool write)
 {
     pixman_repeat_t repeat;
     pixman_filter_t filter;
+
+    if (pict->pDrawable)
+        pixman_image_set_destroy_function(image, &image_destroy,
+                                          pict->pDrawable);
 
     if (pict->transform) {
         /* For source images, adjust the transform to account
@@ -412,6 +418,8 @@ set_image_properties(pixman_image_t * image, PicturePtr pict, Bool has_clip,
             image_from_pict_internal(pict->alphaMap, FALSE, &alpha_xoff,
                                      &alpha_yoff, TRUE, write);
 
+        if (!alpha_map)
+            return FALSE;
         pixman_image_set_alpha_map(image, alpha_map, pict->alphaOrigin.x,
                                    pict->alphaOrigin.y);
 
@@ -437,14 +445,11 @@ set_image_properties(pixman_image_t * image, PicturePtr pict, Bool has_clip,
         break;
     }
 
-    if (pict->pDrawable)
-        pixman_image_set_destroy_function(image, &image_destroy,
-                                          pict->pDrawable);
-
     pixman_image_set_filter(image, filter,
                             (pixman_fixed_t *) pict->filter_params,
                             pict->filter_nparams);
     pixman_image_set_source_clipping(image, TRUE);
+    return TRUE;
 }
 
 static pixman_image_t *
@@ -478,9 +483,13 @@ image_from_pict_internal(PicturePtr pict, Bool has_clip, int *xoff, int *yoff,
         *xoff = *yoff = 0;
     }
 
-    if (image)
-        set_image_properties(image, pict, has_clip, xoff, yoff, is_alpha_map,
-                             write);
+    if (!image)
+        return NULL;
+    if (!set_image_properties(image, pict, has_clip, xoff, yoff, is_alpha_map,
+                               write)) {
+        pixman_image_unref(image);
+        return NULL;
+    }
 
     return image;
 }
