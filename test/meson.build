@@ -47,6 +47,16 @@ else
     message('xcb present/dri3/sync/libdrm not found, skipping pattern-present test')
 endif
 
+if xcb_dep.found() and libdrm_dep.found()
+    if xcb_present_dep.found() and xcb_dri3_dep.found()
+        if xcb_present_dep.version().version_compare('>= 1.17') and xcb_dri3_dep.version().version_compare('>= 1.17')
+            executable('present-syncobj', 'present-syncobj.c',
+                       dependencies: [xcb_dep, xcb_dri3_dep, xcb_present_dep,
+                                      libdrm_dep])
+        endif
+    endif
+endif
+
 piglit_env = environment()
 piglit_env.set('XSERVER_DIR', meson.project_source_root())
 piglit_env.set('XSERVER_BUILDDIR', meson.project_build_root())

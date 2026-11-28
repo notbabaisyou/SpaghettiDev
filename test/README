@@ -38,3 +38,15 @@ depth, compositor and scale when comparing AccelMethod "vaccum" and
 "glamor". The client redirects its own window and reads back its backing
 pixmap. For scanout checks, run pattern-present separately and record
 Present completion modes, including whether each frame copied or flipped.
+
+== Explicit Present copies ==
+
+Run `build/test/present-syncobj` on a DRI3-capable VACCUM display at depth
+24. The test uses two X clients and reuses a pixmap across delayed acquire
+points above 32 bits. It checks that the observer remains responsive, that
+the window shows the previous pixels before acquire, and that rewriting
+the pixmap immediately after release preserves the presented pixels. It
+also destroys a window while acquire is pending and checks release.
+
+Run with `--unavailable` on a VACCUM display without DRM timeline support
+to check version negotiation, Present capabilities and rejected imports.
