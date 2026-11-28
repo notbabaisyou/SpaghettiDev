@@ -3180,23 +3180,30 @@ drmmode_output_get_modes(xf86OutputPtr output)
     int i;
     DisplayModePtr Modes = NULL, Mode;
     xf86MonPtr mon = NULL;
+    drmModePropertyBlobPtr old_blob = drmmode_output->edid_blob;
 
     if (!koutput)
         return NULL;
 
-    drmModeFreePropertyBlob(drmmode_output->edid_blob);
+    drmModePropertyBlobPtr edid_blob = koutput_get_prop_blob(drmmode->fd, koutput, "EDID");
+    Bool same_length = edid_blob && old_blob && edid_blob->length == old_blob->length;
 
-    /* look for an EDID property */
-    drmmode_output->edid_blob =
-        koutput_get_prop_blob(drmmode->fd, koutput, "EDID");
-
-    if (drmmode_output->edid_blob) {
-        mon = xf86InterpretEDID(output->scrn->scrnIndex,
-                                drmmode_output->edid_blob->data);
-        if (mon && drmmode_output->edid_blob->length > 128)
+    if (same_length && output->MonInfo &&
+        memcmp(edid_blob->data, old_blob->data, edid_blob->length) == 0) {
+        drmModeFreePropertyBlob(edid_blob);
+        edid_blob = old_blob;
+        mon = output->MonInfo;
+    }
+    else if (edid_blob) {
+        mon = xf86InterpretEDID(output->scrn->scrnIndex, edid_blob->data);
+        if (mon && edid_blob->length > EDID1_LEN)
             mon->flags |= MONITOR_EDID_COMPLETE_RAWDATA;
     }
+
+    drmmode_output->edid_blob = edid_blob;
     xf86OutputSetEDID(output, mon);
+    if (old_blob != edid_blob)
+        drmModeFreePropertyBlob(old_blob);
 
     drmmode_output_attach_tile(output);
 
