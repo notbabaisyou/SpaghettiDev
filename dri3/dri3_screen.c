@@ -319,11 +319,14 @@ dri3_get_supported_modifiers(ScreenPtr screen, DrawablePtr drawable,
 
 int dri3_import_syncobj(ClientPtr client, ScreenPtr screen, XID id, int fd)
 {
-    const dri3_screen_info_rec *info = dri3_screen_priv(screen)->info;
+    dri3_screen_priv_ptr priv = dri3_screen_priv(screen);
+    const dri3_screen_info_rec *info = priv ? priv->info : NULL;
     struct dri3_syncobj *syncobj = NULL;
 
-    if (info->version < 4 || !info->import_syncobj)
+    if (!info || info->version < 4 || !info->import_syncobj) {
+        close(fd);
         return BadImplementation;
+    }
 
     syncobj = info->import_syncobj(client, screen, id, fd);
     close(fd);

@@ -73,21 +73,17 @@ proc_dri3_query_version(ClientPtr client)
             rep.minorVersion = 0;
             break;
         }
-        if (!dri3_screen_can_one_point_four(screenInfo.screens[i])) {
+        if (!dri3_screen_can_one_point_four(screenInfo.screens[i]))
             rep.minorVersion = 2;
-            break;
-        }
     }
 
-    for (int i = 0; i < screenInfo.numGPUScreens; i++) {
+    for (int i = 0; rep.minorVersion && i < screenInfo.numGPUScreens; i++) {
         if (!dri3_screen_can_one_point_two(screenInfo.gpuscreens[i])) {
             rep.minorVersion = 0;
             break;
         }
-        if (!dri3_screen_can_one_point_four(screenInfo.gpuscreens[i])) {
+        if (!dri3_screen_can_one_point_four(screenInfo.gpuscreens[i]))
             rep.minorVersion = 2;
-            break;
-        }
     }
 
     /* From DRI3 proto:
