@@ -401,7 +401,8 @@ ms_present_flip(RRCrtcPtr crtc,
     event->event_id = event_id;
     event->unflip = FALSE;
 
-    ret = ms_do_pageflip(screen, pixmap, event, drmmode_crtc->vblank_pipe, !sync_flip,
+    ret = ms_do_pageflip(screen, pixmap, event, drmmode_crtc->vblank_pipe,
+                         !sync_flip, ms->present_atomic_group,
                          ms_present_flip_handler, ms_present_flip_abort,
                          "PRESENT-flip");
     if (ret) {
@@ -412,8 +413,53 @@ ms_present_flip(RRCrtcPtr crtc,
     return ret;
 }
 
+static Bool
+ms_present_restore_scanout(ScreenPtr screen)
+{
+    ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+    modesettingPtr ms = modesettingPTR(scrn);
+    xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
+    Bool retired = drmmode_remove_fb(&ms->drmmode, ms->drmmode.fb_id);
+
+    if (!retired && ms->present_atomic_group)
+        return FALSE;
+
+    ms->drmmode.fb_id = 0;
+    ms->drmmode.present_flipping = FALSE;
+
+    for (int i = 0; i < config->num_crtc; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
+        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+
+        if (!crtc->enabled)
+            continue;
+        if (drmmode_crtc->dpms_mode == DPMSModeOn)
+            crtc->funcs->set_mode_major(crtc, &crtc->mode, crtc->rotation,
+                                       crtc->x, crtc->y);
+        else
+            drmmode_crtc->need_modeset = TRUE;
+    }
+
+    return TRUE;
+}
+
+#define FISSION_UNFLIP_RETRY_MS 100
+
+static CARD32
+ms_present_retry_unflip(OsTimerPtr timer, CARD32 now, void *data)
+{
+    ScreenPtr screen = data;
+    modesettingPtr ms = modesettingPTR(xf86ScreenToScrn(screen));
+
+    if (!ms_present_restore_scanout(screen))
+        return FISSION_UNFLIP_RETRY_MS;
+
+    present_event_notify(ms->present_unflip_event, 0, 0);
+    return 0;
+}
+
 /*
- * Queue a flip back to the normal frame buffer
+ * Queue a flip back to the normal frame buffer.
  */
 static void
 ms_present_unflip(ScreenPtr screen, uint64_t event_id)
@@ -421,8 +467,6 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
     PixmapPtr pixmap = screen->GetScreenPixmap(screen);
-    xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
-    int i;
 
     vrr_set_flip_window(screen, NULL);
 
@@ -430,45 +474,26 @@ ms_present_unflip(ScreenPtr screen, uint64_t event_id)
         struct ms_present_vblank_event *event;
 
         event = calloc(1, sizeof(struct ms_present_vblank_event));
-        if (!event)
-            return;
+        if (event) {
+            event->event_id = event_id;
+            event->unflip = TRUE;
 
-        event->event_id = event_id;
-        event->unflip = TRUE;
-
-        if (ms_do_pageflip(screen, pixmap, event, -1, FALSE,
-                           ms_present_flip_handler, ms_present_flip_abort,
-                           "PRESENT-unflip")) {
-            return;
+            if (ms_do_pageflip(screen, pixmap, event, -1, FALSE,
+                               ms->present_atomic_group,
+                               ms_present_flip_handler, ms_present_flip_abort,
+                               "PRESENT-unflip"))
+                return;
         }
     }
 
-    ms->drmmode.present_flipping = FALSE;
-
-    for (i = 0; i < config->num_crtc; i++) {
-        xf86CrtcPtr crtc = config->crtc[i];
-        drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-        if (!crtc->enabled)
-            continue;
-
-        /* info->drmmode.fb_id still points to the FB for the last flipped BO.
-         * Clear it, drmmode_set_mode_major will re-create it
-         */
-        if (drmmode_crtc->drmmode->fb_id) {
-            drmModeRmFB(drmmode_crtc->drmmode->fd,
-                drmmode_crtc->drmmode->fb_id);
-            drmmode_crtc->drmmode->fb_id = 0;
-        }
-
-        if (drmmode_crtc->dpms_mode == DPMSModeOn)
-            crtc->funcs->set_mode_major(crtc, &crtc->mode,
-                                        crtc->rotation, crtc->x, crtc->y);
-        else
-            drmmode_crtc->need_modeset = TRUE;
+    if (ms_present_restore_scanout(screen)) {
+        present_event_notify(event_id, 0, 0);
+        return;
     }
 
-    present_event_notify(event_id, 0, 0);
+    ms->present_unflip_event = event_id;
+    TimerSet(ms->present_unflip_timer, 0, FISSION_UNFLIP_RETRY_MS,
+             ms_present_retry_unflip, screen);
 }
 #endif
 
@@ -513,6 +538,8 @@ ms_present_screen_init(ScreenPtr screen)
     Bool async_supported = ms_present_async_supported(ms);
 
     ms->present_info = ms_present_screen_info;
+    ms->present_atomic_group = FALSE;
+    ms->present_retire_failed = FALSE;
 #if defined(DRI3) && defined(FISSION_FB_BACKEND)
     if (ms->fb_backend.synchronous_copy &&
         dri3_screen_supports_syncobj(screen))
@@ -533,5 +560,21 @@ ms_present_screen_init(ScreenPtr screen)
         }
     }
 
-    return present_screen_init(screen, &ms->present_info);
+    if (!present_screen_init(screen, &ms->present_info))
+        return FALSE;
+
+#if defined(DRI3) && (defined(HAVE_GBM) || defined(FISSION_FB_BACKEND))
+    uint64_t crtc_events;
+
+    if ((ms->present_info.capabilities & PresentCapabilitySyncobj) &&
+        drmGetCap(ms->fd, DRM_CAP_CRTC_IN_VBLANK_EVENT, &crtc_events) == 0 &&
+        crtc_events) {
+        ms->present_unflip_timer = TimerSet(NULL, 0, 0, NULL, NULL);
+        if (ms->present_unflip_timer) {
+            ms->present_atomic_group = TRUE;
+            present_enable_syncobj_flips(screen);
+        }
+    }
+#endif
+    return TRUE;
 }

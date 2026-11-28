@@ -170,7 +170,8 @@ ms_pageflip_abort(void *data)
 
     if (flipdata->flip_count == 1) {
         flipdata->abort_handler(ms, flipdata->event);
-        drmModeRmFB(ms->fd, flipdata->old_fb_id);
+        if (!drmmode_remove_fb(&ms->drmmode, flipdata->old_fb_id))
+            ms->present_retire_failed = TRUE;
     }
 
     ms_pageflip_free(flip);
@@ -212,45 +213,93 @@ enum queue_flip_status {
     QUEUE_FLIP_DRM_FLUSH_FAILED,
 };
 
-static int
+static enum queue_flip_status
+alloc_flip_event(xf86CrtcPtr crtc, struct ms_flipdata *flipdata,
+                 int ref_pipe, uint32_t *seq)
+{
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+    struct ms_crtc_pageflip *flip = calloc(1, sizeof(*flip));
+
+    if (!flip)
+        return QUEUE_FLIP_ALLOC_FAILED;
+
+    /* With no nominated CRTC, use the first CRTC in the group. */
+    flip->on_reference_crtc = drmmode_crtc->vblank_pipe == ref_pipe ||
+                             (ref_pipe < 0 && flipdata->flip_count == 1);
+    flip->flipdata = flipdata;
+
+    uint32_t allocated = ms_drm_queue_alloc_shared(
+        crtc, *seq, flip, ms_pageflip_handler, ms_pageflip_abort);
+
+    if (!allocated) {
+        free(flip);
+        return QUEUE_FLIP_QUEUE_ALLOC_FAILED;
+    }
+
+    *seq = allocated;
+    flipdata->flip_count++;
+    return QUEUE_FLIP_SUCCESS;
+}
+
+static enum queue_flip_status
 queue_flip_on_crtc(ScreenPtr screen, xf86CrtcPtr crtc,
                    struct ms_flipdata *flipdata,
                    int ref_crtc_vblank_pipe, uint32_t flags)
 {
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
     modesettingPtr ms = modesettingPTR(scrn);
-    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-    struct ms_crtc_pageflip *flip;
-    uint32_t seq;
+    uint32_t seq = 0;
+    enum queue_flip_status status =
+        alloc_flip_event(crtc, flipdata, ref_crtc_vblank_pipe, &seq);
 
-    flip = calloc(1, sizeof(struct ms_crtc_pageflip));
-    if (flip == NULL) {
-        return QUEUE_FLIP_ALLOC_FAILED;
-    }
-
-    /* Only the reference crtc will finally deliver its page flip
-     * completion event. All other crtc's events will be discarded.
-     */
-    flip->on_reference_crtc = (drmmode_crtc->vblank_pipe == ref_crtc_vblank_pipe);
-    flip->flipdata = flipdata;
-
-    seq = ms_drm_queue_alloc(crtc, flip, ms_pageflip_handler, ms_pageflip_abort);
-    if (!seq) {
-        free(flip);
-        return QUEUE_FLIP_QUEUE_ALLOC_FAILED;
-    }
-
-    /* take a reference on flipdata for use in flip */
-    flipdata->flip_count++;
-
+    if (status != QUEUE_FLIP_SUCCESS)
+        return status;
     if (do_queue_flip_on_crtc(screen, crtc, flags, seq, ms->drmmode.fb_id,
                               crtc->x, crtc->y))
         return QUEUE_FLIP_DRM_FLUSH_FAILED;
 
-    /* The page flip succeeded. */
     return QUEUE_FLIP_SUCCESS;
 }
 
+static Bool
+queue_flip_group(ScrnInfoPtr scrn, struct ms_flipdata *flipdata,
+                 int ref_pipe, Bool async)
+{
+    modesettingPtr ms = modesettingPTR(scrn);
+    xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
+    drmModeAtomicReq *req = drmModeAtomicAlloc();
+    uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK;
+    uint32_t seq = 0;
+    Bool queued = FALSE;
+
+    if (!req)
+        return FALSE;
+    if (async && ms->drmmode.can_async_flip)
+        flags |= DRM_MODE_PAGE_FLIP_ASYNC;
+
+    for (int i = 0; i < config->num_crtc; i++) {
+        xf86CrtcPtr crtc = config->crtc[i];
+
+        if (!xf86_crtc_on(crtc))
+            continue;
+        if (drmmode_add_plane_props(req, crtc, ms->drmmode.fb_id,
+                                    crtc->x, crtc->y) != 0)
+            goto out;
+        if (alloc_flip_event(crtc, flipdata, ref_pipe, &seq) !=
+            QUEUE_FLIP_SUCCESS)
+            goto out;
+    }
+
+    if (seq)
+        queued = drmModeAtomicCommit(ms->fd, req, flags,
+                                     (void *)(uintptr_t)seq) == 0;
+
+out:
+    if (!queued && seq)
+        ms_drm_abort_seq(scrn, seq);
+    drmModeAtomicFree(req);
+    return queued;
+}
 
 #define MS_ASYNC_FLIP_LOG_ENABLE_LOGS_INTERVAL_MS 10000
 #define MS_ASYNC_FLIP_LOG_FREQUENT_LOGS_INTERVAL_MS 1000
@@ -335,6 +384,7 @@ ms_do_pageflip(ScreenPtr screen,
                void *event,
                int ref_crtc_vblank_pipe,
                Bool async,
+               Bool grouped,
                ms_pageflip_handler_proc pageflip_handler,
                ms_pageflip_abort_proc pageflip_abort,
                const char *log_prefix)
@@ -423,6 +473,16 @@ ms_do_pageflip(ScreenPtr screen,
             ms->drmmode.flip_bo_import_failed = FALSE;
     }
 
+    /*
+     * A failed synchronized flip must leave every CRTC on the old buffer.
+     * A successful one retires it only after all completion events arrive.
+     */
+    if (grouped) {
+        if (!queue_flip_group(scrn, flipdata, ref_crtc_vblank_pipe, async))
+            goto error_undo;
+        goto queued;
+    }
+
     /* Queue flips on all enabled CRTCs.
      *
      * Note that if/when we get per-CRTC buffers, we'll have to update this.
@@ -478,6 +538,7 @@ ms_do_pageflip(ScreenPtr screen,
         }
     }
 
+queued:
     if (dumb_borrowed)
         new_front_bo.dumb = NULL;
     drmmode_bo_destroy(&ms->drmmode, &new_front_bo);

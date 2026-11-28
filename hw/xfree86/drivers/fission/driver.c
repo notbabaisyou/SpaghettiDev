@@ -2297,13 +2297,19 @@ CloseScreen(ScreenPtr pScreen)
         free(ms->glamor_adaptor);
 #endif
 
+    TimerFree(ms->present_unflip_timer);
+    ms->present_unflip_timer = NULL;
     ms_vblank_close_screen(pScreen);
 
     xf86_cursors_fini(pScreen);
 
     drmmode_uevent_fini(pScrn, &ms->drmmode);
 
-    drmmode_free_bos(pScrn, &ms->drmmode);
+    Bool retired = drmmode_free_bos(pScrn, &ms->drmmode);
+
+    if (ms->present_atomic_group)
+        present_finish_syncobj_flips(pScreen,
+                                     retired && !ms->present_retire_failed);
 
     if (ms->damage) {
         DamageUnregister(ms->damage);

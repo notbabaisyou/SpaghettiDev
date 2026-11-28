@@ -349,32 +349,40 @@ ms_drm_socket_handler(int fd, int ready, void *data)
  * appears, we've got data to pass to the handler from here
  */
 uint32_t
-ms_drm_queue_alloc(xf86CrtcPtr crtc,
-                   void *data,
-                   ms_drm_handler_proc handler,
-                   ms_drm_abort_proc abort)
+ms_drm_queue_alloc_shared(xf86CrtcPtr crtc, uint32_t seq, void *data,
+                          ms_drm_handler_proc handler,
+                          ms_drm_abort_proc abort)
 {
     ScreenPtr screen = crtc->randr_crtc->pScreen;
     ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-    struct ms_drm_queue *q;
-
-    q = calloc(1, sizeof(struct ms_drm_queue));
+    drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+    struct ms_drm_queue *q = calloc(1, sizeof(*q));
 
     if (!q)
         return 0;
-    if (!ms_drm_seq)
-        ++ms_drm_seq;
-    q->seq = ms_drm_seq++;
+
+    if (!seq) {
+        if (!ms_drm_seq)
+            ++ms_drm_seq;
+        seq = ms_drm_seq++;
+    }
+    q->seq = seq;
+    q->crtc_id = drmmode_crtc->mode_crtc->crtc_id;
     q->scrn = scrn;
     q->crtc = crtc;
     q->data = data;
     q->handler = handler;
     q->abort = abort;
 
-    /* Keep the list formatted in ascending order of sequence number */
     xorg_list_append(&q->list, &ms_drm_queue);
+    return seq;
+}
 
-    return q->seq;
+uint32_t
+ms_drm_queue_alloc(xf86CrtcPtr crtc, void *data, ms_drm_handler_proc handler,
+                   ms_drm_abort_proc abort)
+{
+    return ms_drm_queue_alloc_shared(crtc, 0, data, handler, abort);
 }
 
 /**
@@ -414,10 +422,8 @@ ms_drm_abort_seq(ScrnInfoPtr scrn, uint32_t seq)
     struct ms_drm_queue *q, *tmp;
 
     xorg_list_for_each_entry_safe(q, tmp, &ms_drm_queue, list) {
-        if (q->seq == seq) {
+        if (q->seq == seq)
             ms_drm_abort_one(q);
-            break;
-        }
     }
 }
 
@@ -444,13 +450,16 @@ ms_drm_abort(ScrnInfoPtr scrn, Bool (*match)(void *data, void *match_data),
  * drm event queue and calls the handler for it.
  */
 static void
-ms_drm_sequence_handler(int fd, uint64_t frame, uint64_t ns, Bool is64bit, uint64_t user_data)
+ms_drm_sequence_handler(uint64_t frame, uint64_t ns, Bool is64bit,
+                         uint64_t user_data, uint32_t crtc_id)
 {
     struct ms_drm_queue *q, *tmp;
     uint32_t seq = (uint32_t) user_data;
 
     xorg_list_for_each_entry_safe(q, tmp, &ms_drm_queue, list) {
-        if (q->seq == seq) {
+        Bool matches_crtc = !crtc_id || crtc_id == q->crtc_id;
+
+        if (q->seq == seq && matches_crtc) {
             uint64_t msc;
 
             msc = ms_kernel_msc_to_crtc_msc(q->crtc, frame, is64bit);
@@ -466,7 +475,7 @@ static void
 ms_drm_sequence_handler_64bit(int fd, uint64_t frame, uint64_t ns, uint64_t user_data)
 {
     /* frame is true 64 bit wrapped into 64 bit */
-    ms_drm_sequence_handler(fd, frame, ns, TRUE, user_data);
+    ms_drm_sequence_handler(frame, ns, TRUE, user_data, 0);
 }
 
 static void
@@ -474,8 +483,16 @@ ms_drm_handler(int fd, uint32_t frame, uint32_t sec, uint32_t usec,
                void *user_ptr)
 {
     /* frame is 32 bit wrapped into 64 bit */
-    ms_drm_sequence_handler(fd, frame, ((uint64_t) sec * 1000000 + usec) * 1000,
-                            FALSE, (uint32_t) (uintptr_t) user_ptr);
+    ms_drm_sequence_handler(frame, ((uint64_t)sec * 1000000 + usec) * 1000,
+                            FALSE, (uintptr_t)user_ptr, 0);
+}
+
+static void
+ms_drm_handler_crtc(int fd, uint32_t frame, uint32_t sec, uint32_t usec,
+                    uint32_t crtc_id, void *user_ptr)
+{
+    ms_drm_sequence_handler(frame, ((uint64_t)sec * 1000000 + usec) * 1000,
+                            FALSE, (uintptr_t)user_ptr, crtc_id);
 }
 
 Bool
@@ -494,6 +511,7 @@ ms_vblank_screen_init(ScreenPtr screen)
 
     ms->event_context.version = 4;
     ms->event_context.page_flip_handler = ms_drm_handler;
+    ms->event_context.page_flip_handler2 = ms_drm_handler_crtc;
     ms->event_context.sequence_handler = ms_drm_sequence_handler_64bit;
 
     /* We need to re-register the DRM fd for the synchronisation

@@ -355,11 +355,15 @@ Bool drmmode_get_largest_cursor(ScrnInfoPtr pScrn, drmmode_cursor_dim_ptr cursor
 Bool drmmode_create_initial_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 void *drmmode_map_front_bo(drmmode_ptr drmmode);
 Bool drmmode_map_cursor_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
-void drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
+Bool drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
+Bool drmmode_remove_fb(drmmode_ptr drmmode, uint32_t fb_id);
 void drmmode_get_default_bpp(ScrnInfoPtr pScrn, drmmode_ptr drmmmode,
                              int *depth, int *bpp);
 
 void drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
+
+int drmmode_add_plane_props(drmModeAtomicReq *req, xf86CrtcPtr crtc,
+                            uint32_t fb_id, int x, int y);
 
 int drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
                       uint32_t flags, void *data);

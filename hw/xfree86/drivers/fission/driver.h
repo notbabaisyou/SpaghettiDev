@@ -95,6 +95,7 @@ struct ms_drm_queue {
     struct xorg_list list;
     xf86CrtcPtr crtc;
     uint32_t seq;
+    uint32_t crtc_id;
     void *data;
     ScrnInfoPtr scrn;
     ms_drm_handler_proc handler;
@@ -117,6 +118,10 @@ typedef struct _modesettingRec {
 
     drmmode_rec drmmode;
     present_screen_info_rec present_info;
+    Bool present_atomic_group;
+    Bool present_retire_failed;
+    OsTimerPtr present_unflip_timer;
+    uint64_t present_unflip_event;
 
     drmEventContext event_context;
 
@@ -210,6 +215,10 @@ typedef enum ms_queue_flag {
 Bool ms_queue_vblank(xf86CrtcPtr crtc, ms_queue_flag flags,
                      uint64_t msc, uint64_t *msc_queued, uint32_t seq);
 
+uint32_t ms_drm_queue_alloc_shared(xf86CrtcPtr crtc, uint32_t seq,
+                                  void *data, ms_drm_handler_proc handler,
+                                  ms_drm_abort_proc abort);
+
 void ms_drm_abort(ScrnInfoPtr scrn,
                   Bool (*match)(void *data, void *match_data),
                   void *match_data);
@@ -249,6 +258,7 @@ Bool ms_do_pageflip(ScreenPtr screen,
                     void *event,
                     int ref_crtc_vblank_pipe,
                     Bool async,
+                    Bool grouped,
                     ms_pageflip_handler_proc pageflip_handler,
                     ms_pageflip_abort_proc pageflip_abort,
                     const char *log_prefix);

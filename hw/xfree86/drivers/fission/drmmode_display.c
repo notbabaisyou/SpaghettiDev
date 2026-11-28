@@ -672,8 +672,8 @@ plane_add_prop(drmModeAtomicReq *req, drmmode_crtc_private_ptr drmmode_crtc,
     return (ret <= 0) ? -1 : 0;
 }
 
-static int
-plane_add_props(drmModeAtomicReq *req, xf86CrtcPtr crtc,
+int
+drmmode_add_plane_props(drmModeAtomicReq *req, xf86CrtcPtr crtc,
                 uint32_t fb_id, int x, int y)
 {
     drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
@@ -917,7 +917,7 @@ drmmode_set_dpms(ScrnInfoPtr scrn, int dpms, int flags)
 
             if (!drmmode_crtc_get_fb_id(crtc, &fb_id, &x, &y))
                 continue;
-            ret |= plane_add_props(req, crtc, fb_id, x, y);
+            ret |= drmmode_add_plane_props(req, crtc, fb_id, x, y);
             drmmode_crtc->need_modeset = FALSE;
         }
     }
@@ -1091,7 +1091,7 @@ drmmode_crtc_set_mode(xf86CrtcPtr crtc, Bool test_only)
         return 1;
 
     ret |= crtc_add_dpms_props(req, crtc, DPMSModeOn, &active);
-    ret |= plane_add_props(req, crtc, active ? fb_id : 0, x, y);
+    ret |= drmmode_add_plane_props(req, crtc, active ? fb_id : 0, x, y);
 
     /* Orphaned CRTCs need to be disabled right now in atomic mode */
     for (i = 0; i < xf86_config->num_crtc; i++) {
@@ -1157,7 +1157,7 @@ drmmode_crtc_flip(xf86CrtcPtr crtc, uint32_t fb_id, int x, int y,
     if (!req)
         return 1;
 
-    ret = plane_add_props(req, crtc, fb_id, x, y);
+    ret = drmmode_add_plane_props(req, crtc, fb_id, x, y);
 
     if (ret == 0)
         ret = drmModeAtomicCommit(ms->fd, req, flags, data);
@@ -4897,16 +4897,24 @@ drmmode_map_cursor_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
     return TRUE;
 }
 
-void
+Bool
+drmmode_remove_fb(drmmode_ptr drmmode, uint32_t fb_id)
+{
+    if (!fb_id)
+        return TRUE;
+    if (drmModeRmFB(drmmode->fd, fb_id) == 0)
+        return TRUE;
+    return errno == ENOENT;
+}
+
+Bool
 drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 {
     xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
     int i;
+    Bool retired = drmmode_remove_fb(drmmode, drmmode->fb_id);
 
-    if (drmmode->fb_id) {
-        drmModeRmFB(drmmode->fd, drmmode->fb_id);
-        drmmode->fb_id = 0;
-    }
+    drmmode->fb_id = 0;
 
     drmmode_bo_destroy(drmmode, &drmmode->front_bo);
 
@@ -4924,6 +4932,8 @@ drmmode_free_bos(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 
         drmmode_tearfree_free_crtc(crtc);
     }
+
+    return retired;
 }
 
 /* ugly workaround to see if we can create 32bpp */
