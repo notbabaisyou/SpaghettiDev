@@ -294,6 +294,25 @@ vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd)
     return TRUE;
 }
 
+uint32_t
+vaccum_find_memory_type(struct vaccum_screen_private *screen,
+                        uint32_t type_filter,
+                        VkMemoryPropertyFlags properties)
+{
+    const VkPhysicalDeviceMemoryProperties *mem = &screen->dev_mem_properties;
+
+    for (uint32_t i = 0; i < mem->memoryTypeCount; i++) {
+        Bool allowed = (type_filter & (1u << i)) != 0;
+        Bool has_properties =
+            (mem->memoryTypes[i].propertyFlags & properties) == properties;
+
+        if (allowed && has_properties)
+            return i;
+    }
+
+    return UINT32_MAX;
+}
+
 static Bool
 vaccum_add_format(struct vaccum_screen_private *vaccum_priv, int depth, CARD32 render_format,
                   VkFormat vk_format)

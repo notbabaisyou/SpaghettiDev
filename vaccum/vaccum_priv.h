@@ -91,6 +91,7 @@ typedef struct vaccum_screen_private {
     VkCommandBuffer linear_copy_cmd;
     VkFence linear_copy_fence;
     VkExtent3D linear_image_extent;
+    VkExtent3D optimal_image_extent;
 
     int drm_fd;
     char *drm_device_path;
@@ -203,6 +204,10 @@ vaccum_format_for_pixmap(PixmapPtr pixmap);
 Bool vaccum_vulkan_init(struct vaccum_screen_private *vaccum_priv, int drm_fd);
 void vaccum_vulkan_fini(struct vaccum_screen_private *vaccum_priv);
 void vaccum_setup_formats(struct vaccum_screen_private *vaccum_priv);
+
+uint32_t vaccum_find_memory_type(struct vaccum_screen_private *screen,
+                                 uint32_t type_filter,
+                                 VkMemoryPropertyFlags properties);
 
 struct vaccum_image *vaccum_create_image(struct vaccum_screen_private *vaccum_priv, PixmapPtr pixmap,
                                          int w, int h);

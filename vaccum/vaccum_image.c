@@ -1,19 +1,5 @@
 #include "vaccum_priv.h"
 
-static uint32_t
-vaccum_find_memory_type(struct vaccum_screen_private *vaccum_priv,
-                        uint32_t type_filter,
-                        VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties *mem_props = &vaccum_priv->dev_mem_properties;
-    for (uint32_t i = 0; i < mem_props->memoryTypeCount; i++) {
-        if ((type_filter & (1u << i)) &&
-            (mem_props->memoryTypes[i].propertyFlags & properties) == properties)
-            return i;
-    }
-    return UINT32_MAX;
-}
-
 void
 vaccum_destroy_image(struct vaccum_screen_private *vaccum_priv, struct vaccum_image *image)
 {

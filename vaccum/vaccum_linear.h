@@ -11,6 +11,8 @@ struct vaccum_linear_pixmap {
     VkImage image;
     VkImageLayout layout;
     VkDeviceMemory memory;
+    /* Separate allocation when the mapped buffer contains the CPU shadow. */
+    VkDeviceMemory image_memory;
     void *map;
     int stride;
     int width;

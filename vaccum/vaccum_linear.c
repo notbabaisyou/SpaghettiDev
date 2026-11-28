@@ -50,6 +50,12 @@ vaccum_linear_init(int fd)
             VK_IMAGE_TILING_LINEAR, VACCUM_IMAGE_TRANSFER_USAGE, 0,
             &image) == VK_SUCCESS)
         screen->linear_image_extent = image.maxExtent;
+
+    if (vkGetPhysicalDeviceImageFormatProperties(
+            screen->phys_device, VACCUM_LINEAR_FORMAT, VK_IMAGE_TYPE_2D,
+            VK_IMAGE_TILING_OPTIMAL, VACCUM_IMAGE_TRANSFER_USAGE, 0,
+            &image) == VK_SUCCESS)
+        screen->optimal_image_extent = image.maxExtent;
     return screen;
 
 fail:
@@ -74,6 +80,7 @@ vaccum_linear_release(vaccum_screen_private *screen,
         vkUnmapMemory(screen->device, pixels->memory);
     vkDestroyBuffer(screen->device, pixels->buffer, NULL);
     vkDestroyImage(screen->device, pixels->image, NULL);
+    vkFreeMemory(screen->device, pixels->image_memory, NULL);
     vkFreeMemory(screen->device, pixels->memory, NULL);
     *pixels = (struct vaccum_linear_pixmap) { 0 };
 }
@@ -128,11 +135,12 @@ map_backing(vaccum_screen_private *screen,
     return FALSE;
 }
 
-static Bool
-create_linear_image(vaccum_screen_private *screen,
-                     struct vaccum_linear_pixmap *pixels, int width,
-                     int height, int stride)
+static VkResult
+create_image(VkDevice device, VkImage *image, VkImageTiling tiling,
+              int width, int height)
 {
+    VkImageLayout initial = tiling == VK_IMAGE_TILING_LINEAR ?
+        VK_IMAGE_LAYOUT_PREINITIALIZED : VK_IMAGE_LAYOUT_UNDEFINED;
     const VkImageCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
@@ -142,17 +150,25 @@ create_linear_image(vaccum_screen_private *screen,
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_LINEAR,
+        .tiling = tiling,
         .usage = VACCUM_IMAGE_TRANSFER_USAGE,
-        .initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED,
+        .initialLayout = initial,
     };
 
+    return vkCreateImage(device, &info, NULL, image);
+}
+
+static Bool
+create_linear_image(vaccum_screen_private *screen,
+                     struct vaccum_linear_pixmap *pixels, int width,
+                     int height, int stride)
+{
     const VkImageSubresource subresource = {
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
     };
 
-    if (vkCreateImage(screen->device, &info, NULL, &pixels->image) !=
-        VK_SUCCESS)
+    if (create_image(screen->device, &pixels->image, VK_IMAGE_TILING_LINEAR,
+                     width, height) != VK_SUCCESS)
         return FALSE;
 
     VkSubresourceLayout layout;
@@ -175,8 +191,55 @@ create_linear_image(vaccum_screen_private *screen,
         return FALSE;
 
     pixels->stride = layout.rowPitch;
-    pixels->layout = info.initialLayout;
+    pixels->layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
     return TRUE;
+}
+
+/* Keep the mapped buffer usable if the image allocation fails. */
+static void
+attach_optimal_image(vaccum_screen_private *screen,
+                      struct vaccum_linear_pixmap *pixels,
+                      int width, int height)
+{
+    VkDevice device = screen->device;
+    VkImage image = VK_NULL_HANDLE;
+
+    if (create_image(device, &image, VK_IMAGE_TILING_OPTIMAL, width,
+                     height) != VK_SUCCESS)
+        return;
+
+    VkMemoryRequirements req;
+
+    vkGetImageMemoryRequirements(device, image, &req);
+    VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    uint32_t type =
+        vaccum_find_memory_type(screen, req.memoryTypeBits, properties);
+
+    if (type == UINT32_MAX)
+        goto free_image;
+
+    const VkMemoryAllocateInfo alloc = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = req.size,
+        .memoryTypeIndex = type,
+    };
+
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+
+    if (vkAllocateMemory(device, &alloc, NULL, &memory) != VK_SUCCESS)
+        goto free_image;
+    if (vkBindImageMemory(device, image, memory, 0) != VK_SUCCESS) {
+        vkFreeMemory(device, memory, NULL);
+        goto free_image;
+    }
+
+    pixels->image = image;
+    pixels->image_memory = memory;
+    pixels->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    return;
+
+free_image:
+    vkDestroyImage(device, image, NULL);
 }
 
 Bool
@@ -191,11 +254,13 @@ vaccum_linear_allocate(vaccum_screen_private *screen,
                  VK_BUFFER_USAGE_TRANSFER_DST_BIT,
     };
 
-    Bool image_size = width <= screen->linear_image_extent.width &&
-                      height <= screen->linear_image_extent.height;
+    Bool linear_fits = width <= screen->linear_image_extent.width &&
+                       height <= screen->linear_image_extent.height;
+    Bool optimal_fits = width <= screen->optimal_image_extent.width &&
+                        height <= screen->optimal_image_extent.height;
     VkMemoryRequirements req;
 
-    if (image_size && create_linear_image(screen, pixels, width, height,
+    if (linear_fits && create_linear_image(screen, pixels, width, height,
                                           stride))
         goto allocated;
 
@@ -211,6 +276,9 @@ vaccum_linear_allocate(vaccum_screen_private *screen,
     }
 
     pixels->stride = stride;
+    if (optimal_fits)
+        attach_optimal_image(screen, pixels, width, height);
+
 allocated:
     pixels->width = width;
     pixels->height = height;
@@ -219,7 +287,7 @@ allocated:
 
 static VkImageMemoryBarrier
 transfer_image(const struct vaccum_linear_pixmap *pixels,
-               VkAccessFlags access)
+               VkImageLayout layout, VkAccessFlags access)
 {
     return (VkImageMemoryBarrier) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -227,12 +295,65 @@ transfer_image(const struct vaccum_linear_pixmap *pixels,
                          VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = access,
         .oldLayout = pixels->layout,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = layout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = pixels->image,
         .subresourceRange = linear_subresources,
     };
+}
+
+static void
+staging_read_barrier(VkCommandBuffer cmd,
+                      const struct vaccum_linear_pixmap *pixels)
+{
+    VkImageMemoryBarrier ready =
+        transfer_image(pixels, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        VK_ACCESS_TRANSFER_READ_BIT);
+
+    ready.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    ready.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL,
+                         1, &ready);
+}
+
+static VkBufferImageCopy
+buffer_image_region(const struct vaccum_linear_pixmap *buffer,
+                    VkOffset3D buffer_offset, VkOffset3D image_offset,
+                    VkExtent3D extent)
+{
+    return (VkBufferImageCopy) {
+        .bufferOffset = (VkDeviceSize)buffer_offset.y * buffer->stride +
+                        buffer_offset.x * sizeof(uint32_t),
+        .bufferRowLength = buffer->stride / sizeof(uint32_t),
+        .imageSubresource = linear_layers,
+        .imageOffset = image_offset,
+        .imageExtent = extent,
+    };
+}
+
+static void
+copy_staging_boxes(VkCommandBuffer cmd,
+                    const struct vaccum_linear_pixmap *pixels, BoxPtr boxes,
+                    int count, int dx, int dy, Bool upload)
+{
+    for (int i = 0; i < count; i++) {
+        BoxPtr box = &boxes[i];
+        VkOffset3D offset = { box->x1 + dx, box->y1 + dy, 0 };
+        VkExtent3D extent = { box->x2 - box->x1, box->y2 - box->y1, 1 };
+        VkBufferImageCopy region =
+            buffer_image_region(pixels, offset, offset, extent);
+
+        if (upload)
+            vkCmdCopyBufferToImage(cmd, pixels->buffer, pixels->image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                                   &region);
+        else
+            vkCmdCopyImageToBuffer(cmd, pixels->image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   pixels->buffer, 1, &region);
+    }
 }
 
 static void
@@ -244,6 +365,11 @@ copy_image_box(VkCommandBuffer cmd, const struct vaccum_linear_pixmap *src,
     VkOffset3D dst_offset = { box->x1, box->y1, 0 };
     VkExtent3D extent = { box->x2 - box->x1, box->y2 - box->y1, 1 };
 
+    VkImageLayout src_layout = src->image_memory ?
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+    VkImageLayout dst_layout = dst->image_memory ?
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+
     if (src->image && dst->image) {
         const VkImageCopy region = {
             .srcSubresource = linear_layers,
@@ -253,28 +379,24 @@ copy_image_box(VkCommandBuffer cmd, const struct vaccum_linear_pixmap *src,
             .extent = extent,
         };
 
-        vkCmdCopyImage(cmd, src->image, VK_IMAGE_LAYOUT_GENERAL, dst->image,
-                       VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+        vkCmdCopyImage(cmd, src->image, src_layout, dst->image, dst_layout, 1,
+                       &region);
         return;
     }
 
-    const struct vaccum_linear_pixmap *buffer = src->buffer ? src : dst;
-    VkOffset3D buffer_offset = src->buffer ? src_offset : dst_offset;
-    const VkBufferImageCopy region = {
-        .bufferOffset = (VkDeviceSize)buffer_offset.y * buffer->stride +
-                        buffer_offset.x * sizeof(uint32_t),
-        .bufferRowLength = buffer->stride / sizeof(uint32_t),
-        .imageSubresource = linear_layers,
-        .imageOffset = src->buffer ? dst_offset : src_offset,
-        .imageExtent = extent,
-    };
+    if (dst->image) {
+        VkBufferImageCopy region =
+            buffer_image_region(src, src_offset, dst_offset, extent);
 
-    if (src->buffer)
-        vkCmdCopyBufferToImage(cmd, buffer->buffer, dst->image,
-                               VK_IMAGE_LAYOUT_GENERAL, 1, &region);
-    else
-        vkCmdCopyImageToBuffer(cmd, src->image, VK_IMAGE_LAYOUT_GENERAL,
-                               buffer->buffer, 1, &region);
+        vkCmdCopyBufferToImage(cmd, src->buffer, dst->image, dst_layout, 1,
+                               &region);
+    } else {
+        VkBufferImageCopy region =
+            buffer_image_region(dst, dst_offset, src_offset, extent);
+
+        vkCmdCopyImageToBuffer(cmd, src->image, src_layout, dst->buffer, 1,
+                               &region);
+    }
 }
 
 Bool
@@ -313,6 +435,15 @@ vaccum_linear_copy(vaccum_screen_private *screen,
 
     VkImageMemoryBarrier images[2];
     uint32_t image_count = 0;
+    Bool upload = src->image_memory != VK_NULL_HANDLE;
+    Bool download = dst->image_memory != VK_NULL_HANDLE;
+
+    VkImageLayout src_initial = upload ?
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+    VkImageLayout dst_initial = download ?
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+    VkAccessFlags src_access = upload ? VK_ACCESS_TRANSFER_WRITE_BIT :
+                                       VK_ACCESS_TRANSFER_READ_BIT;
 
     if (vkResetCommandBuffer(cmd, 0) != VK_SUCCESS)
         return FALSE;
@@ -320,15 +451,19 @@ vaccum_linear_copy(vaccum_screen_private *screen,
         return FALSE;
 
     if (src->image)
-        images[image_count++] =
-            transfer_image(src, VK_ACCESS_TRANSFER_READ_BIT);
+        images[image_count++] = transfer_image(src, src_initial, src_access);
     if (dst->image)
         images[image_count++] =
-            transfer_image(dst, VK_ACCESS_TRANSFER_WRITE_BIT);
+            transfer_image(dst, dst_initial, VK_ACCESS_TRANSFER_WRITE_BIT);
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT |
                          VK_PIPELINE_STAGE_HOST_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &ready, 0,
                          NULL, image_count, images);
+
+    if (upload) {
+        copy_staging_boxes(cmd, src, boxes, count, dx, dy, TRUE);
+        staging_read_barrier(cmd, src);
+    }
 
     for (int i = 0; i < count; i++) {
         BoxPtr b = &boxes[i];
@@ -349,6 +484,11 @@ vaccum_linear_copy(vaccum_screen_private *screen,
 
             vkCmdCopyBuffer(cmd, src->buffer, dst->buffer, 1, &row);
         }
+    }
+
+    if (download) {
+        staging_read_barrier(cmd, dst);
+        copy_staging_boxes(cmd, dst, boxes, count, 0, 0, FALSE);
     }
 
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -376,9 +516,11 @@ vaccum_linear_copy(vaccum_screen_private *screen,
                    completed);
 
     if (src->image)
-        src->layout = VK_IMAGE_LAYOUT_GENERAL;
+        src->layout = upload ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
+                               VK_IMAGE_LAYOUT_GENERAL;
     if (dst->image)
-        dst->layout = VK_IMAGE_LAYOUT_GENERAL;
+        dst->layout = download ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL :
+                                 VK_IMAGE_LAYOUT_GENERAL;
     return TRUE;
 }
 
