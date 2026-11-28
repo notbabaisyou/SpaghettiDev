@@ -16,6 +16,7 @@
 #include <xcb/xcb.h>
 #include <xcb/dri3.h>
 #include <xcb/present.h>
+#include <xcb/randr.h>
 #include <xcb/sync.h>
 #include <xf86drm.h>
 
@@ -320,6 +321,104 @@ test_access_failure(xcb_connection_t *client, xcb_connection_t *observer,
     close(idle);
 }
 
+static xcb_randr_get_screen_resources_current_reply_t *
+get_outputs(xcb_connection_t *conn, xcb_window_t root)
+{
+    xcb_randr_get_screen_resources_current_cookie_t cookie =
+        xcb_randr_get_screen_resources_current(conn, root);
+    xcb_randr_get_screen_resources_current_reply_t *resources =
+        xcb_randr_get_screen_resources_current_reply(conn, cookie, NULL);
+
+    REQUIRE(resources);
+    return resources;
+}
+
+static void
+test_output_loss(xcb_connection_t *client, xcb_connection_t *observer,
+                 xcb_window_t root, xcb_window_t win, xcb_pixmap_t pixmap,
+                 int fd)
+{
+    enum { OUTPUT_LOSS_TIMEOUT_MS = 60000 };
+
+    xcb_randr_get_screen_resources_current_reply_t *resources =
+        get_outputs(observer, root);
+    xcb_randr_output_t *outputs =
+        xcb_randr_get_screen_resources_current_outputs(resources);
+    xcb_randr_output_t output = XCB_NONE;
+    xcb_randr_get_output_info_reply_t *initial = NULL;
+
+    for (unsigned i = 0; i < resources->num_outputs; i++) {
+        xcb_randr_get_output_info_cookie_t cookie = xcb_randr_get_output_info(
+            observer, outputs[i], resources->config_timestamp);
+
+        initial = xcb_randr_get_output_info_reply(observer, cookie, NULL);
+        if (initial && initial->crtc &&
+            initial->connection == XCB_RANDR_CONNECTION_CONNECTED) {
+            output = outputs[i];
+            break;
+        }
+        free(initial);
+        initial = NULL;
+    }
+
+    free(resources);
+    require(initial != NULL, "connected output with active scanout");
+
+    xcb_present_event_t id = xcb_generate_id(observer);
+    xcb_special_event_t *complete = xcb_register_for_special_xge(
+        observer, &xcb_present_id, id, NULL);
+    struct producer_mapping map = map_pixmap(client, pixmap);
+    xcb_dri3_syncobj_t timeline = xcb_generate_id(client);
+    uint32_t handle = 0;
+    int timeline_fd = -1;
+    uint64_t acquire = UINT64_C(1) << 40;
+    uint64_t release = acquire + 1;
+    int idle = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    struct pollfd done = { .fd = idle, .events = POLLIN };
+    const uint32_t color = 0x2a7ea1;
+
+    REQUIRE(complete && idle >= 0);
+    check(observer, xcb_present_select_input_checked(
+                        observer, id, win,
+                        XCB_PRESENT_EVENT_MASK_COMPLETE_NOTIFY));
+    REQUIRE(!drmSyncobjCreate(fd, 0, &handle));
+    REQUIRE(!drmSyncobjHandleToFD(fd, handle, &timeline_fd));
+    check(client, xcb_dri3_import_syncobj_checked(client, timeline, win,
+                                                  timeline_fd));
+    REQUIRE(!drmSyncobjEventfd(fd, handle, release, idle, 0));
+    write_pixmap(&map, color);
+    check(client, xcb_present_pixmap_synced_checked(
+                      client, win, pixmap, 1, 0, 0, 0, 0, initial->crtc,
+                      timeline, timeline, acquire, release, 0, 0, 0, 0,
+                      0, NULL));
+    REQUIRE(!drmSyncobjTimelineSignal(fd, &handle, &acquire, 1));
+    check_completion(observer, complete, 1, XCB_PRESENT_COMPLETE_MODE_FLIP);
+    check_color(observer, win, color);
+    REQUIRE(poll(&done, 1, 0) == 0);
+
+    printf("Disconnect output %.*s now\n",
+           xcb_randr_get_output_info_name_length(initial),
+           xcb_randr_get_output_info_name(initial));
+    fflush(stdout);
+    free(initial);
+    REQUIRE(poll(&done, 1, OUTPUT_LOSS_TIMEOUT_MS) == 1);
+
+    resources = get_outputs(observer, root);
+    xcb_randr_get_output_info_cookie_t cookie = xcb_randr_get_output_info(
+        observer, output, resources->config_timestamp);
+    xcb_randr_get_output_info_reply_t *after =
+        xcb_randr_get_output_info_reply(observer, cookie, NULL);
+
+    REQUIRE(!xcb_connection_has_error(observer));
+    REQUIRE(!after || after->connection == XCB_RANDR_CONNECTION_DISCONNECTED);
+    free(after);
+    free(resources);
+    xcb_unregister_for_special_event(observer, complete);
+    REQUIRE(!drmSyncobjDestroy(fd, handle));
+    unmap_pixmap(&map);
+    close(idle);
+}
+
 static void
 test_flip(xcb_connection_t *client, xcb_connection_t *observer,
           xcb_window_t win, xcb_rectangle_t rect, int fd)
@@ -539,13 +638,15 @@ main(int argc, char **argv)
     bool flip = argc == 2 && !strcmp(argv[1], "--flip");
     bool fallback = argc == 2 && !strcmp(argv[1], "--flip-fallback");
     bool access_failure = argc == 2 && !strcmp(argv[1], "--access-failure");
+    bool output_loss = argc == 2 && !strcmp(argv[1], "--output-loss");
 
-    bool fullscreen = flip || fallback || legacy_flip;
+    bool fullscreen = flip || fallback || legacy_flip || output_loss;
     bool recognized = unavailable || fullscreen || access_failure;
 
     if (argc > 1 && !recognized) {
         fprintf(stderr, "usage: %s [--unavailable|--unavailable-flip|"
-                        "--flip|--flip-fallback|--access-failure]\n",
+                        "--flip|--flip-fallback|--access-failure|"
+                        "--output-loss]\n",
                 argv[0]);
         return EXIT_FAILURE;
     }
@@ -626,6 +727,15 @@ main(int argc, char **argv)
 
     check(client, xcb_create_pixmap_checked(client, 24, pixmap, win,
                                             rect.width, rect.height));
+
+    if (output_loss) {
+        test_output_loss(client, observer, screen->root, win, pixmap, fd);
+        xcb_disconnect(client);
+        xcb_disconnect(observer);
+        close(fd);
+        puts("PASS active Present flip retired after output loss");
+        return EXIT_SUCCESS;
+    }
 
     if (access_failure) {
         test_access_failure(client, observer, win, pixmap, fd);

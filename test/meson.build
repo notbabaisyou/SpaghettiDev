@@ -7,6 +7,7 @@ simple_xinit = executable(
 
 xcb_dep = dependency('xcb', required: false)
 xcb_present_dep = dependency('xcb-present', required: false)
+xcb_randr_dep = dependency('xcb-randr', required: false)
 xcb_dri3_dep = dependency('xcb-dri3', required: false)
 xcb_sync_dep = dependency('xcb-sync', required: false)
 xcb_shm_dep = dependency('xcb-shm', required: false)
@@ -55,11 +56,13 @@ if host_machine.system() == 'linux' and xcb_dep.found() and xcb_dri3_dep.found()
 endif
 
 if xcb_dep.found() and xcb_sync_dep.found() and libdrm_dep.found()
-    if xcb_present_dep.found() and xcb_dri3_dep.found()
+    if (xcb_present_dep.found() and xcb_dri3_dep.found() and
+        xcb_randr_dep.found())
         if xcb_present_dep.version().version_compare('>= 1.17') and xcb_dri3_dep.version().version_compare('>= 1.17')
             executable('present-syncobj', 'present-syncobj.c',
                        dependencies: [xcb_dep, xcb_dri3_dep, xcb_present_dep,
-                                      xcb_sync_dep, libdrm_dep])
+                                      xcb_sync_dep, xcb_randr_dep,
+                                      libdrm_dep])
         endif
     endif
 endif

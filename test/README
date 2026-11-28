@@ -74,6 +74,12 @@ It also checks legacy Present copies with a delayed X Sync fence and
 buffer reuse after IdleNotify. Use `--unavailable-flip` on an uncomposited
 screen with page flipping enabled to run the equivalent flip test.
 
+Run `--output-loss` on a dedicated Fission VACCUM test display. The
+client waits for an active flip and prints the RandR output to
+disconnect. It checks that the release point remains pending while
+the frame is active and that the server stays responsive after the
+output disconnects and the flip retires.
+
 Run `present-syncobj --access-failure` against a dedicated test server
 started with `build/test/libvaccum-dmabuf-failure.so` in `LD_PRELOAD`.
 The injected dma-buf read error should cause a skipped Present and
