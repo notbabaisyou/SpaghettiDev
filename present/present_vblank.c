@@ -102,6 +102,10 @@ present_vblank_init(present_vblank_ptr vblank,
     vblank->window = window;
     vblank->pixmap = pixmap;
 
+#ifdef DRI3
+    vblank->efd = -1;
+#endif
+
     if (pixmap) {
         vblank->kind = PresentCompleteKindPixmap;
         pixmap->refcnt++;
@@ -158,8 +162,6 @@ present_vblank_init(present_vblank_ptr vblank,
     }
 
 #ifdef DRI3
-    vblank->efd = -1;
-
     if (acquire_syncobj) {
         vblank->acquire_syncobj = acquire_syncobj;
         ++acquire_syncobj->refcount;
