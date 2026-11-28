@@ -138,6 +138,7 @@ typedef struct {
     Bool present_enable;
     Bool tearfree_enable;
     Bool use_ctm;
+    Bool reuse_connector_state;
 } drmmode_rec, *drmmode_ptr;
 
 typedef struct {
@@ -319,7 +320,7 @@ extern Bool drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode,
                                       Bool set_hw, Bool ign_err);
 extern Bool drmmode_setup_colormap(ScreenPtr pScreen, ScrnInfoPtr pScrn);
 
-extern void drmmode_update_kms_state(drmmode_ptr drmmode);
+extern void drmmode_update_kms_state(drmmode_ptr drmmode, Bool hotplug);
 extern void drmmode_uevent_init(ScrnInfoPtr scrn, drmmode_ptr drmmode);
 extern void drmmode_uevent_fini(ScrnInfoPtr scrn, drmmode_ptr drmmode);
 
