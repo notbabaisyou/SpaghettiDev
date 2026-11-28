@@ -336,7 +336,7 @@ get_outputs(xcb_connection_t *conn, xcb_window_t root)
 static void
 test_output_loss(xcb_connection_t *client, xcb_connection_t *observer,
                  xcb_window_t root, xcb_window_t win, xcb_pixmap_t pixmap,
-                 int fd)
+                 int fd, const char *output_name)
 {
     enum { OUTPUT_LOSS_TIMEOUT_MS = 60000 };
 
@@ -346,14 +346,28 @@ test_output_loss(xcb_connection_t *client, xcb_connection_t *observer,
         xcb_randr_get_screen_resources_current_outputs(resources);
     xcb_randr_output_t output = XCB_NONE;
     xcb_randr_get_output_info_reply_t *initial = NULL;
+    size_t name_length = output_name ? strlen(output_name) : 0;
 
     for (unsigned i = 0; i < resources->num_outputs; i++) {
         xcb_randr_get_output_info_cookie_t cookie = xcb_randr_get_output_info(
             observer, outputs[i], resources->config_timestamp);
 
         initial = xcb_randr_get_output_info_reply(observer, cookie, NULL);
-        if (initial && initial->crtc &&
-            initial->connection == XCB_RANDR_CONNECTION_CONNECTED) {
+        if (!initial)
+            continue;
+
+        bool active = initial->crtc &&
+                      initial->connection == XCB_RANDR_CONNECTION_CONNECTED;
+        bool matches = true;
+
+        if (output_name) {
+            size_t length = xcb_randr_get_output_info_name_length(initial);
+            const uint8_t *name = xcb_randr_get_output_info_name(initial);
+
+            matches = length == name_length &&
+                      memcmp(name, output_name, length) == 0;
+        }
+        if (active && matches) {
             output = outputs[i];
             break;
         }
@@ -362,6 +376,11 @@ test_output_loss(xcb_connection_t *client, xcb_connection_t *observer,
     }
 
     free(resources);
+    if (!initial && output_name) {
+        fprintf(stderr, "RandR output '%s' must be connected and active\n",
+                output_name);
+        exit(EXIT_FAILURE);
+    }
     require(initial != NULL, "connected output with active scanout");
 
     xcb_present_event_t id = xcb_generate_id(observer);
@@ -632,23 +651,30 @@ test_disconnect(xcb_connection_t *client, xcb_connection_t *observer,
 int
 main(int argc, char **argv)
 {
-    bool legacy_flip = argc == 2 && !strcmp(argv[1], "--unavailable-flip");
-    bool unavailable = legacy_flip || (argc == 2 &&
-                                       !strcmp(argv[1], "--unavailable"));
-    bool flip = argc == 2 && !strcmp(argv[1], "--flip");
-    bool fallback = argc == 2 && !strcmp(argv[1], "--flip-fallback");
-    bool access_failure = argc == 2 && !strcmp(argv[1], "--access-failure");
-    bool output_loss = argc == 2 && !strcmp(argv[1], "--output-loss");
-
+    const char *mode = argc > 1 ? argv[1] : "";
+    bool legacy_flip = !strcmp(mode, "--unavailable-flip");
+    bool unavailable = legacy_flip || !strcmp(mode, "--unavailable");
+    bool flip = !strcmp(mode, "--flip");
+    bool fallback = !strcmp(mode, "--flip-fallback");
+    bool access_failure = !strcmp(mode, "--access-failure");
+    bool output_loss = !strcmp(mode, "--output-loss");
+    const char *output_name = output_loss && argc == 3 ? argv[2] : NULL;
     bool fullscreen = flip || fallback || legacy_flip || output_loss;
     bool recognized = unavailable || fullscreen || access_failure;
+    bool single_mode = argc == 2 && recognized;
+    bool named_output = output_name && *output_name && *output_name != '-';
+    bool valid = argc == 1 || single_mode || named_output;
+    bool help = argc == 2 && (!strcmp(mode, "--help") || !strcmp(mode, "-h"));
 
-    if (argc > 1 && !recognized) {
-        fprintf(stderr, "usage: %s [--unavailable|--unavailable-flip|"
+    if (help || !valid) {
+        FILE *stream = help ? stdout : stderr;
+
+        fprintf(stream, "usage: %s [--unavailable|--unavailable-flip|"
                         "--flip|--flip-fallback|--access-failure|"
-                        "--output-loss]\n",
+                        "--output-loss [OUTPUT]]\n"
+                        "OUTPUT is a connected, active RandR output.\n",
                 argv[0]);
-        return EXIT_FAILURE;
+        return help ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     xcb_connection_t *client = xcb_connect(NULL, NULL);
@@ -729,7 +755,8 @@ main(int argc, char **argv)
                                             rect.width, rect.height));
 
     if (output_loss) {
-        test_output_loss(client, observer, screen->root, win, pixmap, fd);
+        test_output_loss(client, observer, screen->root, win, pixmap, fd,
+                         output_name);
         xcb_disconnect(client);
         xcb_disconnect(observer);
         close(fd);
