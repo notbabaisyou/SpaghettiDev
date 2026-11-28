@@ -2,12 +2,6 @@
 #include "vaccum_gbm_priv.h"
 #include "vaccum_dri3_syncobj.h"
 #include "gcstruct.h"
-#include "picturestr.h"
-#include "os/xserver_poll.h"
-#include <errno.h>
-#include <gbm.h>
-#include <poll.h>
-#include <unistd.h>
 #ifdef HAVE_XSHMFENCE
 #include "misyncshm.h"
 #endif
@@ -82,61 +76,10 @@ block_handler(ScreenPtr screen, void *timeout)
     screen->BlockHandler = block_handler;
 }
 
-static void
-wait_drawable(DrawablePtr drawable, short events)
-{
-    PixmapPtr pixmap =
-        drawable->type == DRAWABLE_PIXMAP
-            ? (PixmapPtr)drawable
-            : drawable->pScreen->GetWindowPixmap((WindowPtr)drawable);
-    struct vaccum_gbm_pixmap *priv = pixmap_data(pixmap);
-
-    if (!priv->bo)
-        return;
-
-    struct pollfd fence = {.fd = gbm_bo_get_fd(priv->bo), .events = events};
-
-    if (fence.fd < 0)
-        return;
-
-    while (xserver_poll(&fence, 1, -1) < 0 && errno == EINTR)
-        continue;
-
-    close(fence.fd);
-}
-
-static void
-get_image(DrawablePtr draw, int x, int y, int w, int h, unsigned format,
-          unsigned long mask, char *pixels)
-{
-    struct vaccum_gbm_screen *priv = screen_data(draw->pScreen);
-
-    wait_drawable(draw, POLLIN);
-    priv->get_image(draw, x, y, w, h, format, mask, pixels);
-}
-
-static void
-composite(CARD8 op, PicturePtr src, PicturePtr mask, PicturePtr dst, INT16 sx,
-          INT16 sy, INT16 mx, INT16 my, INT16 dx, INT16 dy, CARD16 width,
-          CARD16 height)
-{
-    struct vaccum_gbm_screen *priv = screen_data(dst->pDrawable->pScreen);
-
-    if (src && src->pDrawable)
-        wait_drawable(src->pDrawable, POLLIN);
-    if (mask && mask->pDrawable)
-        wait_drawable(mask->pDrawable, POLLIN);
-    wait_drawable(dst->pDrawable, POLLOUT);
-    priv->composite(op, src, mask, dst, sx, sy, mx, my, dx, dy, width,
-                    height);
-}
-
 static RegionPtr
 copy_area(DrawablePtr src, DrawablePtr dst, GCPtr gc, int x, int y, int w,
           int h, int tx, int ty)
 {
-    wait_drawable(src, POLLIN);
-    wait_drawable(dst, POLLOUT);
     Bool pixmaps = src->type == DRAWABLE_PIXMAP &&
                    dst->type == DRAWABLE_PIXMAP;
 
@@ -178,9 +121,6 @@ close_screen(ScreenPtr screen)
 
     vaccum_linear_flush(priv->gpu);
     screen->BlockHandler = priv->block_handler;
-    screen->GetImage = priv->get_image;
-    if (priv->composite)
-        GetPictureScreen(screen)->Composite = priv->composite;
     screen->CreateGC = priv->create_gc;
     screen->CreatePixmap = priv->create_pixmap;
     screen->CloseScreen = priv->close;
@@ -188,7 +128,10 @@ close_screen(ScreenPtr screen)
 
     screen->DestroyPixmap = priv->destroy_pixmap;
     screen->ModifyPixmapHeader = priv->modify_pixmap_header;
+    fbSetPixmapCpuAccessProc(screen, NULL);
     fbSetPixmapAccessProc(screen, NULL);
+    assert(xorg_list_is_empty(priv->dmabufs));
+    free(priv->dmabufs);
     vaccum_linear_fini(priv->gpu);
     return closed;
 }
@@ -210,15 +153,25 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
                                sizeof(struct vaccum_gbm_pixmap)))
         return FALSE;
 
+    /* Screen private storage may move while extensions initialize. */
+    struct xorg_list *dmabufs = malloc(sizeof(*dmabufs));
+
+    if (!dmabufs)
+        return FALSE;
+    xorg_list_init(dmabufs);
+
     struct vaccum_screen_private *gpu = vaccum_linear_init(fd);
 
     if (!gpu)
-        return FALSE;
+        goto free_dmabufs;
     if (!fbSetPixmapAccessProc(screen, wait_pixels))
         goto fail;
+    if (!fbSetPixmapCpuAccessProc(screen, vaccum_cpu_access))
+        goto clear_wait;
+
 #ifdef HAVE_XSHMFENCE
     if (!miSyncShmScreenInit(screen))
-        goto fail;
+        goto clear_access;
 #endif
 #ifdef DRI3
     static dri3_screen_info_rec timeline_info;
@@ -231,23 +184,15 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
         info = &timeline_info;
     }
     if (!dri3_screen_init(screen, info))
-        goto fail;
+        goto clear_access;
 #endif
 
     struct vaccum_gbm_screen *priv = screen_data(screen);
-    PictureScreenPtr picture = GetPictureScreenIfSet(screen);
 
     priv->gpu = gpu;
     priv->gbm = gbm;
     priv->fd = fd;
-
-    if (picture) {
-        priv->composite = picture->Composite;
-        picture->Composite = composite;
-    }
-
-    priv->get_image = screen->GetImage;
-    screen->GetImage = get_image;
+    priv->dmabufs = dmabufs;
     priv->ops = fbGCOps;
     priv->ops.CopyArea = copy_area;
     priv->create_gc = screen->CreateGC;
@@ -263,9 +208,15 @@ vaccum_gbm_init(ScreenPtr screen, struct gbm_device *gbm, int fd)
     screen->CreateGC = create_gc;
     screen->CloseScreen = close_screen;
     return TRUE;
+#if defined(HAVE_XSHMFENCE) || defined(DRI3)
+clear_access:
+    fbSetPixmapCpuAccessProc(screen, NULL);
+#endif
+clear_wait:
+    fbSetPixmapAccessProc(screen, NULL);
 fail:
-    if (dixPrivateKeyRegistered(&fbPixmapAccessKey))
-        fbSetPixmapAccessProc(screen, NULL);
     vaccum_linear_fini(gpu);
+free_dmabufs:
+    free(dmabufs);
     return FALSE;
 }
