@@ -187,6 +187,18 @@ test_copy(xcb_connection_t *conn, xcb_screen_t *screen)
 
     check(conn, copy, "copy after software write");
     expect_image(conn, src, RGB_DEPTH, expected, "write and copy round trip");
+
+    xcb_void_cookie_t overlap = xcb_copy_area_checked(
+        conn, src, src, gc, 0, 0, 1, 1, WIDTH - 1, HEIGHT - 1);
+
+    check(conn, overlap, "overlapping CopyArea");
+
+    for (size_t y = HEIGHT - 1; y > 0; y--) {
+        for (size_t x = WIDTH - 1; x > 0; x--)
+            expected[y * WIDTH + x] = expected[(y - 1) * WIDTH + x - 1];
+    }
+
+    expect_image(conn, src, RGB_DEPTH, expected, "overlapping CopyArea");
 }
 
 static xcb_render_pictformat_t
