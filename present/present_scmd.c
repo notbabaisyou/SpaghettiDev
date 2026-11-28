@@ -746,7 +746,7 @@ present_scmd_replace_queued(present_vblank_ptr vblank)
         Bool re_execute = vbl->flip_ready;
 
 #ifdef DRI3
-        re_execute |= vbl->efd >= 0;
+        re_execute |= vbl->acquire_fd >= 0 || vbl->acquire_timer;
 #endif
         present_vblank_scrap(vbl);
 

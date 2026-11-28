@@ -134,7 +134,7 @@ present_vblank_init(present_vblank_ptr vblank,
     vblank->pixmap = pixmap;
 
 #ifdef DRI3
-    vblank->efd = -1;
+    vblank->acquire_fd = -1;
 #endif
 
     if (pixmap) {
@@ -268,12 +268,14 @@ present_vblank_create(WindowPtr window,
 void
 present_vblank_cancel_acquire(present_vblank_ptr vblank)
 {
-    if (vblank->efd < 0)
+    TimerFree(vblank->acquire_timer);
+    vblank->acquire_timer = NULL;
+    if (vblank->acquire_fd < 0)
         return;
 
-    RemoveNotifyFd(vblank->efd);
-    close(vblank->efd);
-    vblank->efd = -1;
+    RemoveNotifyFd(vblank->acquire_fd);
+    close(vblank->acquire_fd);
+    vblank->acquire_fd = -1;
 }
 #endif
 

@@ -96,7 +96,8 @@ struct present_vblank {
     Bool                flip_deferred;
     uint64_t            acquire_point;
     uint64_t            release_point;
-    int                 efd;
+    int                 acquire_fd;
+    OsTimerPtr          acquire_timer;
     Bool                release_signaled;
 #endif /* DRI3 */
 };

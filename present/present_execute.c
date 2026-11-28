@@ -23,9 +23,6 @@
 
 #include "present_priv.h"
 #include <unistd.h>
-#ifdef DRI3
-#include <sys/eventfd.h>
-#endif /* DRI3 */
 
 /*
  * Called when the wait fence is triggered; just gets the current msc/ust and
@@ -43,19 +40,60 @@ present_wait_fence_triggered(void *param)
 }
 
 #ifdef DRI3
+enum { PRESENT_ACQUIRE_POLL_MS = 4 };
+
 static void
-present_syncobj_triggered(int fd, int xevents, void *data)
+present_acquire_ready(present_vblank_ptr vblank)
+{
+    present_vblank_cancel_acquire(vblank);
+    present_screen_priv(vblank->screen)->re_execute(vblank);
+}
+
+static void
+present_acquire_fd_ready(int fd, int xevents, void *data)
+{
+    present_acquire_ready(data);
+}
+
+static Bool
+present_watch_acquire(present_vblank_ptr vblank)
+{
+    struct dri3_syncobj *timeline = vblank->acquire_syncobj;
+    uint64_t point = vblank->acquire_point;
+
+    if (!timeline->has_fence(timeline, point))
+        return FALSE;
+
+    int fd = timeline->export_fence(timeline, point);
+
+    if (fd < 0)
+        return FALSE;
+    if (!SetNotifyFd(fd, present_acquire_fd_ready, X_NOTIFY_READ, vblank)) {
+        close(fd);
+        return FALSE;
+    }
+
+    vblank->acquire_fd = fd;
+    return TRUE;
+}
+
+static CARD32
+present_poll_acquire(OsTimerPtr timer, CARD32 now, void *data)
 {
     present_vblank_ptr vblank = data;
-    ScreenPtr screen = vblank->screen;
-    present_screen_priv_ptr screen_priv = present_screen_priv(screen);
+    struct dri3_syncobj *timeline = vblank->acquire_syncobj;
 
-    present_vblank_cancel_acquire(vblank);
+    if (timeline->is_signaled(timeline, vblank->acquire_point)) {
+        present_acquire_ready(vblank);
+        return 0;
+    }
 
-    if (!vblank->acquire_syncobj->is_signaled(vblank->acquire_syncobj,
-                                              vblank->acquire_point))
-        present_vblank_scrap(vblank);
-    screen_priv->re_execute(vblank);
+    if (!present_watch_acquire(vblank))
+        return PRESENT_ACQUIRE_POLL_MS;
+
+    vblank->acquire_timer = NULL;
+    TimerFree(timer);
+    return 0;
 }
 #endif /* DRI3 */
 
@@ -67,7 +105,7 @@ present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
     present_screen_priv_ptr screen_priv = present_screen_priv(screen);
 
 #ifdef DRI3
-    if (vblank->efd >= 0)
+    if (vblank->acquire_fd >= 0 || vblank->acquire_timer)
         return TRUE;
 #endif
 
@@ -87,20 +125,20 @@ present_execute_wait(present_vblank_ptr vblank, uint64_t crtc_msc)
     }
 
 #ifdef DRI3
-    if (vblank->acquire_syncobj && vblank->pixmap &&
-        !vblank->acquire_syncobj->is_signaled(vblank->acquire_syncobj,
-                                              vblank->acquire_point)) {
-        vblank->efd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-        Bool listening = vblank->efd >= 0 &&
-            SetNotifyFd(vblank->efd, present_syncobj_triggered, X_NOTIFY_READ,
-                        vblank);
+    struct dri3_syncobj *timeline = vblank->acquire_syncobj;
 
-        if (listening) {
-            vblank->acquire_syncobj->signaled_eventfd(vblank->acquire_syncobj,
-                                                      vblank->acquire_point,
-                                                      vblank->efd);
+    if (timeline && vblank->pixmap &&
+        !timeline->is_signaled(timeline, vblank->acquire_point)) {
+        /*
+         * A sync_file watch can be canceled when the request is dropped.
+         * An unsubmitted timeline point has no fence to export yet.
+         */
+        if (present_watch_acquire(vblank))
             return TRUE;
-        }
+        vblank->acquire_timer = TimerSet(NULL, 0, PRESENT_ACQUIRE_POLL_MS,
+                                         present_poll_acquire, vblank);
+        if (vblank->acquire_timer)
+            return TRUE;
 
         /* Skip safely if there is no way to wait without blocking X. */
         present_vblank_scrap(vblank);
