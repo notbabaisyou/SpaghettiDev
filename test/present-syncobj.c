@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/eventfd.h>
+#include <sys/mman.h>
+#ifdef __linux__
+#include <linux/dma-buf.h>
+#include <sys/ioctl.h>
+#endif
 #include <unistd.h>
 #include <xcb/xcb.h>
 #include <xcb/dri3.h>
@@ -60,7 +65,72 @@ check_color(xcb_connection_t *conn, xcb_window_t win, uint32_t expected)
     free(reply);
 }
 
+struct producer_mapping {
+    uint8_t *pixels;
+    size_t length;
+    unsigned width, height, stride;
+    int fd;
+};
+
+static struct producer_mapping
+map_pixmap(xcb_connection_t *conn, xcb_pixmap_t pixmap)
+{
+    xcb_dri3_buffer_from_pixmap_cookie_t cookie =
+        xcb_dri3_buffer_from_pixmap(conn, pixmap);
+    xcb_dri3_buffer_from_pixmap_reply_t *reply =
+        xcb_dri3_buffer_from_pixmap_reply(conn, cookie, NULL);
+
+    REQUIRE(reply && reply->nfd == 1 && reply->bpp == 32);
+    REQUIRE(reply->stride >= reply->width * sizeof(uint32_t));
+    REQUIRE(reply->size >= (size_t)reply->stride * reply->height);
+
+    struct producer_mapping map = {
+        .width = reply->width,
+        .height = reply->height,
+        .stride = reply->stride,
+        .length = reply->size,
+        .fd = *xcb_dri3_buffer_from_pixmap_reply_fds(conn, reply),
+    };
+
+    free(reply);
+    map.pixels = mmap(NULL, map.length, PROT_READ | PROT_WRITE, MAP_SHARED,
+                      map.fd, 0);
+    REQUIRE(map.pixels != MAP_FAILED);
+    return map;
+}
+
+static void
+write_pixmap(const struct producer_mapping *map, uint32_t color)
+{
+#ifdef __linux__
+    struct dma_buf_sync sync = { .flags = DMA_BUF_SYNC_START |
+                                          DMA_BUF_SYNC_WRITE };
+
+    REQUIRE(ioctl(map->fd, DMA_BUF_IOCTL_SYNC, &sync) == 0);
+#endif
+
+    for (unsigned y = 0; y < map->height; y++) {
+        uint32_t *row = (void *)(map->pixels + y * map->stride);
+
+        for (unsigned x = 0; x < map->width; x++)
+            row[x] = color;
+    }
+
+#ifdef __linux__
+    sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE;
+    REQUIRE(ioctl(map->fd, DMA_BUF_IOCTL_SYNC, &sync) == 0);
+#endif
+}
+
+static void
+unmap_pixmap(const struct producer_mapping *map)
+{
+    REQUIRE(munmap(map->pixels, map->length) == 0);
+    close(map->fd);
+}
+
 struct flip_buffer {
+    struct producer_mapping map;
     xcb_pixmap_t pixmap;
     xcb_dri3_syncobj_t syncobj;
     uint32_t handle;
@@ -116,7 +186,6 @@ test_flip(xcb_connection_t *client, xcb_connection_t *observer,
     xcb_present_event_t eid = xcb_generate_id(client);
     xcb_special_event_t *events =
         xcb_register_for_special_xge(client, &xcb_present_id, eid, NULL);
-    xcb_gcontext_t gc = xcb_generate_id(client);
     uint32_t expected = 0;
 
     REQUIRE(events);
@@ -135,14 +204,12 @@ test_flip(xcb_connection_t *client, xcb_connection_t *observer,
         check(client,
               xcb_create_pixmap_checked(client, 24, buffer->pixmap, win,
                                         rect.width, rect.height));
+        buffer->map = map_pixmap(client, buffer->pixmap);
         REQUIRE(!drmSyncobjCreate(fd, 0, &buffer->handle));
         REQUIRE(!drmSyncobjHandleToFD(fd, buffer->handle, &shared));
         check(client, xcb_dri3_import_syncobj_checked(client, buffer->syncobj,
                                                       win, shared));
     }
-
-    check(client,
-          xcb_create_gc_checked(client, gc, buffers[0].pixmap, 0, NULL));
 
     /* Distinct timelines keep a new acquire from advancing an old release. */
     for (unsigned frame = 0; frame < 4; frame++) {
@@ -154,10 +221,7 @@ test_flip(xcb_connection_t *client, xcb_connection_t *observer,
         uint64_t release = acquire + 1;
         uint32_t color = frame % 2 ? 0x1ac332 : 0xd2184b;
 
-        check(client,
-              xcb_change_gc_checked(client, gc, XCB_GC_FOREGROUND, &color));
-        check(client, xcb_poly_fill_rectangle_checked(client, next->pixmap,
-                                                      gc, 1, &rect));
+        write_pixmap(&next->map, color);
         REQUIRE(!drmSyncobjEventfd(fd, next->handle, release, next->idle, 0));
         check(client, xcb_present_pixmap_synced_checked(
                           client, win, next->pixmap, frame + 1, 0, 0, 0, 0, 0,
@@ -177,11 +241,7 @@ test_flip(xcb_connection_t *client, xcb_connection_t *observer,
 
             REQUIRE(poll(&previous, 1, 3000) == 1);
             REQUIRE(!eventfd_read(old->idle, &value));
-            uint32_t overwrite = 0;
-            check(client, xcb_change_gc_checked(client, gc, XCB_GC_FOREGROUND,
-                                                &overwrite));
-            check(client, xcb_poly_fill_rectangle_checked(client, old->pixmap,
-                                                          gc, 1, &rect));
+            write_pixmap(&old->map, 0);
         }
 
         check_color(observer, win, color);
@@ -193,8 +253,10 @@ test_flip(xcb_connection_t *client, xcb_connection_t *observer,
 
     REQUIRE(poll(&retired, 1, 3000) == 1);
     xcb_unregister_for_special_event(client, events);
-    for (unsigned i = 0; i < 2; i++)
+    for (unsigned i = 0; i < 2; i++) {
+        unmap_pixmap(&buffers[i].map);
         close(buffers[i].idle);
+    }
 }
 
 static void
@@ -351,7 +413,6 @@ main(int argc, char **argv)
     REQUIRE(screen && screen->root_depth == 24);
     xcb_window_t win = xcb_generate_id(client);
     xcb_pixmap_t pixmap = xcb_generate_id(client);
-    xcb_gcontext_t gc = xcb_generate_id(client);
     uint32_t values[] = {0, 1};
     uint32_t black = values[0];
     xcb_rectangle_t rect = {
@@ -417,7 +478,7 @@ main(int argc, char **argv)
 
     check(client, xcb_create_pixmap_checked(client, 24, pixmap, win,
                                             rect.width, rect.height));
-    check(client, xcb_create_gc_checked(client, gc, pixmap, 0, NULL));
+    struct producer_mapping map = map_pixmap(client, pixmap);
 
     uint32_t options = fallback ? 0 : XCB_PRESENT_OPTION_COPY;
     uint32_t handle;
@@ -437,10 +498,7 @@ main(int argc, char **argv)
         int notify = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
         struct pollfd done = {.fd = notify, .events = POLLIN};
 
-        check(client,
-              xcb_change_gc_checked(client, gc, XCB_GC_FOREGROUND, &color));
-        check(client,
-              xcb_poly_fill_rectangle_checked(client, pixmap, gc, 1, &rect));
+        write_pixmap(&map, color);
         REQUIRE(!drmSyncobjEventfd(fd, handle, release, notify, 0));
         check(client, xcb_present_pixmap_synced_checked(
                           client, win, pixmap, frame, 0, 0, 0, 0, 0, id, id,
@@ -451,10 +509,7 @@ main(int argc, char **argv)
         REQUIRE(!drmSyncobjTimelineSignal(fd, &handle, &acquire, 1));
         REQUIRE(poll(&done, 1, 3000) == 1);
         close(notify);
-        check(client,
-              xcb_change_gc_checked(client, gc, XCB_GC_FOREGROUND, &black));
-        check(client,
-              xcb_poly_fill_rectangle_checked(client, pixmap, gc, 1, &rect));
+        write_pixmap(&map, black);
         check_color(observer, win, color);
         expected = color;
     }
@@ -474,6 +529,7 @@ main(int argc, char **argv)
     check(client, xcb_destroy_window_checked(client, win));
     REQUIRE(poll(&done, 1, 3000) == 1);
     close(notify);
+    unmap_pixmap(&map);
     test_disconnect(client, observer, rect, fd, false);
     xcb_disconnect(observer);
     close(fd);
