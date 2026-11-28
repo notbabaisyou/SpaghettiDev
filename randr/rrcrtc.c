@@ -998,6 +998,9 @@ static Bool RRCrtcInScreen(ScreenPtr pScreen, RRCrtcPtr findCrtc)
         return FALSE;
 
     pScrPriv = rrGetScrPriv(pScreen);
+    if (!pScrPriv)
+        return FALSE;
+
     for (c = 0; c < pScrPriv->numCrtcs; c++) {
         if (pScrPriv->crtcs[c] == findCrtc)
             return TRUE;

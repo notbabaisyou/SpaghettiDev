@@ -56,6 +56,38 @@ present_want_async_flip(uint32_t options, uint32_t capabilities)
 	return FALSE;
 }
 
+static void
+present_vblank_check_flip(present_vblank_ptr vblank, RegionPtr valid)
+{
+    ScreenPtr screen = vblank->crtc ? vblank->crtc->pScreen : vblank->screen;
+    present_screen_priv_ptr priv = present_screen_priv(screen);
+    Bool sync_flip = vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS;
+
+    if (priv->check_flip(vblank->crtc, vblank->window, vblank->pixmap,
+                         sync_flip, valid, vblank->x_off, vblank->y_off,
+                         &vblank->reason))
+        vblank->mode = PresentCompleteModeFlip;
+}
+
+#ifdef DRI3
+void
+present_vblank_check_syncobj_flip(present_vblank_ptr vblank)
+{
+    vblank->flip_deferred = FALSE;
+    if (vblank->pixmap)
+        present_vblank_check_flip(vblank, vblank->flip_valid);
+
+    if (vblank->flip_valid) {
+        RegionDestroy(vblank->flip_valid);
+        vblank->flip_valid = NULL;
+    }
+
+    if (vblank->mode == PresentCompleteModeCopy &&
+        vblank->reason < PRESENT_FLIP_REASON_DRIVER_TEARFREE)
+        vblank->exec_msc = vblank->target_msc;
+}
+#endif
+
 /* The memory vblank points to must be 0-initialized before calling this function.
  *
  * If this function returns FALSE, present_vblank_destroy must be called to clean
@@ -89,7 +121,6 @@ present_vblank_init(present_vblank_ptr vblank,
     ScreenPtr                   screen = window->drawable.pScreen;
     present_window_priv_ptr     window_priv = present_get_window_priv(window, TRUE);
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
-    PresentFlipReason           reason = PRESENT_FLIP_REASON_UNKNOWN;
 
     if (target_crtc) {
         screen_priv = present_screen_priv(target_crtc->pScreen);
@@ -131,23 +162,26 @@ present_vblank_init(present_vblank_ptr vblank,
     vblank->num_notifies = num_notifies;
     vblank->has_suboptimal = (options & PresentOptionSuboptimal);
 
-    if (pixmap != NULL &&
-        !(options & PresentOptionCopy) &&
-        screen_priv->check_flip) {
-
+    vblank->reason = PRESENT_FLIP_REASON_UNKNOWN;
+    if (pixmap && !(options & PresentOptionCopy) && screen_priv->check_flip) {
         Bool sync_flip = !present_want_async_flip(options, capabilities);
+        Bool may_tear = options & PresentOptionAsyncMayTear;
 
-        if (screen_priv->check_flip(target_crtc, window, pixmap,
-                                     sync_flip, valid, x_off, y_off, &reason))
-        {
-            vblank->mode = PresentCompleteModeFlip;
-            if (sync_flip)
-                vblank->flip_type = PRESENT_TYPE_SYNCHRONOUS;
-            else
-                vblank->flip_type = (options & PresentOptionAsyncMayTear) ? PRESENT_TYPE_ASYNC_TEARING : PRESENT_TYPE_ASYNCHRONOUS;
-        }
+        vblank->flip_type = sync_flip ? PRESENT_TYPE_SYNCHRONOUS :
+            may_tear ? PRESENT_TYPE_ASYNC_TEARING : PRESENT_TYPE_ASYNCHRONOUS;
+#ifdef DRI3
+        /* Driver checks may allocate scanout backing and read the pixmap. */
+        if (acquire_syncobj && screen_priv->syncobj_flips) {
+            vblank->flip_deferred = TRUE;
+            if (valid) {
+                vblank->flip_valid = RegionDuplicate(valid);
+                if (!vblank->flip_valid)
+                    goto no_mem;
+            }
+        } else
+#endif
+            present_vblank_check_flip(vblank, valid);
     }
-    vblank->reason = reason;
 
     if (wait_fence) {
         vblank->wait_fence = present_fence_create(wait_fence);
@@ -296,6 +330,8 @@ present_vblank_destroy(present_vblank_ptr vblank)
 
 #ifdef DRI3
     present_vblank_cancel_acquire(vblank);
+    if (vblank->flip_valid)
+        RegionDestroy(vblank->flip_valid);
 
     if (vblank->acquire_syncobj &&
         --vblank->acquire_syncobj->refcount == 0)

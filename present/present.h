@@ -191,6 +191,14 @@ present_event_notify(uint64_t event_id, uint64_t ust, uint64_t msc);
 extern _X_EXPORT Bool
 present_screen_init(ScreenPtr screen, present_screen_info_ptr info);
 
+/* The DDX must report flip completion after all participating CRTCs retire. */
+extern _X_EXPORT void
+present_enable_syncobj_flips(ScreenPtr screen);
+
+/* Drop pending flip references during CloseScreen after KMS teardown. */
+extern _X_EXPORT void
+present_finish_syncobj_flips(ScreenPtr screen, Bool retired);
+
 extern _X_EXPORT void
 present_check_flips(WindowPtr window);
 

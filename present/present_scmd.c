@@ -72,12 +72,12 @@ present_check_flip(RRCrtcPtr            crtc,
     WindowPtr                   root = screen->root;
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
 
-    if (crtc) {
-        if (!(screen_priv = present_screen_priv(crtc->pScreen)))
-            return FALSE;
-    } else {
+    if (!RRCrtcExists(screen, crtc) || !crtc->mode)
         return FALSE;
-    }
+
+    screen_priv = present_screen_priv(crtc->pScreen);
+    if (!screen_priv)
+        return FALSE;
 
     /* Make sure the window hasn't been redirected with Composite */
     window_pixmap = screen->GetWindowPixmap(window);
@@ -200,14 +200,27 @@ present_queue_vblank(ScreenPtr screen,
 }
 
 /*
- * When the wait fence or previous flip is completed, it's time
- * to re-try the request
+ * A queued request can outlive the RandR CRTC it was targeting.
  */
+static void
+present_drop_removed_crtc(present_vblank_ptr vblank)
+{
+    if (!vblank->crtc || RRCrtcExists(vblank->screen, vblank->crtc))
+        return;
+
+    vblank->crtc = NULL;
+    if (vblank->mode == PresentCompleteModeFlip)
+        vblank->mode = PresentCompleteModeCopy;
+    vblank->reason = PRESENT_FLIP_REASON_UNKNOWN;
+}
+
+/* Re-try after the wait fence or previous flip has completed. */
 static void
 present_re_execute(present_vblank_ptr vblank)
 {
     uint64_t            ust = 0, crtc_msc = 0;
 
+    present_drop_removed_crtc(vblank);
     present_get_ust_msc(vblank->screen, vblank->crtc, &ust, &crtc_msc);
 
     present_execute(vblank, ust, crtc_msc);
@@ -235,9 +248,9 @@ present_flip_idle(ScreenPtr screen)
     if (!vblank)
         return;
 
+    screen_priv->flip_active = NULL;
     present_pixmap_idle(vblank);
     present_vblank_destroy(vblank);
-    screen_priv->flip_active = NULL;
 }
 
 void
@@ -328,10 +341,10 @@ present_flip_notify(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     screen_priv->flip_active = vblank;
     screen_priv->flip_pending = NULL;
 
+    present_vblank_notify(vblank, ust, crtc_msc);
+
     if (vblank->abort_flip)
         present_unflip(screen);
-
-    present_vblank_notify(vblank, ust, crtc_msc);
 
     present_flip_try_ready(screen);
 }
@@ -493,8 +506,10 @@ present_scmd_clear_window_flip(WindowPtr window)
     
     if (flip_active && flip_active->window == window) {
         present_restore_screen_pixmap(screen);
-        present_vblank_destroy(flip_active);
-        screen_priv->flip_active = NULL;
+        flip_active->window = NULL;
+
+        if (!screen_priv->flip_pending && !screen_priv->unflip_event_id)
+            present_unflip(screen);
     }
 }
 
@@ -513,12 +528,20 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
 {
     WindowPtr window = vblank->window;
     ScreenPtr screen = window->drawable.pScreen;
+
+    present_drop_removed_crtc(vblank);
+
     ScreenPtr crtc_screen = (vblank->crtc) ? vblank->crtc->pScreen : screen;
     present_screen_priv_ptr screen_priv = (crtc_screen == screen) 
         ? present_screen_priv(screen) : present_screen_priv(crtc_screen);
 
     if (present_execute_wait(vblank, crtc_msc))
         return;
+
+#ifdef DRI3
+    if (vblank->flip_deferred)
+        present_vblank_check_syncobj_flip(vblank);
+#endif
 
     PixmapPtr pixmap = vblank->pixmap;
 
@@ -562,9 +585,10 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
                  *  1) Restore previous flip window pixmap
                  *  2) Set current flip window pixmap to the new pixmap
                  */
-                if (screen_priv->flip_active && screen_priv->flip_active->window != window)
-                    present_set_tree_pixmap(screen_priv->flip_active->window,
-                                            screen_priv->flip_active->pixmap,
+                present_vblank_ptr active = screen_priv->flip_active;
+
+                if (active && active->window && active->window != window)
+                    present_set_tree_pixmap(active->window, active->pixmap,
                                             (*screen->GetScreenPixmap)(screen));
                 present_set_tree_pixmap(window, NULL, pixmap);
                 present_set_tree_pixmap(screen->root, NULL, pixmap);
@@ -739,8 +763,14 @@ present_adjust_exec_msc(present_vblank_ptr vblank, uint64_t crtc_msc)
         !msc_is_after(vblank->exec_msc, crtc_msc + 1))
         vblank->exec_msc -= 2;
     else if (vblank->reason >= PRESENT_FLIP_REASON_DRIVER_TEARFREE ||
-             (vblank->mode == PresentCompleteModeFlip && vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS))
+             (vblank->mode == PresentCompleteModeFlip &&
+              vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS))
         vblank->exec_msc--;
+#ifdef DRI3
+    else if (vblank->flip_deferred &&
+             vblank->flip_type == PRESENT_TYPE_SYNCHRONOUS)
+        vblank->exec_msc--;
+#endif
 }
 
 static int
@@ -789,8 +819,8 @@ present_scmd_pixmap(WindowPtr window,
             release_syncobj->screen != screen)
             return BadMatch;
 
-        /* The screen-mode copy path can release synchronously. */
-        options |= PresentOptionCopy;
+        if (!screen_priv->syncobj_flips)
+            options |= PresentOptionCopy;
     }
 #endif /* DRI3 */
 
@@ -891,7 +921,7 @@ present_scmd_abort_vblank(ScreenPtr screen, WindowPtr window, RRCrtcPtr crtc, ui
 {
     present_vblank_ptr  vblank;
 
-    if (crtc == NULL)
+    if (!RRCrtcExists(screen, crtc))
         present_fake_abort_vblank(screen, event_id, msc);
     else
     {
@@ -920,14 +950,48 @@ present_scmd_abort_vblank(ScreenPtr screen, WindowPtr window, RRCrtcPtr crtc, ui
 static void
 present_scmd_flip_destroy(ScreenPtr screen)
 {
-    present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
+    present_screen_priv_ptr priv = present_screen_priv(screen);
 
-    /* Reset window pixmaps back to the screen pixmap */
-    if (screen_priv->flip_pending)
+    if (priv->flip_pending)
         present_set_abort_flip(screen);
 
-    /* Drop reference to any pending flip or unflip pixmaps. */
+#ifdef DRI3
+    if (priv->syncobj_flips) {
+        /* The DDX drops these references after detaching KMS framebuffers. */
+        if (!priv->flip_pending && priv->flip_active)
+            present_restore_screen_pixmap(screen);
+        return;
+    }
+#endif
+
     present_flip_idle(screen);
+}
+
+void
+present_finish_syncobj_flips(ScreenPtr screen, Bool retired)
+{
+#ifdef DRI3
+    present_screen_priv_ptr priv = present_screen_priv(screen);
+
+    if (!priv || !priv->syncobj_flips)
+        return;
+
+    present_vblank_ptr flips[] = { priv->flip_pending, priv->flip_active };
+
+    priv->flip_pending = NULL;
+    priv->flip_active = NULL;
+    priv->unflip_event_id = 0;
+
+    for (unsigned i = 0; i < ARRAY_SIZE(flips); i++) {
+        present_vblank_ptr flip = flips[i];
+
+        if (!flip)
+            continue;
+        if (retired)
+            present_pixmap_idle(flip);
+        present_vblank_destroy(flip);
+    }
+#endif
 }
 
 void

@@ -91,6 +91,8 @@ struct present_vblank {
 #ifdef DRI3
     struct dri3_syncobj *acquire_syncobj;
     struct dri3_syncobj *release_syncobj;
+    RegionPtr           flip_valid;
+    Bool                flip_deferred;
     uint64_t            acquire_point;
     uint64_t            release_point;
     int                 efd;
@@ -178,6 +180,9 @@ struct present_screen_priv {
     uint64_t                    unflip_event_id;
 
     uint32_t                    fake_interval;
+#ifdef DRI3
+    Bool                        syncobj_flips;
+#endif
 
     present_screen_info_ptr     info;
 
@@ -489,6 +494,7 @@ present_vblank_create(WindowPtr window,
 
 #ifdef DRI3
 void present_vblank_cancel_acquire(present_vblank_ptr vblank);
+void present_vblank_check_syncobj_flip(present_vblank_ptr vblank);
 #endif
 
 void

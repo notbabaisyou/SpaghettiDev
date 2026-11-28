@@ -241,6 +241,17 @@ present_screen_init(ScreenPtr screen, present_screen_info_ptr info)
     return TRUE;
 }
 
+void
+present_enable_syncobj_flips(ScreenPtr screen)
+{
+#ifdef DRI3
+    present_screen_priv_ptr priv = present_screen_priv(screen);
+
+    if (priv)
+        priv->syncobj_flips = TRUE;
+#endif
+}
+
 /*
  * Initialize the present extension
  */
